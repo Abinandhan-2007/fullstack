@@ -1,130 +1,120 @@
-import React, { useState } from 'react';
-import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+
+// --- PLACEHOLDERS FOR YOUR NEW PAGES ---
+// (We will create these files in the /pages folder next)
+const Dashboard = () => <div className="p-10"><h1>Dashboard Page</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
+const SkillTest = () => <div className="p-10"><h1>Skill Test Page</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
+const AcademicData = () => <div className="p-10"><h1>Academic Data Page</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
+const Subjects = () => <div className="p-10"><h1>Subjects Page</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
+const Placement = () => <div className="p-10"><h1>Placement Page</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
+const Leave = () => <div className="p-10"><h1>Leave Portal</h1><Link to="/" className="text-blue-500 underline">Back to Home</Link></div>;
 
 function App() {
-  // Instead of a true/false switch, we now store the actual logged-in user's data
   const [user, setUser] = useState(null);
+  const [backendMessage, setBackendMessage] = useState("");
+
+  // 1. Check if user is already logged in (Local Storage)
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) setUser(JSON.parse(savedUser));
+  }, []);
+
+  // 2. Fetch connection status from your Render Backend
+  useEffect(() => {
+    if (user) {
+      fetch("https://fullstack-q3c5.onrender.com/api/status")
+        .then(res => res.json())
+        .then(data => setBackendMessage(data.message))
+        .catch(err => console.error("Backend offline", err));
+    }
+  }, [user]);
+
+  const handleLogin = () => {
+    // Simulated Google Login for now
+    const mockUser = { name: "Abinandhan", email: "abi@example.com" };
+    setUser(mockUser);
+    localStorage.setItem("user", JSON.stringify(mockUser));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem("user");
+  };
 
   const portals = [
-    { title: 'Dashboard', icon: '📊', desc: 'Return to the main engineering analytics and system metrics panel.', color: 'bg-blue-500' },
-    { title: 'Skill Test', icon: '💻', desc: 'Practice programming MCQs and technical coding challenges.', color: 'bg-indigo-500' },
-    { title: 'Academic Data', icon: '🎓', desc: 'View your overall CGPA, semester credits, and university records.', color: 'bg-emerald-500' },
-    { title: 'Subjects', icon: '📚', desc: 'Access standard course materials, assignments, and NPTEL tracking.', color: 'bg-amber-500' },
-    { title: 'Placement', icon: '🚀', desc: 'Track interview schedules, resume updates, and upcoming placement drives.', color: 'bg-violet-500' },
-    { title: 'Leave', icon: '📅', desc: 'Apply for on-duty (OD), medical leave, or general absences.', color: 'bg-rose-500' },
+    { id: 'dashboard', title: 'Dashboard', icon: '📊', color: 'bg-blue-500' },
+    { id: 'skill-test', title: 'Skill Test', icon: '🧠', color: 'bg-purple-500' },
+    { id: 'academic-data', title: 'Academic Data', icon: '🎓', color: 'bg-emerald-500' },
+    { id: 'subjects', title: 'Subjects', icon: '📚', color: 'bg-orange-500' },
+    { id: 'placement', title: 'Placement', icon: '💼', color: 'bg-indigo-500' },
+    { id: 'leave', title: 'Leave', icon: '📝', color: 'bg-rose-500' },
   ];
 
-  // ==========================================
-  // THE LOGIN SCREEN (Shows if no user is logged in)
-  // ==========================================
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white max-w-md w-full p-10 rounded-3xl shadow-xl border border-slate-100 text-center">
-          
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-inner mx-auto mb-6">
-            C
-          </div>
-          
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight mb-2">
-            Sign in
-          </h2>
-          <p className="text-slate-500 font-medium mb-10">
-            to continue to the Central Portal
-          </p>
-
-          {/* REAL GOOGLE LOGIN COMPONENT */}
-          <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={(credentialResponse) => {
-                // Decode the secure token to get the user's details
-                const decodedUser = jwtDecode(credentialResponse.credential);
-                console.log("Login Success! User Details:", decodedUser);
-                setUser(decodedUser); // Save user to state to unlock the portal
-              }}
-              onError={() => {
-                console.log('Login Failed');
-              }}
-              theme="outline"
-              size="large"
-              shape="pill"
-            />
-          </div>
-
-          <div className="mt-10 pt-8 border-t border-slate-100 flex justify-center gap-4 text-sm text-slate-500 font-medium">
-            <a href="#" className="hover:text-slate-800 transition-colors">Help</a>
-            <a href="#" className="hover:text-slate-800 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-slate-800 transition-colors">Terms</a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // THE CENTRAL PORTAL (Shows after successful login)
-  // ==========================================
   return (
-    <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
-      <header className="bg-white shadow-sm border-b border-slate-200 px-8 py-4 flex justify-between items-center z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">
-            C
+    <Router>
+      <div className="min-h-screen bg-slate-50 font-sans">
+        {!user ? (
+          // --- LOGIN SCREEN ---
+          <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-br from-indigo-600 to-blue-700 text-white">
+            <h1 className="text-5xl font-black mb-4">CENTRAL PORTAL</h1>
+            <p className="mb-8 opacity-80 text-lg">Engineering Student Gateway</p>
+            <button 
+              onClick={handleLogin}
+              className="bg-white text-indigo-600 px-8 py-4 rounded-full font-bold shadow-2xl hover:scale-105 transition-transform"
+            >
+              Sign in with Google
+            </button>
           </div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-            Central<span className="text-blue-600">Portal</span>
-          </h1>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden md:block">
-            {/* Displaying the ACTUAL name from Google! */}
-            <p className="text-sm font-bold text-slate-700">{user.name}</p>
-            <p className="text-xs text-slate-500 font-medium">{user.email}</p>
-          </div>
-          {/* Displaying the ACTUAL profile picture from Google! */}
-          <img 
-            src={user.picture} 
-            alt="Profile" 
-            className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm"
-          />
-          <button 
-            onClick={() => setUser(null)}
-            className="text-sm font-semibold text-rose-500 hover:text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors ml-2"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-12 md:py-20 animate-in fade-in duration-500 slide-in-from-bottom-4">
-        <div className="mb-12 text-center">
-          <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">
-            Welcome to your Workspace, {user.given_name}
-          </h2>
-          <p className="text-slate-500 mt-3 font-medium text-lg">
-            Select a module below to access your tools.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {portals.map((portal, index) => (
-            <a key={index} href="#" className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group block">
-              <div className={`w-16 h-16 ${portal.color} rounded-2xl flex items-center justify-center text-3xl shadow-inner mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                {portal.icon}
+        ) : (
+          // --- MAIN APP CONTENT ---
+          <div className="p-6 max-w-7xl mx-auto">
+            {/* Header */}
+            <header className="flex justify-between items-center mb-10">
+              <div>
+                <h1 className="text-3xl font-black text-slate-900">CENTRAL PORTAL</h1>
+                <p className="text-slate-500">Welcome back, {user.name}!</p>
               </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
-                {portal.title}
-              </h3>
-              <p className="text-slate-500 font-medium leading-relaxed">
-                {portal.desc}
-              </p>
-            </a>
-          ))}
-        </div>
-      </main>
-    </div>
+              <button onClick={handleLogout} className="text-slate-400 hover:text-rose-500 transition-colors">Logout</button>
+            </header>
+
+            {/* Backend Connection Success Banner */}
+            {backendMessage && (
+              <div className="bg-emerald-100 border border-emerald-200 text-emerald-800 p-4 rounded-2xl mb-8 text-center font-bold">
+                ✅ {backendMessage}
+              </div>
+            )}
+
+            <Routes>
+              {/* Home Grid View */}
+              <Route path="/" element={
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {portals.map((portal) => (
+                    <Link to={`/${portal.id}`} key={portal.id} className="group transition-all hover:-translate-y-2">
+                      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center">
+                        <div className={`${portal.color} w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mb-6 shadow-lg shadow-blue-200`}>
+                          {portal.icon}
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-800">{portal.title}</h2>
+                        <p className="text-slate-400 mt-2 text-sm leading-relaxed">Enter the {portal.title} workspace to manage your data.</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              } />
+
+              {/* Individual Portal Pages */}
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/skill-test" element={<SkillTest />} />
+              <Route path="/academic-data" element={<AcademicData />} />
+              <Route path="/subjects" element={<Subjects />} />
+              <Route path="/placement" element={<Placement />} />
+              <Route path="/leave" element={<Leave />} />
+            </Routes>
+          </div>
+        )}
+      </div>
+    </Router>
   );
 }
 
