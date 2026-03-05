@@ -1,137 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
-
-// --- FIXED: PLACEHOLDER COMPONENTS ---
-// These ensure the app runs even if your /pages files are missing.
-// You can replace these with your actual imports once the files are ready.
-const Dashboard = () => <div className="p-10 text-2xl font-bold">Dashboard Sector Active</div>;
-const SkillTest = () => <div className="p-10 text-2xl font-bold">Skill Test Sector Active</div>;
-const AcademicData = () => <div className="p-10 text-2xl font-bold">Academic Ledger Sector Active</div>;
-const Subjects = () => <div className="p-10 text-2xl font-bold">Subjects Hub Sector Active</div>;
-const Placement = () => <div className="p-10 text-2xl font-bold">Placement Portal Sector Active</div>;
-const Leave = () => <div className="p-10 text-2xl font-bold">Protocol Management Sector Active</div>;
+import React, { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
 
 function App() {
+  // Instead of a true/false switch, we now store the actual logged-in user's data
   const [user, setUser] = useState(null);
 
-  // Load user from local storage on boot
-  useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) setUser(JSON.parse(savedUser));
-  }, []);
-
-  const handleLogin = () => {
-    const mockUser = { name: "Abinandhan", email: "abi@example.com" };
-    setUser(mockUser);
-    localStorage.setItem("user", JSON.stringify(mockUser));
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-  };
-
   const portals = [
-    { id: 'dashboard', title: 'Analytics Dashboard', icon: '📊', desc: 'Performance metrics', color: 'text-blue-600' },
-    { id: 'skill-test', title: 'Technical Assessment', icon: '⚡', desc: 'Competency verification', color: 'text-amber-500' },
-    { id: 'academic-data', title: 'Academic Ledger', icon: '🎓', desc: 'CGPA & Credit history', color: 'text-emerald-600' },
-    { id: 'subjects', title: 'Curriculum Hub', icon: '📚', desc: 'Course materials', color: 'text-indigo-600' },
-    { id: 'placement', title: 'Career Portal', icon: '🎯', desc: 'Job offers & Prep', color: 'text-rose-600' },
-    { id: 'leave', title: 'Protocol Management', icon: '📝', desc: 'Leave authorization', color: 'text-slate-600' },
+    { title: 'Dashboard', icon: '📊', desc: 'Return to the main engineering analytics and system metrics panel.', color: 'bg-blue-500' },
+    { title: 'Skill Test', icon: '💻', desc: 'Practice programming MCQs and technical coding challenges.', color: 'bg-indigo-500' },
+    { title: 'Academic Data', icon: '🎓', desc: 'View your overall CGPA, semester credits, and university records.', color: 'bg-emerald-500' },
+    { title: 'Subjects', icon: '📚', desc: 'Access standard course materials, assignments, and NPTEL tracking.', color: 'bg-amber-500' },
+    { title: 'Placement', icon: '🚀', desc: 'Track interview schedules, resume updates, and upcoming placement drives.', color: 'bg-violet-500' },
+    { title: 'Leave', icon: '📅', desc: 'Apply for on-duty (OD), medical leave, or general absences.', color: 'bg-rose-500' },
   ];
 
-  // 1. LOGIN SCREEN (If no user)
+  // ==========================================
+  // THE LOGIN SCREEN (Shows if no user is logged in)
+  // ==========================================
   if (!user) {
     return (
-      <div className="h-screen bg-[#0f172a] flex flex-col items-center justify-center text-white px-4">
-        <div className="w-16 h-16 bg-blue-600 rounded-2xl mb-8 shadow-[0_0_40px_rgba(37,99,235,0.4)] animate-bounce"></div>
-        <h1 className="text-5xl font-black tracking-tighter mb-2 italic">CENTRAL PORTAL</h1>
-        <p className="text-slate-500 mb-10 tracking-[0.2em] uppercase text-xs font-bold">Systems Initializing...</p>
-        <button 
-          onClick={handleLogin}
-          className="bg-white text-slate-900 px-10 py-4 rounded-full font-bold hover:bg-blue-500 hover:text-white transition-all transform hover:scale-105 shadow-xl"
-        >
-          Initialize System Access
-        </button>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+        <div className="bg-white max-w-md w-full p-10 rounded-3xl shadow-xl border border-slate-100 text-center">
+          
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl shadow-inner mx-auto mb-6">
+            C
+          </div>
+          
+          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight mb-2">
+            Sign in
+          </h2>
+          <p className="text-slate-500 font-medium mb-10">
+            to continue to the Central Portal
+          </p>
+
+          {/* REAL GOOGLE LOGIN COMPONENT */}
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={(credentialResponse) => {
+                // Decode the secure token to get the user's details
+                const decodedUser = jwtDecode(credentialResponse.credential);
+                console.log("Login Success! User Details:", decodedUser);
+                setUser(decodedUser); // Save user to state to unlock the portal
+              }}
+              onError={() => {
+                console.log('Login Failed');
+              }}
+              theme="outline"
+              size="large"
+              shape="pill"
+            />
+          </div>
+
+          <div className="mt-10 pt-8 border-t border-slate-100 flex justify-center gap-4 text-sm text-slate-500 font-medium">
+            <a href="#" className="hover:text-slate-800 transition-colors">Help</a>
+            <a href="#" className="hover:text-slate-800 transition-colors">Privacy</a>
+            <a href="#" className="hover:text-slate-800 transition-colors">Terms</a>
+          </div>
+        </div>
       </div>
     );
   }
 
-  // 2. MAIN APP (If logged in)
+  // ==========================================
+  // THE CENTRAL PORTAL (Shows after successful login)
+  // ==========================================
   return (
-    <Router>
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
-        
-        {/* GLOBAL NAVIGATION BAR */}
-        <nav className="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <Link to="/" className="font-black text-xl tracking-tighter italic text-blue-600 hover:opacity-80 transition-opacity">
-              CENTRAL.SYSTEMS
-            </Link>
-            <div className="flex items-center gap-6">
-              <div className="text-right hidden sm:block">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Auth User</p>
-                <p className="text-sm font-bold text-slate-700">{user.name}</p>
-              </div>
-              <button 
-                onClick={handleLogout} 
-                className="bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 px-4 py-2 rounded-lg text-xs font-bold transition-colors uppercase tracking-wider"
-              >
-                Exit
-              </button>
-            </div>
+    <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
+      <header className="bg-white shadow-sm border-b border-slate-200 px-8 py-4 flex justify-between items-center z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">
+            C
           </div>
-        </nav>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">
+            Central<span className="text-blue-600">Portal</span>
+          </h1>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden md:block">
+            {/* Displaying the ACTUAL name from Google! */}
+            <p className="text-sm font-bold text-slate-700">{user.name}</p>
+            <p className="text-xs text-slate-500 font-medium">{user.email}</p>
+          </div>
+          {/* Displaying the ACTUAL profile picture from Google! */}
+          <img 
+            src={user.picture} 
+            alt="Profile" 
+            className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm"
+          />
+          <button 
+            onClick={() => setUser(null)}
+            className="text-sm font-semibold text-rose-500 hover:text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors ml-2"
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
 
-        {/* PAGE CONTENT AREA */}
-        <main className="max-w-7xl mx-auto px-6 py-12">
-          <Routes>
-            
-            {/* HOME GRID (Matches path "/") */}
-            <Route path="/" element={
-              <div className="animate-in fade-in zoom-in duration-500">
-                <header className="mb-12">
-                  <h2 className="text-4xl font-black tracking-tight text-slate-900 uppercase italic">Command Center</h2>
-                  <p className="text-slate-500 font-medium">Select a specialized module to begin data operations.</p>
-                </header>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-12 md:py-20 animate-in fade-in duration-500 slide-in-from-bottom-4">
+        <div className="mb-12 text-center">
+          <h2 className="text-4xl font-extrabold text-slate-800 tracking-tight">
+            Welcome to your Workspace, {user.given_name}
+          </h2>
+          <p className="text-slate-500 mt-3 font-medium text-lg">
+            Select a module below to access your tools.
+          </p>
+        </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {portals.map((p) => (
-                    <Link 
-                      key={p.id} 
-                      to={`/${p.id}`} 
-                      className="group bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-2xl hover:border-blue-500 hover:-translate-y-1 transition-all duration-300"
-                    >
-                      <div className={`text-4xl mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                        {p.icon}
-                      </div>
-                      <h3 className="text-xl font-bold mb-2 group-hover:text-blue-600 transition-colors">
-                        {p.title}
-                      </h3>
-                      <p className="text-slate-400 text-sm leading-relaxed">
-                        {p.desc}
-                      </p>
-                    </Link>
-                  ))}
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {portals.map((portal, index) => (
+            <a key={index} href="#" className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 group block">
+              <div className={`w-16 h-16 ${portal.color} rounded-2xl flex items-center justify-center text-3xl shadow-inner mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                {portal.icon}
               </div>
-            } />
-
-            {/* SUB-PORTAL ROUTES */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/skill-test" element={<SkillTest />} />
-            <Route path="/academic-data" element={<AcademicData />} />
-            <Route path="/subjects" element={<Subjects />} />
-            <Route path="/placement" element={<Placement />} />
-            <Route path="/leave" element={<Leave />} />
-
-            {/* REDIRECT ANY TYPOS BACK TO HOME */}
-            <Route path="*" element={<Navigate to="/" />} />
-
-          </Routes>
-        </main>
-      </div>
-    </Router>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                {portal.title}
+              </h3>
+              <p className="text-slate-500 font-medium leading-relaxed">
+                {portal.desc}
+              </p>
+            </a>
+          ))}
+        </div>
+      </main>
+    </div>
   );
 }
 
