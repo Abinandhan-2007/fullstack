@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 
-// --- IMPORT YOUR PAGES ---
-// Ensure these files exist in your src/pages folder!
-import Dashboard from './pages/Dashboard';
-import SkillTest from './pages/SkillTest';
-import AcademicData from './pages/AcademicData';
-import Subjects from './pages/Subjects';
-import Placement from './pages/Placement';
-import Leave from './pages/Leave';
+// --- FIXED: PLACEHOLDER COMPONENTS ---
+// These ensure the app runs even if your /pages files are missing.
+// You can replace these with your actual imports once the files are ready.
+const Dashboard = () => <div className="p-10 text-2xl font-bold">Dashboard Sector Active</div>;
+const SkillTest = () => <div className="p-10 text-2xl font-bold">Skill Test Sector Active</div>;
+const AcademicData = () => <div className="p-10 text-2xl font-bold">Academic Ledger Sector Active</div>;
+const Subjects = () => <div className="p-10 text-2xl font-bold">Subjects Hub Sector Active</div>;
+const Placement = () => <div className="p-10 text-2xl font-bold">Placement Portal Sector Active</div>;
+const Leave = () => <div className="p-10 text-2xl font-bold">Protocol Management Sector Active</div>;
 
 function App() {
   const [user, setUser] = useState(null);
