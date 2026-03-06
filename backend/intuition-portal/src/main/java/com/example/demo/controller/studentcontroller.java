@@ -1,25 +1,33 @@
 package com.example.demo.controller;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.example.demo.model.Student;
+import com.example.demo.model.SubjectMark;
+import com.example.demo.repository.StudentRepository;
+import com.example.demo.repository.SubjectMarkRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-// IMPORTANT: Replace the URL below with your actual Vercel frontend URL
-// Make sure there is NO trailing slash (/) at the end of the URL
-@CrossOrigin(origins = "https://fullstack-dfpyxdkbo-abinandhan-2007s-projects.vercel.app/") 
 @RestController
-@RequestMapping("/api")
-public class studentcontroller {
+@RequestMapping("/api/academic")
+@CrossOrigin(origins = "*") 
+public class StudentController {
 
-    @GetMapping("/status")
-    public Map<String, String> getStatus() {
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Hello from your Render Backend! The Central Portal API is officially connected.");
-        response.put("status", "success");
-        return response;
+    @Autowired
+    private StudentRepository studentRepository;
+
+    @Autowired
+    private SubjectMarkRepository subjectMarkRepository;
+
+    // Existing endpoint for dashboard
+    @GetMapping("/{rollNo}")
+    public Student getStudentAcademicData(@PathVariable String rollNo) {
+        return studentRepository.findById(rollNo).orElse(null);
+    }
+
+    // NEW ENDPOINT: Fetch specific semester detailed marks
+    @GetMapping("/{rollNo}/semester/{semesterName}")
+    public List<SubjectMark> getSemesterDetails(@PathVariable String rollNo, @PathVariable String semesterName) {
+        return subjectMarkRepository.findByRollNoAndSemesterName(rollNo, semesterName);
     }
 }
