@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function StaffPortalLayout({ user, handleLogout }) {
+export default function StaffLayout({ user, handleLogout }) {
   return (
     <div className="flex min-h-screen bg-emerald-50 text-slate-900">
       <aside className="w-64 bg-emerald-900 text-white p-6 flex flex-col">

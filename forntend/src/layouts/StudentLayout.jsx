@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function StudentPortalLayout({ user, handleLogout, children }) {
+export default function StudentLayout({ user, handleLogout, children }) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white shadow-sm border-b border-slate-200 px-8 py-4 flex justify-between items-center">

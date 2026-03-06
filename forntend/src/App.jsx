@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 
-// Layout Imports - Ensure these files exist in src/Layouts/
+// Change these lines to match your actual folder name
 import StudentPortalLayout from './Layouts/StudentLayout';
 import HostManagementLayout from './Layouts/HostLayout';
 import StaffPortalLayout from './Layouts/StaffLayout';
