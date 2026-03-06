@@ -12,7 +12,6 @@ import com.example.demo.model.SubjectMark;
 @Repository
 public interface SubjectMarkRepository extends JpaRepository<SubjectMark, Integer> {
     
-    // Explicitly telling Spring Boot exactly how to search the database
     @Query("SELECT s FROM SubjectMark s WHERE s.rollNo = :rollNo AND s.semesterName = :semesterName")
     List<SubjectMark> findByRollNoAndSemesterName(
         @Param("rollNo") String rollNo, 

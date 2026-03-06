@@ -1,16 +1,22 @@
 package com.example.demo.model;
 
-import jakarta.persistence.*;
 import java.util.List;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "student_academic")
 public class Student {
     
     @Id
-    @Column(name = "roll_no") // Explicitly map to the DB column
+    @Column(name = "roll_no")
     private String rollNo;
-    
     private String name;
     private String department;
     private String currentSemester;
@@ -20,8 +26,6 @@ public class Student {
     private String feesDue;
     private String placementFa;
 
-    // FIX: Removed 'mappedBy' and added '@JoinColumn'
-    // This tells Hibernate: "Look for the 'roll_no' column in the SemesterGpa table to find my records."
     @OneToMany(fetch = FetchType.LAZY)
     @JoinColumn(name = "roll_no", referencedColumnName = "roll_no")
     private List<SemesterGpa> semesterRecords;

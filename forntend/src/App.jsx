@@ -3,11 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-ro
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 
-// IMPORT THE NEW DESIGN
 import AcademicData from './page/AcademicData';
 import SemesterResult from './page/SemesterResult';
 
-// PLACEHOLDERS FOR MODULES IN DEVELOPMENT
 const Placeholder = ({ title }) => (
   <div className="text-center py-32 bg-white rounded-[2rem] border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
     <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-6">🚧</div>
@@ -19,7 +17,6 @@ const Placeholder = ({ title }) => (
 export default function App() {
   const [user, setUser] = useState(null);
   const [currentView, setCurrentView] = useState('home');
-  // NEW STATE: Track which semester to view
   const [selectedSemester, setSelectedSemester] = useState(null); 
 
   useEffect(() => {
@@ -39,7 +36,6 @@ export default function App() {
     setCurrentView('home');
   };
 
-  // NEW FUNCTION: Handle the click from AcademicData
   const handleViewSemester = (semesterId) => {
     setSelectedSemester(semesterId);
     setCurrentView('semester-result');
@@ -72,18 +68,14 @@ export default function App() {
   const renderContent = () => {
     switch(currentView) {
       case 'academic':
-        // Pass the function down to AcademicData
         return <AcademicData user={user} onViewSemester={handleViewSemester} />; 
-      
       case 'semester-result':
-        // Render the detailed result page
         return <SemesterResult 
                   semesterId={selectedSemester} 
                   rollNo="7376241CS106" 
                   userName={user?.name || "Abinandhan K"}
                   onBack={() => setCurrentView('academic')} 
                 />;
-                
       case 'dashboard':
         return <Placeholder title="Analytics Dashboard" />;
       case 'skill-test':
@@ -149,7 +141,6 @@ export default function App() {
           </div>
         ) : (
           <div>
-            {/* Hide the 'Back to Workspace' button ONLY if we are inside SemesterResult (which has its own back button) */}
             {currentView !== 'semester-result' && (
               <button 
                 onClick={() => setCurrentView('home')} 
@@ -158,11 +149,9 @@ export default function App() {
                 ← Back to Workspace
               </button>
             )}
-            
             {renderContent()}
           </div>
         )}
-        
       </main>
     </div>
   );
