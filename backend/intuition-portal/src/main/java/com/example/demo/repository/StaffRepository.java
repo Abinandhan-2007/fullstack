@@ -1,1 +1,0 @@
-public interface StaffRepository extends JpaRepository<Staff, String> {}
