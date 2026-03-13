@@ -15,6 +15,9 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [subjectName, setSubjectName] = useState("");
   const [subjectCode, setSubjectCode] = useState("");
   const [credits, setCredits] = useState("");
+  const [courseDepartment, setCourseDepartment] = useState(""); // <-- ADDED
+  const [filterCourseDept, setFilterCourseDept] = useState("ALL");
+  const [selectedDeptForModal, setSelectedDeptForModal] = useState(null);
   const [courseList, setCourseList] = useState([]);
   const [isSavingCourse, setIsSavingCourse] = useState(false);
 
@@ -64,24 +67,27 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   ];
 
   // Fetch all data
+  // Fetch all data
   const fetchData = async () => {
     try {
-      const [staffRes, studentRes, statsRes, courseRes, announceRes] = await Promise.all([
+      // 1. Notice we added 'deptRes' to this list!
+      const [staffRes, studentRes, statsRes, courseRes, announceRes, deptRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`),
         fetch(`${apiUrl}/api/host/stats`),
         fetch(`${apiUrl}/api/host/all-courses`),
         fetch(`${apiUrl}/api/host/all-announcements`),
-        fetch(`${apiUrl}/api/host/all-complaints`),
-        fetch(`${apiUrl}/api/host/all-departments`)// Add this to the list
+        fetch(`${apiUrl}/api/host/all-departments`) // 2. This pulls the departments!
       ]);
-      if (deptRes.ok) setDepartmentList(await deptRes.json()); // Add this (assuming you named the response deptRes)
-      if (complaintRes.ok) setComplaintList(await complaintRes.json());
+
       if (staffRes.ok) setStaffList(await staffRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
       if (courseRes.ok) setCourseList(await courseRes.json());
       if (announceRes.ok) setAnnouncementList(await announceRes.json());
       if (studentRes.ok) setStudentList(await studentRes.json());
+      
+      // 3. This saves them to your screen
+      if (deptRes.ok) setDepartmentList(await deptRes.json()); 
 
     } catch (err) { console.error("Database sync failed:", err); }
   };
@@ -400,58 +406,194 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
     );
   };
 
-  const renderCoursesAndSubjects = () => (
-    <div className="animate-in fade-in duration-500">
-      <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Curriculum Master</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
-          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add Subject</h3>
-          <form onSubmit={handleAddCourse} className="space-y-3.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Name</label>
-              <input type="text" required value={subjectName} onChange={e => setSubjectName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. Data Structures" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Course Code</label>
-              <input type="text" required value={subjectCode} onChange={e => setSubjectCode(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. CS8391" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Credit Units</label>
-              <input type="number" required min="1" max="5" value={credits} onChange={e => setCredits(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. 3" />
-            </div>
-            <button disabled={isSavingCourse} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 transition-colors shadow-sm">
-              {isSavingCourse ? "Saving..." : "Add to Registry"}
-            </button>
-          </form>
-        </div>
+ const renderCoursesAndSubjects = () => {
+    
+    // Filter the courses based on the dropdown selection
+    const filteredCourses = filterCourseDept === "ALL" 
+      ? courseList 
+      : courseList.filter(course => course.department === filterCourseDept);
 
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Official Subject List</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {courseList.length === 0 ? (
-              <p className="text-sm text-slate-400 col-span-2 text-center py-10">Registry is empty.</p>
-            ) : (
-              courseList.map((course) => (
-                <div key={course.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-center group hover:border-amber-300 hover:bg-amber-50/30 transition-colors">
-                  <div>
-                    <p className="font-semibold text-sm text-slate-800">{course.subjectName}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                        {course.subjectCode}
-                      </span>
-                      <span className="text-xs text-slate-500">{course.credits} Credits</span>
+    const handleAddCourse = async (e) => {
+      e.preventDefault();
+      setIsSavingCourse(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/add-course`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subjectName, subjectCode, credits: parseInt(credits), department: courseDepartment })
+        });
+        if (res.ok) {
+          setSubjectName(""); setSubjectCode(""); setCredits(""); setCourseDepartment("");
+          fetchData();
+        } else { alert("Failed to save course. Check for duplicate Subject Codes."); }
+      } catch (err) { alert("Error connecting to server"); } 
+      finally { setIsSavingCourse(false); }
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500 relative">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Curriculum Master</h2>
+        
+        {/* TOP SECTION: Form & List */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Add Subject Form */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Register Subject</h3>
+            <form onSubmit={handleAddCourse} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Name</label>
+                <input type="text" required value={subjectName} onChange={e => setSubjectName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. Data Structures" />
+              </div>
+              
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Course Code</label>
+                <input type="text" required value={subjectCode} onChange={e => setSubjectCode(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. CS8391" />
+              </div>
+              
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Owning Department</label>
+                <select required value={courseDepartment} onChange={e => setCourseDepartment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors appearance-none font-medium text-slate-700 cursor-pointer">
+                  <option value="">-- Select Department --</option>
+                  {departmentList.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Credit Units</label>
+                <input type="number" required min="1" max="5" value={credits} onChange={e => setCredits(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors" placeholder="e.g. 3" />
+              </div>
+              
+              <button disabled={isSavingCourse} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 transition-colors shadow-sm">
+                {isSavingCourse ? "Saving..." : "Add to Registry"}
+              </button>
+            </form>
+          </div>
+
+          {/* Subject List & Filter */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Official Subject List</h3>
+              <select 
+                value={filterCourseDept} 
+                onChange={e => setFilterCourseDept(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-400 cursor-pointer transition-colors max-w-[200px] truncate"
+              >
+                <option value="ALL">All Departments</option>
+                {departmentList.map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {filteredCourses.length === 0 ? (
+                <p className="text-sm text-slate-400 col-span-2 text-center py-12 font-medium">No subjects found in this view.</p>
+              ) : (
+                filteredCourses.map((course) => (
+                  <div key={course.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-start group hover:border-amber-300 hover:bg-amber-50/30 transition-colors">
+                    <div className="overflow-hidden pr-2">
+                      <p className="font-semibold text-sm text-slate-800 truncate mb-1">{course.subjectName}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                          {course.subjectCode}
+                        </span>
+                        {course.department && course.department !== "Unassigned" && (
+                           <span className="text-[9px] font-bold uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded truncate max-w-[100px]">
+                             {course.department.split(' ')[0]}
+                           </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-medium text-slate-500 mt-1.5">{course.credits} Credits</p>
                     </div>
+                    <button onClick={() => handleDelete(course.id, 'course')} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1 flex-shrink-0">✕</button>
                   </div>
-                  <button onClick={() => handleDelete(course.id, 'course')} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
 
+        {/* BOTTOM SECTION: Department Summary Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Department Course Map</h3>
+            <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Click row to view</span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-white text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-4 px-6">Department Name</th>
+                  <th className="py-4 px-6 text-right">Total Subjects</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {departmentList.length === 0 ? (
+                  <tr><td colSpan="2" className="text-center py-10 text-slate-400 font-medium">No departments registered.</td></tr>
+                ) : (
+                  departmentList.map(dept => {
+                    const deptCoursesCount = courseList.filter(c => c.department === dept.name).length;
+                    return (
+                      <tr 
+                        key={`summary-${dept.id}`} 
+                        onClick={() => setSelectedDeptForModal(dept.name)}
+                        className="border-b border-slate-100 hover:bg-amber-50/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-4 px-6 font-semibold text-slate-800 group-hover:text-amber-700 transition-colors">{dept.name}</td>
+                        <td className="py-4 px-6 text-right font-bold text-amber-600 group-hover:text-amber-700 transition-colors">{deptCoursesCount} Subjects <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-1">→</span></td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* MODAL POP-UP FOR SUBJECTS */}
+        {selectedDeptForModal && (
+          <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+              
+              {/* Modal Header */}
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">{selectedDeptForModal}</h3>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Assigned Subjects</p>
+                </div>
+                <button onClick={() => setSelectedDeptForModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shadow-sm">✕</button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar bg-slate-50/30">
+                {courseList.filter(c => c.department === selectedDeptForModal).length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm font-medium">No subjects assigned to this department yet.</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {courseList.filter(c => c.department === selectedDeptForModal).map(course => (
+                      <div key={course.id} className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-col gap-3 hover:border-amber-300 transition-colors">
+                        <p className="font-bold text-slate-800 text-sm leading-tight">{course.subjectName}</p>
+                        <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+                          <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-amber-100">
+                            {course.subjectCode}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-500">{course.credits} Credits</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  };
   const renderAttendanceMonitoring = () => {
     const filteredStudents = studentList.filter(s => 
       s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 

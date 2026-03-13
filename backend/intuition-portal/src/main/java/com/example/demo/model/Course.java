@@ -8,7 +8,13 @@ public class Course {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+    // Add this under your other fields
+    @Column(nullable = false)
+    private String department = "Unassigned";
+
+    // Add these at the bottom
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
     @Column(nullable = false)
     private String subjectName;
     
