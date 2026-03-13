@@ -4,7 +4,9 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,4 +49,19 @@ public class HostController {
     public Student addStudent(@RequestBody Student student) {
         return studentRepository.save(student);
     }
+    // Inside HostController.java
+
+// DELETE STAFF
+@DeleteMapping("/delete-staff/{id}")
+public String deleteStaff(@PathVariable Long id) {
+    staffRepository.deleteById(id);
+    return "Staff member deleted successfully";
+}
+
+// DELETE STUDENT
+@DeleteMapping("/delete-student/{id}")
+public String deleteStudent(@PathVariable Long id) {
+    studentRepository.deleteById(id);
+    return "Student deleted successfully";
+}
 }
