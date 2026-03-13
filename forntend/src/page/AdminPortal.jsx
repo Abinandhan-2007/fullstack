@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 export default function AdminPortal({ handleLogout, apiUrl, user }) {
+  // Mobile Sidebar State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('Attendance Monitoring'); // Set to Attendance to test the search!
   const [activeSubTab, setActiveSubTab] = useState('students'); 
   
@@ -650,19 +652,38 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
-      {/* LEFT SIDEBAR */}
-      <aside className="w-72 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">C</div>
-          <h1 className="text-xl font-black text-slate-800 tracking-tight">Central<span className="text-indigo-600">Portal</span></h1>
+    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden relative">
+      
+      {/* MOBILE OVERLAY (Darkens screen when menu is open) */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-20 lg:hidden backdrop-blur-sm transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* LEFT SIDEBAR (Now Responsive) */}
+      <aside className={`
+        absolute lg:static z-30 flex flex-col h-full w-72 bg-white border-r border-slate-200 shadow-2xl lg:shadow-sm transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">C</div>
+            <h1 className="text-xl font-black text-slate-800 tracking-tight">Central<span className="text-indigo-600">Portal</span></h1>
+          </div>
+          {/* Mobile Close Button */}
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden w-8 h-8 flex items-center justify-center bg-slate-100 text-slate-500 rounded-lg font-bold">✕</button>
         </div>
         
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
           {menuItems.map((item) => (
             <button
               key={item.name}
-              onClick={() => setActiveMenu(item.name)}
+              onClick={() => { 
+                setActiveMenu(item.name);
+                setIsMobileMenuOpen(false); // Auto-close menu on mobile when an item is clicked
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
                 activeMenu === item.name 
                 ? 'bg-blue-50 text-blue-700 shadow-sm' 
@@ -690,15 +711,26 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto relative custom-scrollbar">
-        <header className="bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200 px-8 py-5 flex justify-between items-center">
-          <h2 className="text-lg font-black text-slate-800">{activeMenu}</h2>
-          <div className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full">
-            Host Privilege Active
+      <main className="flex-1 overflow-y-auto relative custom-scrollbar w-full">
+        <header className="bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200 px-4 lg:px-8 py-4 lg:py-5 flex justify-between items-center">
+          
+          <div className="flex items-center gap-3 lg:gap-0">
+            {/* Hamburger Menu for Mobile */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <h2 className="text-lg font-black text-slate-800 truncate">{activeMenu}</h2>
+          </div>
+
+          <div className="text-[10px] lg:text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full whitespace-nowrap">
+            Host Privilege
           </div>
         </header>
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
           {activeMenu === 'Dashboard' && renderDashboard()}
           {activeMenu === 'User Management' && renderUserManagement()}
           {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
@@ -710,8 +742,8 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
             activeMenu !== 'User Management' && 
             activeMenu !== 'Courses & Subjects' && 
             activeMenu !== 'Attendance Monitoring' && 
-            activeMenu !== 'Marks & Performance' &&
-            activeMenu !== 'Announcements' &&
+            activeMenu !== 'Marks & Performance' && 
+            activeMenu !== 'Announcements' && 
             renderPlaceholder()
           }
         </div>
