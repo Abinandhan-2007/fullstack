@@ -12,10 +12,10 @@ export default function App() {
 
   // Note: Make sure this URL matches your active Render backend!
   const API_URL = "https://fullstack-8cjk.onrender.com";
-  const HOST_EMAIL = {"kvabhinanthan@gmail.com","sivanagu7771@gmail.com"};
+  const HOST_EMAIL = {"kvabhinanthan@gmail.com":"sivanagu7771@gmail.com"};
 
   const determineRole = async (email) => {
-    if (email.toLowerCase() === HOST_EMAIL.toLowerCase()) {
+    if (email.toLowerCase() === HOST_EMAIL[email.toLowerCase()].toLowerCase()) {
       setRole('host');
       setLoading(false);
       return;
