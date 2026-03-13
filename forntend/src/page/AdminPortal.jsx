@@ -38,7 +38,8 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [announcementAudience, setAnnouncementAudience] = useState("ALL");
   const [announcementList, setAnnouncementList] = useState([]);
-  const [isPosting, setIsPosting] = useState(false);
+const [announcementDept, setAnnouncementDept] = useState("ALL"); // This was likely missing
+const [isPosting, setIsPosting] = useState(false);
   // Complaints State
   const [complaintList, setComplaintList] = useState([]);
   // User Management States
@@ -322,90 +323,141 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
       </div>
     );
   };
-  const renderAnnouncements = () => {
-    const handlePostAnnouncement = async (e) => {
-      e.preventDefault();
-      setIsPosting(true);
-      try {
-        const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: announcementTitle, message: announcementMessage, targetAudience: announcementAudience })
-        });
-        if (res.ok) {
-          setAnnouncementTitle(""); setAnnouncementMessage(""); setAnnouncementAudience("ALL");
-          fetchData();
-        }
-      } catch (err) { alert("Server Connection Error"); } 
-      finally { setIsPosting(false); }
-    };
+const renderAnnouncements = () => {
+  const handlePostAnnouncement = async (e) => {
+    e.preventDefault();
+    setIsPosting(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          title: announcementTitle, 
+          message: announcementMessage, 
+          targetAudience: announcementAudience,
+          department: announcementDept 
+        })
+      });
+      if (res.ok) {
+        setAnnouncementTitle(""); 
+        setAnnouncementMessage(""); 
+        setAnnouncementAudience("ALL");
+        setAnnouncementDept("ALL"); 
+        fetchData();
+      }
+    } catch (err) { 
+      alert("Server Connection Error"); 
+    } finally { 
+      setIsPosting(false); 
+    }
+  };
 
-    const formatDate = (dateString) => {
-      if (!dateString) return "Just now";
-      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    };
+  const formatDate = (dateString) => {
+    if (!dateString) return "Just now";
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
 
-    return (
-      <div className="animate-in fade-in duration-500">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Campus Broadcasting</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
-            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">New Broadcast</h3>
-            <form onSubmit={handlePostAnnouncement} className="space-y-3.5">
+  // SAFETY CHECK: Ensure lists are arrays before filtering
+  const safeAnnouncements = announcementList || [];
+  const safeDepartments = departmentList || [];
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Campus Broadcasting</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* CREATE FORM */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">New Broadcast</h3>
+          <form onSubmit={handlePostAnnouncement} className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Target Audience</label>
-                <select value={announcementAudience} onChange={e => setAnnouncementAudience(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 focus:bg-white font-medium text-slate-700 appearance-none transition-colors">
-                  <option value="ALL">Everyone (Campus-Wide)</option>
-                  <option value="STUDENTS">Students Only</option>
-                  <option value="STAFF">Staff Only</option>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Target Group</label>
+                <select value={announcementAudience} onChange={e => setAnnouncementAudience(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-teal-400">
+                  <option value="ALL">Everyone</option>
+                  <option value="STUDENTS">Students</option>
+                  <option value="STAFF">Staff</option>
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Title</label>
-                <input type="text" required value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors" placeholder="e.g. Holiday Declaration" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Dept Filter</label>
+                <select value={announcementDept} onChange={e => setAnnouncementDept(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-teal-600 outline-none focus:border-teal-400">
+                  <option value="ALL">All Depts</option>
+                  {safeDepartments.map(d => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Message Body</label>
-                <textarea required rows="4" value={announcementMessage} onChange={e => setAnnouncementMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 focus:bg-white custom-scrollbar resize-none transition-colors" placeholder="Type your message here..." />
-              </div>
-              <button disabled={isPosting} className="w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white bg-teal-600 hover:bg-teal-700 transition-colors shadow-sm">
-                {isPosting ? "Sending..." : "Dispatch Broadcast"}
-              </button>
-            </form>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Title</label>
+              <input type="text" required value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400" placeholder="e.g. Lab Maintenance" />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Message Body</label>
+              <textarea required rows="4" value={announcementMessage} onChange={e => setAnnouncementMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 resize-none" placeholder="Type your message..." />
+            </div>
+
+            <button disabled={isPosting} className="w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 shadow-sm transition-colors">
+              {isPosting ? "Sending..." : "Dispatch Broadcast"}
+            </button>
+          </form>
+        </div>
+
+        {/* BROADCAST HISTORY */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Broadcast History</h3>
+            <select 
+              value={filterCourseDept} 
+              onChange={e => setFilterCourseDept(e.target.value)}
+              className="text-[10px] font-bold bg-slate-100 border-none rounded px-2 py-1 text-slate-500 outline-none"
+            >
+              <option value="ALL">Show All History</option>
+              {safeDepartments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
           </div>
 
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Broadcast History</h3>
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-              {announcementList.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 text-sm">No active broadcasts. The campus feed is quiet.</div>
-              ) : (
-                announcementList.map((announcement) => (
-                  <div key={announcement.id} className="p-4 rounded-lg border border-slate-200 group relative hover:border-teal-300 hover:bg-teal-50/20 transition-colors">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-2.5">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                          announcement.targetAudience === 'ALL' ? 'bg-slate-100 text-slate-600' : 
-                          announcement.targetAudience === 'STUDENTS' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'
-                        }`}>
-                          {announcement.targetAudience}
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {safeAnnouncements
+              .filter(a => filterCourseDept === "ALL" || a.department === filterCourseDept)
+              .length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-sm italic">No history found.</div>
+            ) : (
+              safeAnnouncements
+                .filter(a => filterCourseDept === "ALL" || a.department === filterCourseDept)
+                .map((announcement) => (
+                <div key={announcement.id} className="p-4 rounded-lg border border-slate-200 group relative hover:border-teal-300 hover:bg-teal-50/20 transition-all">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                        announcement.targetAudience === 'ALL' ? 'bg-slate-100 text-slate-600' : 
+                        announcement.targetAudience === 'STUDENTS' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {announcement.targetAudience}
+                      </span>
+                      {announcement.department && announcement.department !== "ALL" && (
+                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-teal-100 text-teal-700 border border-teal-200">
+                          {announcement.department}
                         </span>
-                        <span className="text-xs text-slate-400">{formatDate(announcement.postedAt)}</span>
-                      </div>
-                      <button onClick={() => handleDelete(announcement.id, 'announcement')} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-medium italic">{formatDate(announcement.postedAt)}</span>
                     </div>
-                    <h4 className="text-base font-semibold text-slate-800 mb-1">{announcement.title}</h4>
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{announcement.message}</p>
+                    <button onClick={() => handleDelete(announcement.id, 'announcement')} className="text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all">✕</button>
                   </div>
-                ))
-              )}
-            </div>
+                  <h4 className="text-sm font-bold text-slate-800 mb-1">{announcement.title}</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{announcement.message}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
-    );
-  };
-
+    </div>
+  );
+};
  const renderCoursesAndSubjects = () => {
     
     // Filter the courses based on the dropdown selection
@@ -719,215 +771,279 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
   };
 
   const renderMarksAndPerformance = () => {
-    const filteredStudents = studentList.filter(s => 
-      s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
-      s.registerNumber.toLowerCase().includes(studentSearch.toLowerCase())
-    );
-    const activeStudent = studentList.find(s => s.registerNumber === selectedStudent);
+  // 1. First, narrow down the student pool by the selected Department filter
+  const deptFilteredStudents = filterCourseDept === "ALL" 
+    ? studentList 
+    : studentList.filter(s => s.department === filterCourseDept);
 
-    const handleSelectStudent = async (regNo) => {
-      setSelectedStudent(regNo);
-      setShowDropdown(false);
-      setIsFetchingMarks(true);
-      try {
-        const res = await fetch(`${apiUrl}/api/host/student-marks/${regNo}`);
-        setStudentMarks(res.ok ? await res.json() : []);
-      } catch (err) { console.error("Failed to fetch marks"); } 
-      finally { setIsFetchingMarks(false); }
-    };
+  // 2. Then, apply the search text filter on that department's students
+  const filteredStudents = deptFilteredStudents.filter(s => 
+    s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
+    s.registerNumber.toLowerCase().includes(studentSearch.toLowerCase())
+  );
 
-    const getSubjectName = (code) => {
-      const course = courseList.find(c => c.subjectCode === code);
-      return course ? course.subjectName : code;
-    };
+  const activeStudent = studentList.find(s => s.registerNumber === selectedStudent);
 
-    return (
-      <div className="animate-in fade-in duration-500">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Academic Records</h2>
+  const handleSelectStudent = async (regNo) => {
+    setSelectedStudent(regNo);
+    setShowDropdown(false);
+    setIsFetchingMarks(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/host/student-marks/${regNo}`);
+      setStudentMarks(res.ok ? await res.json() : []);
+    } catch (err) { console.error("Failed to fetch marks"); } 
+    finally { setIsFetchingMarks(false); }
+  };
+
+  const getSubjectName = (code) => {
+    const course = courseList.find(c => c.subjectCode === code);
+    return course ? course.subjectName : code;
+  };
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Academic Records</h2>
         
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
-          <div className="w-full relative max-w-xl">
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Locate Student File</label>
-            {activeStudent ? (
-              <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{activeStudent.name}</p>
-                  <p className="text-xs text-slate-500">{activeStudent.registerNumber} • {activeStudent.email}</p>
-                </div>
-                <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setStudentMarks([]); }} className="text-slate-400 hover:text-slate-700">✕</button>
-              </div>
-            ) : (
-              <div className="relative">
-                <input 
-                  type="text" value={studentSearch} 
-                  onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
-                  onFocus={() => setShowDropdown(true)}
-                  className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" 
-                  placeholder="Enter ID or Name..." 
-                />
-                <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
-                {showDropdown && studentSearch.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredStudents.length === 0 ? (
-                      <div className="p-3 text-sm text-slate-500 text-center">No records</div>
-                    ) : (
-                      filteredStudents.map(student => (
-                        <div key={student.id} onClick={() => handleSelectStudent(student.registerNumber)} className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer">
-                          <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
-                          <p className="text-[11px] text-slate-500">{student.registerNumber}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        {/* DEPARTMENT SELECTOR */}
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Dept:</label>
+          <select 
+            value={filterCourseDept} 
+            onChange={e => {
+              setFilterCourseDept(e.target.value);
+              setSelectedStudent(""); // Clear selection when switching departments
+              setStudentMarks([]);
+            }}
+            className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm"
+          >
+            <option value="ALL">All Departments</option>
+            {departmentList.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+          </select>
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-5">Subject</th>
-                <th className="py-3 px-5 hidden sm:table-cell">Assessment</th>
-                <th className="py-3 px-5 text-right">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!selectedStudent ? (
-                <tr><td colSpan="3" className="text-center py-16 text-slate-400">Select a student to view records.</td></tr>
-              ) : isFetchingMarks ? (
-                <tr><td colSpan="3" className="text-center py-16 text-slate-500">Retrieving data...</td></tr>
-              ) : studentMarks.length === 0 ? (
-                <tr><td colSpan="3" className="text-center py-16 text-slate-400">No scores recorded yet.</td></tr>
-              ) : (
-                studentMarks.map((mark) => {
-                  const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
-                  return (
-                    <tr key={mark.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                      <td className="py-3 px-5">
-                        <p className="font-medium text-slate-800">{getSubjectName(mark.subjectCode)}</p>
-                        <p className="text-[11px] text-slate-500">{mark.subjectCode}</p>
-                      </td>
-                      <td className="py-3 px-5 hidden sm:table-cell">
-                        <span className="bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-slate-200">{mark.examType}</span>
-                      </td>
-                      <td className="py-3 px-5 text-right">
-                        <div className="flex justify-end items-center gap-3">
-                          <p className="font-semibold text-slate-800 text-base">{mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span></p>
-                          <div className={`text-[10px] font-bold px-2 py-0.5 rounded w-12 text-center border ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                            {isPass ? 'PASS' : 'FAIL'}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+      </div>
+      
+      {/* SEARCH SECTION */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+        <div className="w-full relative max-w-xl">
+          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+            Locate Student in {filterCourseDept === "ALL" ? "Institution" : filterCourseDept}
+          </label>
+          {activeStudent ? (
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5">
+              <div>
+                <p className="text-sm font-bold text-slate-900">{activeStudent.name}</p>
+                <p className="text-xs text-slate-500">{activeStudent.registerNumber} • {activeStudent.department}</p>
+              </div>
+              <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setStudentMarks([]); }} className="text-slate-400 hover:text-slate-700 p-1">✕</button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input 
+                type="text" value={studentSearch} 
+                onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
+                onFocus={() => setShowDropdown(true)}
+                className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" 
+                placeholder={`Search by ID or Name...`} 
+              />
+              <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
+              {showDropdown && studentSearch.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredStudents.length === 0 ? (
+                    <div className="p-3 text-sm text-slate-500 text-center">No records found in {filterCourseDept}</div>
+                  ) : (
+                    filteredStudents.map(student => (
+                      <div key={student.id} onClick={() => handleSelectStudent(student.registerNumber)} className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer transition-colors">
+                        <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
+                        <p className="text-[11px] text-slate-500">{student.registerNumber} • {student.department}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       </div>
-    );
-  };
-  const renderComplaints = () => {
-    const handleStatusUpdate = async (id, newStatus) => {
-      try {
-        const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus })
-        });
-        if (res.ok) fetchData();
-      } catch (err) { console.error("Failed to update status"); }
-    };
 
-    const formatDate = (dateString) => {
-      if (!dateString) return "";
-      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    };
-
-    // Calculate stats for the header
-    const pendingCount = complaintList.filter(c => c.status === 'PENDING').length;
-    const resolvedCount = complaintList.filter(c => c.status === 'RESOLVED').length;
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
-            <p className="text-sm font-medium text-slate-500 mt-1">Manage and resolve campus issues.</p>
-          </div>
-          <div className="flex gap-4">
-            <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center">
-              <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
-              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
-            </div>
-            <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center">
-              <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
-              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-            {complaintList.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="text-5xl mb-4 opacity-30">✅</div>
-                <p className="text-slate-400 font-medium">Inbox zero. No complaints reported.</p>
-              </div>
+      {/* MARKS TABLE */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+              <th className="py-4 px-5">Subject Details</th>
+              <th className="py-4 px-5 hidden sm:table-cell">Assessment Type</th>
+              <th className="py-4 px-5 text-right">Performance Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!selectedStudent ? (
+              <tr><td colSpan="3" className="text-center py-20 text-slate-400 font-medium">Please select a student from the {filterCourseDept} list above.</td></tr>
+            ) : isFetchingMarks ? (
+              <tr><td colSpan="3" className="text-center py-20 text-blue-500 font-bold animate-pulse tracking-widest">LOADING RECORDS...</td></tr>
+            ) : studentMarks.length === 0 ? (
+              <tr><td colSpan="3" className="text-center py-20 text-slate-400 italic">No scores recorded for {activeStudent?.name} yet.</td></tr>
             ) : (
-              complaintList.map((ticket) => (
-                <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
-                  
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
-                        ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {ticket.userRole}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
-                      <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
-                    </div>
-
-                    {/* Action Controls */}
-                    <div className="flex items-center gap-3">
-                      <select 
-                        value={ticket.status} 
-                        onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
-                        className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer ${
-                          ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 
-                          ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 
-                          'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                        }`}
-                      >
-                        <option value="PENDING">PENDING</option>
-                        <option value="IN_PROGRESS">IN PROGRESS</option>
-                        <option value="RESOLVED">RESOLVED</option>
-                      </select>
-                      
-                      <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
-                    <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
-                  </div>
-                  
-                </div>
-              ))
+              studentMarks.map((mark) => {
+                const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
+                return (
+                  <tr key={mark.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/30 transition-colors">
+                    <td className="py-4 px-5">
+                      <p className="font-bold text-slate-800">{getSubjectName(mark.subjectCode)}</p>
+                      <p className="text-[11px] font-mono text-slate-500 uppercase tracking-tighter">{mark.subjectCode}</p>
+                    </td>
+                    <td className="py-4 px-5 hidden sm:table-cell">
+                      <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200">{mark.examType}</span>
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <div className="flex justify-end items-center gap-4">
+                        <p className="font-black text-slate-800 text-lg">{mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span></p>
+                        <div className={`text-[10px] font-black px-2 py-1 rounded w-14 text-center border-2 ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                          {isPass ? 'PASS' : 'FAIL'}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+  const renderComplaints = () => {
+  // 1. Filter the complaints based on the selected department
+  // This assumes your ticket object has a 'department' field from the backend
+  const filteredComplaints = filterCourseDept === "ALL" 
+    ? complaintList 
+    : complaintList.filter(c => c.department === filterCourseDept);
+
+  const handleStatusUpdate = async (id, newStatus) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) fetchData();
+    } catch (err) { console.error("Failed to update status"); }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleDateString('en-US', { 
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+  };
+
+  // 2. Calculate stats specifically for the FILTERED list
+  const pendingCount = filteredComplaints.filter(c => c.status === 'PENDING').length;
+  const resolvedCount = filteredComplaints.filter(c => c.status === 'RESOLVED').length;
+
+  return (
+    <div className="animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-sm font-medium text-slate-500">Manage and resolve campus issues.</p>
+            <span className="h-4 w-[1px] bg-slate-300"></span>
+            
+            {/* DEPARTMENT FILTER DROPDOWN */}
+            <select 
+              value={filterCourseDept} 
+              onChange={e => setFilterCourseDept(e.target.value)}
+              className="text-xs font-bold text-blue-600 bg-blue-50 border-none rounded px-2 py-1 outline-none cursor-pointer hover:bg-blue-100 transition-colors"
+            >
+              <option value="ALL">All Departments</option>
+              {departmentList.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Dynamic Stats based on Filter */}
+        <div className="flex gap-4">
+          <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center min-w-[80px]">
+            <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
+          </div>
+          <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center min-w-[80px]">
+            <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
+            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
           </div>
         </div>
       </div>
-    );
-  };
+      
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+          {filteredComplaints.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="text-5xl mb-4 opacity-30 italic font-serif">
+                {filterCourseDept === "ALL" ? "✅" : "📂"}
+              </div>
+              <p className="text-slate-400 font-medium">
+                {filterCourseDept === "ALL" 
+                  ? "Inbox zero. No complaints reported." 
+                  : `No tickets found for ${filterCourseDept}.`}
+              </p>
+            </div>
+          ) : (
+            filteredComplaints.map((ticket) => (
+              <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
+                
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                      ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {ticket.userRole}
+                    </span>
+                    {/* SHOW TICKET DEPARTMENT TAG */}
+                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase tracking-tighter">
+                      {ticket.department}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
+                    <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
+                  </div>
+
+                  {/* Action Controls */}
+                  <div className="flex items-center gap-3">
+                    <select 
+                      value={ticket.status} 
+                      onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
+                      className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none cursor-pointer appearance-none text-center ${
+                        ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                        ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                        'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}
+                    >
+                      <option value="PENDING">PENDING</option>
+                      <option value="IN_PROGRESS">IN PROGRESS</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                    </select>
+                    
+                    <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 const renderDepartments = () => {
     const handleAddDept = async (e) => {
       e.preventDefault();
