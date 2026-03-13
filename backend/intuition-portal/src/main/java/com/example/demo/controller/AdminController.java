@@ -58,6 +58,10 @@ public class AdminController {
         stats.put("totalStaff", staffRepository.count());
         return stats;
     }
+    @PostMapping("/upload-mark")
+    public Mark uploadMark(@RequestBody Mark mark) {
+        return markRepository.save(mark);
+    }
 
     // --- STAFF ENDPOINTS ---
     @GetMapping("/all-staff")
