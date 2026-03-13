@@ -14,18 +14,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.demo.model.Announcement;
 import com.example.demo.model.Attendance;
 import com.example.demo.model.Mark;
 import com.example.demo.model.StaffMember;
 import com.example.demo.model.Student;
+import com.example.demo.repository.AnnouncementRepository;
 import com.example.demo.repository.AttendanceRepository;
 import com.example.demo.repository.MarkRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
 
-@RestController
-@RequestMapping("/api/admin")
-@CrossOrigin(origins = {"http://localhost:5173", "https://fullstack-five-sage.vercel.app"}) 
+
 public class AdminController {
     
 
@@ -58,6 +58,24 @@ public class AdminController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "Attendance successfully locked.");
         return ResponseEntity.ok(response);
+    }
+    @Autowired
+    private AnnouncementRepository announcementRepository;
+
+    @GetMapping("/all-announcements")
+    public List<Announcement> getAllAnnouncements() {
+        return announcementRepository.findAllByOrderByPostedAtDesc();
+    }
+
+    @PostMapping("/post-announcement")
+    public Announcement postAnnouncement(@RequestBody Announcement announcement) {
+        return announcementRepository.save(announcement);
+    }
+
+    @DeleteMapping("/delete-announcement/{id}")
+    public String deleteAnnouncement(@PathVariable Long id) {
+        announcementRepository.deleteById(id);
+        return "Announcement removed";
     }
   @Autowired
     private MarkRepository markRepository;
