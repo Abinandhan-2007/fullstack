@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import HostPortal from './components/HostPortal';
-import StaffPortal from './components/StaffPortal';
-import StudentPortal from './components/StudentPortal';
+import HostPortal from './page/HostPortal';
+import StaffPortal from './page/StaffPortal';
+import StudentPortal from './page/StudentPortal';
 
 // Note: Replace this with your actual Google Login import
 // import { GoogleLogin } from '@react-oauth/google'; 
