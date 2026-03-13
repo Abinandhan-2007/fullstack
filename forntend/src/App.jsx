@@ -12,7 +12,7 @@ const HostPortal = ({ user, handleLogout }) => {
 
   const fetchStaff = async () => {
     try {
-      const res = await fetch("https://fullstack-q3c5.onrender.com/api/host/all-staff");
+      const res = await fetch("https://fullstack-8cjk.onrender.com/api/host/all-staff");
       if (res.ok) {
         const data = await res.json();
         setStaffList(data);
@@ -25,8 +25,9 @@ const HostPortal = ({ user, handleLogout }) => {
   const handleAddStaff = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("https://fullstack-q3c5.onrender.com/api/host/add-staff", {
-        method: "POST",
+       const res = await fetch("https://fullstack-8cjk.onrender.com/api/host/add-staff", {
+       method: "POST",
+  
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: staffName, email: staffEmail })
       });
