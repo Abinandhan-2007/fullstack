@@ -31,6 +31,12 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
  // Marks & Performance States (VIEW ONLY)
   const [studentMarks, setStudentMarks] = useState([]);
   const [isFetchingMarks, setIsFetchingMarks] = useState(false);
+  // Announcements States
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [announcementAudience, setAnnouncementAudience] = useState("ALL");
+  const [announcementList, setAnnouncementList] = useState([]);
+  const [isPosting, setIsPosting] = useState(false);
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
@@ -46,25 +52,34 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
     { name: 'Security Logs', icon: '🛡️' },
   ];
 
-  // Fetch all data
+ // Fetch all data (with Diagnostics)
   const fetchData = async () => {
     try {
-      const [staffRes, studentRes, statsRes, courseRes] = await Promise.all([
+      console.log("📡 Fetching data from:", apiUrl);
+      
+      const [staffRes, studentRes, statsRes, courseRes, announceRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`),
         fetch(`${apiUrl}/api/host/stats`),
-        fetch(`${apiUrl}/api/host/all-courses`)
+        fetch(`${apiUrl}/api/host/all-courses`),
+        fetch(`${apiUrl}/api/host/all-announcements`)
       ]);
 
       if (staffRes.ok) setStaffList(await staffRes.json());
-      if (studentRes.ok) setStudentList(await studentRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
       if (courseRes.ok) setCourseList(await courseRes.json());
-    } catch (err) { console.error("Database sync failed"); }
+      if (announceRes.ok) setAnnouncementList(await announceRes.json());
+
+      if (studentRes.ok) {
+        const studentData = await studentRes.json();
+        console.log("✅ Students received from database:", studentData);
+        setStudentList(studentData);
+      } else {
+        console.error("❌ Failed to fetch students. Status:", studentRes.status);
+      }
+
+    } catch (err) { console.error("🚨 Database sync failed:", err); }
   };
-
-  useEffect(() => { fetchData(); }, []);
-
   // Handle Add User (Staff/Student)
   const handleSubmitUser = async (e) => {
     e.preventDefault();
@@ -107,8 +122,11 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   // Handle Delete Data
   const handleDelete = async (id, type) => {
     if (!window.confirm(`Permanently delete this ${type}?`)) return;
+    
+    // Add the announcement endpoint routing here
     const endpoint = type === 'course' ? `/api/host/delete-course/${id}` 
                    : type === 'staff' ? `/api/host/delete-staff/${id}` 
+                   : type === 'announcement' ? `/api/host/delete-announcement/${id}`
                    : `/api/host/delete-student/${id}`;
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, { method: "DELETE" });
@@ -180,7 +198,108 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     </div>
   );
+// 6. Announcements Broadcasting View
+  const renderAnnouncements = () => {
+    const handlePostAnnouncement = async (e) => {
+      e.preventDefault();
+      setIsPosting(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            title: announcementTitle, 
+            message: announcementMessage, 
+            targetAudience: announcementAudience 
+          })
+        });
+        if (res.ok) {
+          setAnnouncementTitle(""); setAnnouncementMessage(""); setAnnouncementAudience("ALL");
+          fetchData();
+        } else {
+          alert("Failed to post announcement.");
+        }
+      } catch (err) { alert("Server Connection Error"); } 
+      finally { setIsPosting(false); }
+    };
 
+    // Helper to format the timestamp
+    const formatDate = (dateString) => {
+      if (!dateString) return "Just now";
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <h2 className="text-3xl font-black text-slate-800 mb-8">Campus Broadcasting</h2>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Post Announcement Form */}
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-lg font-bold text-slate-800 mb-6 uppercase tracking-wider text-sm">New Broadcast</h3>
+            <form onSubmit={handlePostAnnouncement} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Audience</label>
+                <select value={announcementAudience} onChange={e => setAnnouncementAudience(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 font-bold text-slate-700 appearance-none">
+                  <option value="ALL">Everyone (Campus-Wide)</option>
+                  <option value="STUDENTS">Students Only</option>
+                  <option value="STAFF">Staff Only</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Subject</label>
+                <input type="text" required value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="e.g. Holiday Declaration" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Message</label>
+                <textarea required rows="4" value={announcementMessage} onChange={e => setAnnouncementMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 custom-scrollbar resize-none" placeholder="Type your message here..." />
+              </div>
+              <button disabled={isPosting} className="w-full py-3.5 mt-2 rounded-xl font-bold text-white bg-teal-600 hover:bg-teal-700 transition-all shadow-md flex justify-center items-center gap-2">
+                {isPosting ? "Broadcasting..." : <><span>📢</span> Send Broadcast</>}
+              </button>
+            </form>
+          </div>
+
+          {/* Broadcast Feed */}
+          <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            <h3 className="text-lg font-bold text-slate-800 mb-6 uppercase tracking-wider text-sm">Recent Broadcasts</h3>
+            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {announcementList.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="text-5xl mb-4 opacity-40">📭</div>
+                  <p className="text-slate-400 font-medium">No active broadcasts. The campus feed is quiet.</p>
+                </div>
+              ) : (
+                announcementList.map((announcement) => (
+                  <div key={announcement.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 group relative hover:border-teal-200 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md ${
+                          announcement.targetAudience === 'ALL' ? 'bg-purple-100 text-purple-700' : 
+                          announcement.targetAudience === 'STUDENTS' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {announcement.targetAudience}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-400">{formatDate(announcement.postedAt)}</span>
+                      </div>
+                      <button onClick={() => handleDelete(announcement.id, 'announcement')} className="text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1.5 rounded-lg shadow-sm">
+                        🗑️
+                      </button>
+                    </div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-2">{announcement.title}</h4>
+                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{announcement.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
   const renderCoursesAndSubjects = () => (
     <div className="animate-in fade-in duration-500">
       <h2 className="text-3xl font-black text-slate-800 mb-8">Academic Master: Subjects</h2>
@@ -585,12 +704,14 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
           {activeMenu === 'Attendance Monitoring' && renderAttendanceMonitoring()}
           {activeMenu === 'Marks & Performance' && renderMarksAndPerformance()}
+          {activeMenu === 'Announcements' && renderAnnouncements()}
           {
             activeMenu !== 'Dashboard' && 
             activeMenu !== 'User Management' && 
             activeMenu !== 'Courses & Subjects' && 
             activeMenu !== 'Attendance Monitoring' && 
             activeMenu !== 'Marks & Performance' &&
+            activeMenu !== 'Announcements' &&
             renderPlaceholder()
           }
         </div>
