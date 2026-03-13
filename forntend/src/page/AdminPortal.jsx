@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function HostPortal({ handleLogout, apiUrl, user }) {
+export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [activeMenu, setActiveMenu] = useState('Attendance Monitoring'); // Set to Attendance to test the search!
   const [activeSubTab, setActiveSubTab] = useState('students'); 
   
