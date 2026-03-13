@@ -29,6 +29,7 @@ import com.example.demo.repository.MarkRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
 import com.example.demo.repository.CourseRepository; // Make sure you have this repository!
+import com.example.demo.repository.DepartmentRepository;
 
 // THESE TWO LINES WERE MISSING!
 @RestController
