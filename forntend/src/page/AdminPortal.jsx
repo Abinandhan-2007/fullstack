@@ -20,6 +20,12 @@ export default function HostPortal({ handleLogout, apiUrl, user }) {
   const [courseList, setCourseList] = useState([]);
   const [isSavingCourse, setIsSavingCourse] = useState(false);
 
+  // NEW: Attendance States
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [attendanceData, setAttendanceData] = useState({}); // Stores { "7376...": true/false }
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
     { name: 'User Management', icon: '👥' },
@@ -226,7 +232,99 @@ export default function HostPortal({ handleLogout, apiUrl, user }) {
       </div>
     </div>
   );
+ // 4. Attendance Monitoring View
+  const renderAttendanceMonitoring = () => {
+    // Helper to toggle a student's presence
+    const toggleAttendance = (regNo) => {
+      setAttendanceData(prev => ({
+        ...prev,
+        [regNo]: !prev[regNo]
+      }));
+    };
 
+    const handleSaveAttendance = async () => {
+      if (!selectedSubject) return alert("Please select a subject first!");
+      setIsSavingAttendance(true);
+      
+      // Convert the object into an array of records for Spring Boot
+      const payload = studentList.map(student => ({
+        registerNumber: student.registerNumber,
+        subjectCode: selectedSubject,
+        date: attendanceDate,
+        isPresent: attendanceData[student.registerNumber] || false
+      }));
+
+      try {
+        const res = await fetch(`${apiUrl}/api/host/save-attendance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          alert("✅ Attendance Locked in for " + attendanceDate);
+        } else {
+          alert("❌ Failed to save attendance.");
+        }
+      } catch (err) { alert("Server Connection Error"); }
+      finally { setIsSavingAttendance(false); }
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <h2 className="text-3xl font-black text-slate-800 mb-8">Daily Attendance Registry</h2>
+        
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 mb-8 flex flex-wrap gap-6 items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Select Date</label>
+            <input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500 font-medium text-slate-700" />
+          </div>
+          
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Select Subject</label>
+            <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500 font-medium text-slate-700 appearance-none">
+              <option value="">-- Choose Subject --</option>
+              {courseList.map(course => (
+                <option key={course.id} value={course.subjectCode}>{course.subjectName} ({course.subjectCode})</option>
+              ))}
+            </select>
+          </div>
+
+          <button onClick={handleSaveAttendance} disabled={isSavingAttendance || studentList.length === 0} className="w-full md:w-auto px-10 py-3.5 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all shadow-md disabled:bg-slate-300">
+            {isSavingAttendance ? "Locking..." : "Lock Attendance"}
+          </button>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="grid grid-cols-12 gap-4 p-6 border-b border-slate-100 bg-slate-50/50">
+            <div className="col-span-8 md:col-span-4 text-xs font-black text-slate-400 uppercase tracking-widest">Student</div>
+            <div className="col-span-4 text-xs font-black text-slate-400 uppercase tracking-widest hidden md:block">Register No</div>
+            <div className="col-span-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right pr-4">Status</div>
+          </div>
+          
+          <div className="max-h-[50vh] overflow-y-auto custom-scrollbar p-2">
+            {studentList.length === 0 ? (
+              <p className="text-center text-slate-400 py-10 font-medium">No students found. Register students first.</p>
+            ) : (
+              studentList.map((student) => {
+                const isPresent = attendanceData[student.registerNumber] || false;
+                return (
+                  <div key={student.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-slate-50 rounded-2xl transition-colors border border-transparent hover:border-slate-100 mb-1">
+                    <div className="col-span-8 md:col-span-4 font-bold text-slate-800 truncate">{student.name}</div>
+                    <div className="col-span-4 text-sm font-semibold text-violet-600 hidden md:block">{student.registerNumber}</div>
+                    <div className="col-span-4 flex justify-end">
+                      <button onClick={() => toggleAttendance(student.registerNumber)} className={`px-6 py-2 rounded-lg font-bold text-xs transition-all w-28 ${isPresent ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'}`}>
+                        {isPresent ? 'PRESENT' : 'ABSENT'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in">
       <div className="text-6xl mb-4">🚧</div>
@@ -236,24 +334,22 @@ export default function HostPortal({ handleLogout, apiUrl, user }) {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+    <><div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       {/* LEFT SIDEBAR */}
       <aside className="w-72 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
         <div className="p-6 border-b border-slate-100 flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">C</div>
           <h1 className="text-xl font-black text-slate-800 tracking-tight">Central<span className="text-indigo-600">Portal</span></h1>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
           {menuItems.map((item) => (
             <button
               key={item.name}
               onClick={() => setActiveMenu(item.name)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                activeMenu === item.name 
-                ? 'bg-blue-50 text-blue-700 shadow-sm' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeMenu === item.name
+                  ? 'bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
             >
               <span className="text-lg">{item.icon}</span>
               {item.name}
@@ -291,6 +387,14 @@ export default function HostPortal({ handleLogout, apiUrl, user }) {
           {activeMenu !== 'Dashboard' && activeMenu !== 'User Management' && activeMenu !== 'Courses & Subjects' && renderPlaceholder()}
         </div>
       </main>
-    </div>
+    </div><div className="p-8 max-w-7xl mx-auto">
+        {activeMenu === 'Dashboard' && renderDashboard()}
+        {activeMenu === 'User Management' && renderUserManagement()}
+        {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
+        {/* ADD THIS LINE HERE: */}
+        {activeMenu === 'Attendance Monitoring' && renderAttendanceMonitoring()}
+        {activeMenu !== 'Dashboard' && activeMenu !== 'User Management' && activeMenu !== 'Courses & Subjects' && activeMenu !== 'Attendance Monitoring' && renderPlaceholder()}
+      </div></>
   );
+  
 }
