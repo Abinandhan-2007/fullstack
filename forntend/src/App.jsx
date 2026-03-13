@@ -126,7 +126,7 @@ const StudentPortal = ({ user, handleLogout }) => {
             className="w-10 h-10 rounded-full border-2 border-slate-200 shadow-sm"
           />
           <button 
-            onClick={() => setUser(null)}
+            onClick={handleLogout}
             className="text-sm font-semibold text-rose-500 hover:text-rose-600 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors ml-2"
           >
             Sign out
