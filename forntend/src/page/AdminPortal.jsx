@@ -5,15 +5,11 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('Dashboard'); 
   const [activeSubTab, setActiveSubTab] = useState('students'); 
-  
-  // User Management States
-  const [name, setName] = useState("");
-  const [regNo, setRegNo] = useState("");
-  const [email, setEmail] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [staffList, setStaffList] = useState([]);
-  const [studentList, setStudentList] = useState([]);
-  const [stats, setStats] = useState({ totalStudents: 0, totalStaff: 0 });
+  // Department Master States
+  const [departmentList, setDepartmentList] = useState([]);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [isSavingDept, setIsSavingDept] = useState(false);
+
 
   // Courses & Subjects States
   const [subjectName, setSubjectName] = useState("");
@@ -40,15 +36,27 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [announcementAudience, setAnnouncementAudience] = useState("ALL");
   const [announcementList, setAnnouncementList] = useState([]);
   const [isPosting, setIsPosting] = useState(false);
+  // Complaints State
+  const [complaintList, setComplaintList] = useState([]);
+  // User Management States
+  const [name, setName] = useState("");
+  const [regNo, setRegNo] = useState("");
+  const [email, setEmail] = useState("");
+  const [department, setDepartment] = useState("Computer Science (CSE)"); // ONLY ONE OF THESE
+  const [isSaving, setIsSaving] = useState(false);
+  const [staffList, setStaffList] = useState([]);
+  const [studentList, setStudentList] = useState([]);
+  const [stats, setStats] = useState({ totalStudents: 0, totalStaff: 0 });
+  const [filterDepartment, setFilterDepartment] = useState("ALL");
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
+    { name: 'Departments', icon: '🏢' },
     { name: 'User Management', icon: '👥' },
     { name: 'Courses & Subjects', icon: '📚' },
     { name: 'Attendance Monitoring', icon: '✅' },
     { name: 'Marks & Performance', icon: '📈' },
     { name: 'Announcements', icon: '📢' },
-    { name: 'Events', icon: '🗓️' },
     { name: 'Complaints', icon: '⚠️' },
     { name: 'Reports & Analytics', icon: '📑' },
     { name: 'System Settings', icon: '⚙️' },
@@ -63,9 +71,12 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
         fetch(`${apiUrl}/api/host/all-students`),
         fetch(`${apiUrl}/api/host/stats`),
         fetch(`${apiUrl}/api/host/all-courses`),
-        fetch(`${apiUrl}/api/host/all-announcements`)
+        fetch(`${apiUrl}/api/host/all-announcements`),
+        fetch(`${apiUrl}/api/host/all-complaints`),
+        fetch(`${apiUrl}/api/host/all-departments`)// Add this to the list
       ]);
-
+      if (deptRes.ok) setDepartmentList(await deptRes.json()); // Add this (assuming you named the response deptRes)
+      if (complaintRes.ok) setComplaintList(await complaintRes.json());
       if (staffRes.ok) setStaffList(await staffRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
       if (courseRes.ok) setCourseList(await courseRes.json());
@@ -85,10 +96,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       const res = await fetch(`${apiUrl}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, registerNumber: regNo, email })
+        body: JSON.stringify({ name, registerNumber: regNo, email, department }) // <-- ADDED department
       });
       if (res.ok) {
-        setName(""); setRegNo(""); setEmail("");
+        setName(""); setRegNo(""); setEmail(""); setDepartment("Computer Science (CSE)"); // <-- RESET
         fetchData();
       }
     } catch (err) { alert("Error saving"); } 
@@ -114,9 +125,12 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
 
   const handleDelete = async (id, type) => {
     if (!window.confirm(`Permanently delete this ${type}?`)) return;
-    const endpoint = type === 'course' ? `/api/host/delete-course/${id}` 
+const endpoint = type === 'course' ? `/api/host/delete-course/${id}` 
                    : type === 'staff' ? `/api/host/delete-staff/${id}` 
                    : type === 'announcement' ? `/api/host/delete-announcement/${id}`
+                   : type === 'complaint' ? `/api/host/delete-complaint/${id}`
+                   : type === 'department' ? `/api/host/delete-department/${id}`
+                    // <-- ADDED THIS
                    : `/api/host/delete-student/${id}`;
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, { method: "DELETE" });
@@ -209,50 +223,99 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
     </div>
   );
 
-  const renderUserManagement = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Directory Management</h2>
-        <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
-          <button onClick={() => setActiveSubTab('students')} className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all ${activeSubTab === 'students' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Students</button>
-          <button onClick={() => setActiveSubTab('staff')} className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all ${activeSubTab === 'staff' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Staff</button>
-        </div>
-      </div>
+ const renderUserManagement = () => {
+    // 1. Determine if we are looking at staff or students
+    const currentList = activeSubTab === 'staff' ? staffList : studentList;
+    
+    // 2. Filter the list based on the dropdown selection
+    const filteredList = filterDepartment === "ALL" 
+      ? currentList 
+      : currentList.filter(person => person.department === filterDepartment);
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
-          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add {activeSubTab}</h3>
-          <form onSubmit={handleSubmitUser} className="space-y-3.5">
-            <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Full Name" />
-            <input type="text" required value={regNo} onChange={e => setRegNo(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Register Number" />
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Email Address" />
-            <button disabled={isSaving} className={`w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white transition-colors ${activeSubTab === 'staff' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-blue-600 hover:bg-blue-500'}`}>
-              {isSaving ? "Saving..." : "Create Record"}
-            </button>
-          </form>
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Directory Management</h2>
+          <div className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex">
+            <button onClick={() => { setActiveSubTab('students'); setFilterDepartment('ALL'); }} className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all ${activeSubTab === 'students' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Students</button>
+            <button onClick={() => { setActiveSubTab('staff'); setFilterDepartment('ALL'); }} className={`px-4 py-1.5 rounded-md font-semibold text-sm transition-all ${activeSubTab === 'staff' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Staff</button>
+          </div>
         </div>
-        
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Database Records</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {(activeSubTab === 'staff' ? staffList : studentList).map((person) => (
-              <div key={person.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-center group hover:border-blue-300 hover:bg-blue-50/30 transition-all">
-                <div className="overflow-hidden">
-                  <p className="font-semibold text-sm text-slate-800 truncate">{person.name}</p>
-                  <p className="text-[11px] font-bold text-blue-600 my-0.5">{person.registerNumber}</p>
-                  <p className="text-xs text-slate-500 truncate">{person.email}</p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add {activeSubTab}</h3>
+            <form onSubmit={handleSubmitUser} className="space-y-3.5">
+              <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Full Name" />
+              <input type="text" required value={regNo} onChange={e => setRegNo(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="ID / Register Number" />
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Email Address" />
+              
+              {/* DYNAMIC Department Dropdown (Pulls from Database) */}
+              <select required value={department} onChange={e => setDepartment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none font-medium text-slate-700 cursor-pointer">
+                <option value="">-- Select Department --</option>
+                {departmentList.map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+
+              <button disabled={isSaving} className={`w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white transition-colors ${activeSubTab === 'staff' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-blue-600 hover:bg-blue-500'}`}>
+                {isSaving ? "Saving..." : "Create Record"}
+              </button>
+            </form>
+          </div>
+          
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            
+            {/* Header with the DYNAMIC Filter Dropdown */}
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Database Records</h3>
+              <select 
+                value={filterDepartment} 
+                onChange={e => setFilterDepartment(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer transition-colors max-w-[200px] truncate"
+              >
+                <option value="ALL">All Departments</option>
+                {departmentList.map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              {filteredList.length === 0 ? (
+                <div className="col-span-2 text-center py-12 text-slate-400 text-sm font-medium">
+                  No records found in this department.
                 </div>
-                <button onClick={() => handleDelete(person.id, activeSubTab)} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1.5">
-                  ✕
-                </button>
-              </div>
-            ))}
+              ) : (
+                filteredList.map((person) => (
+                  <div key={person.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-center group hover:border-blue-300 hover:bg-blue-50/30 transition-all">
+                    <div className="overflow-hidden pr-2">
+                      <p className="font-semibold text-sm text-slate-800 truncate">{person.name}</p>
+                      
+                      {/* Department Badge next to RegNo */}
+                      <div className="flex items-center gap-2 my-0.5">
+                        <p className="text-[11px] font-bold text-blue-600">{person.registerNumber}</p>
+                        {person.department && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[100px]">
+                            {person.department.split(' ')[0]} {/* Shows just the first word for neatness */}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-500 truncate">{person.email}</p>
+                    </div>
+                    <button onClick={() => handleDelete(person.id, activeSubTab)} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 flex-shrink-0">
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-
+    );
+  };
   const renderAnnouncements = () => {
     const handlePostAnnouncement = async (e) => {
       e.preventDefault();
@@ -626,7 +689,227 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     );
   };
+  const renderComplaints = () => {
+    const handleStatusUpdate = async (id, newStatus) => {
+      try {
+        const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) fetchData();
+      } catch (err) { console.error("Failed to update status"); }
+    };
 
+    const formatDate = (dateString) => {
+      if (!dateString) return "";
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    // Calculate stats for the header
+    const pendingCount = complaintList.filter(c => c.status === 'PENDING').length;
+    const resolvedCount = complaintList.filter(c => c.status === 'RESOLVED').length;
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex justify-between items-end mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
+            <p className="text-sm font-medium text-slate-500 mt-1">Manage and resolve campus issues.</p>
+          </div>
+          <div className="flex gap-4">
+            <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center">
+              <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
+              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
+            </div>
+            <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center">
+              <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            {complaintList.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="text-5xl mb-4 opacity-30">✅</div>
+                <p className="text-slate-400 font-medium">Inbox zero. No complaints reported.</p>
+              </div>
+            ) : (
+              complaintList.map((ticket) => (
+                <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                        ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {ticket.userRole}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
+                      <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
+                    </div>
+
+                    {/* Action Controls */}
+                    <div className="flex items-center gap-3">
+                      <select 
+                        value={ticket.status} 
+                        onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
+                        className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer ${
+                          ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 
+                          ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 
+                          'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="IN_PROGRESS">IN PROGRESS</option>
+                        <option value="RESOLVED">RESOLVED</option>
+                      </select>
+                      
+                      <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+                  </div>
+                  
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+const renderDepartments = () => {
+    const handleAddDept = async (e) => {
+      e.preventDefault();
+      setIsSavingDept(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/add-department`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newDeptName })
+        });
+        if (res.ok) {
+          setNewDeptName("");
+          fetchData(); // Refreshes the list instantly
+        } else {
+          alert("Failed to add. Department might already exist.");
+        }
+      } catch (err) { alert("Server Error"); } 
+      finally { setIsSavingDept(false); }
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Department Master</h2>
+        
+        {/* TOP SECTION: Form & Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Add Department Form */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add Department</h3>
+            <form onSubmit={handleAddDept} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Department Name</label>
+                <input 
+                  type="text" required value={newDeptName} onChange={e => setNewDeptName(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" 
+                  placeholder="e.g. Computer Science (CSE)" 
+                />
+              </div>
+              <button disabled={isSavingDept} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm">
+                {isSavingDept ? "Saving..." : "Register Department"}
+              </button>
+            </form>
+          </div>
+
+          {/* Department Quick List */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Manage Active Departments</h3>
+            </div>
+
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {departmentList.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-sm font-medium">No departments registered yet.</div>
+              ) : (
+                departmentList.map((dept) => (
+                  <div key={dept.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-center group hover:border-blue-300 hover:bg-blue-50/20 transition-all">
+                    <h4 className="font-semibold text-sm text-slate-800">{dept.name}</h4>
+                    <button onClick={() => handleDelete(dept.id, 'department')} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-2">
+                      ✕ Delete
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* BOTTOM SECTION: Full Demographics Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Institution Demographics Report</h3>
+            <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Live Data</span>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm min-w-[600px]">
+              <thead>
+                <tr className="bg-white text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-4 px-6">Department Name</th>
+                  <th className="py-4 px-6 text-center">Total Students</th>
+                  <th className="py-4 px-6 text-center">Total Staff</th>
+                  <th className="py-4 px-6 text-right">Total Headcount</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {departmentList.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-10 text-slate-400 font-medium">Add departments to see demographics.</td>
+                  </tr>
+                ) : (
+                  departmentList.map((dept) => {
+                    // Calculate exact numbers for this specific department
+                    const deptStudents = studentList.filter(s => s.department === dept.name).length;
+                    const deptStaff = staffList.filter(s => s.department === dept.name).length;
+                    const totalMembers = deptStudents + deptStaff;
+
+                    return (
+                      <tr key={`summary-${dept.id}`} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-6 font-semibold text-slate-800">{dept.name}</td>
+                        <td className="py-3.5 px-6 text-center font-bold text-blue-600">{deptStudents}</td>
+                        <td className="py-3.5 px-6 text-center font-bold text-indigo-600">{deptStaff}</td>
+                        <td className="py-3.5 px-6 text-right font-bold text-slate-900 bg-slate-50/30">{totalMembers}</td>
+                      </tr>
+                    );
+                  })
+                )}
+                
+                {/* Grand Total Row at the absolute bottom */}
+                {departmentList.length > 0 && (
+                  <tr className="bg-slate-100/50 border-t-2 border-slate-200">
+                    <td className="py-4 px-6 font-bold text-slate-900 uppercase tracking-widest text-xs">Grand Total</td>
+                    <td className="py-4 px-6 text-center font-black text-blue-700">{studentList.length}</td>
+                    <td className="py-4 px-6 text-center font-black text-indigo-700">{staffList.length}</td>
+                    <td className="py-4 px-6 text-right font-black text-slate-900 text-base">{studentList.length + staffList.length}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[50vh] text-center">
       <div className="text-4xl mb-3 text-slate-300">⚙️</div>
@@ -706,18 +989,22 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
 
         <div className="p-5 lg:p-8 max-w-6xl mx-auto">
           {activeMenu === 'Dashboard' && renderDashboard()}
+          {activeMenu === 'Departments' && renderDepartments()}
           {activeMenu === 'User Management' && renderUserManagement()}
           {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
           {activeMenu === 'Attendance Monitoring' && renderAttendanceMonitoring()}
           {activeMenu === 'Marks & Performance' && renderMarksAndPerformance()}
           {activeMenu === 'Announcements' && renderAnnouncements()}
+          {activeMenu === 'Complaints' && renderComplaints()}
           {
             activeMenu !== 'Dashboard' && 
+            activeMenu !== 'Departments' &&
             activeMenu !== 'User Management' && 
             activeMenu !== 'Courses & Subjects' && 
             activeMenu !== 'Attendance Monitoring' && 
             activeMenu !== 'Marks & Performance' && 
             activeMenu !== 'Announcements' && 
+            activeMenu !== 'Complaints' &&
             renderPlaceholder()
           }
         </div>

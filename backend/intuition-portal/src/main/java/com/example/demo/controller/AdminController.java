@@ -16,12 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.model.Announcement;
 import com.example.demo.model.Attendance;
+import com.example.demo.model.Complaint;
 import com.example.demo.model.Mark;
 import com.example.demo.model.StaffMember;
 import com.example.demo.model.Student;
 import com.example.demo.model.Course; // Make sure you have this model!
 import com.example.demo.repository.AnnouncementRepository;
 import com.example.demo.repository.AttendanceRepository;
+import com.example.demo.repository.ComplaintRepository;
 import com.example.demo.repository.MarkRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
@@ -95,6 +97,45 @@ public class AdminController {
     public String deleteStudent(@PathVariable Long id) {
         studentRepository.deleteById(id);
         return "Student deleted successfully";
+    }
+    @Autowired
+    private ComplaintRepository complaintRepository;
+
+    @GetMapping("/all-complaints")
+    public List<Complaint> getAllComplaints() {
+        return complaintRepository.findAllByOrderBySubmittedAtDesc();
+    }
+
+    // Host uses this to change status to RESOLVED
+    @PostMapping("/update-complaint/{id}")
+    public Complaint updateComplaintStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> payload) {
+        Complaint complaint = complaintRepository.findById(id).orElseThrow();
+        complaint.setStatus(payload.get("status"));
+        return complaintRepository.save(complaint);
+    }
+
+    @DeleteMapping("/delete-complaint/{id}")
+    public String deleteComplaint(@PathVariable Long id) {
+        complaintRepository.deleteById(id);
+        return "Complaint removed";
+    }
+    @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @GetMapping("/all-departments")
+    public List<Department> getAllDepartments() {
+        return departmentRepository.findAll();
+    }
+
+    @PostMapping("/add-department")
+    public Department addDepartment(@RequestBody Department department) {
+        return departmentRepository.save(department);
+    }
+
+    @DeleteMapping("/delete-department/{id}")
+    public String deleteDepartment(@PathVariable Long id) {
+        departmentRepository.deleteById(id);
+        return "Department deleted";
     }
 
     // --- COURSE ENDPOINTS (ADDED) ---
