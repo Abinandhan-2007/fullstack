@@ -21,6 +21,7 @@ import com.example.demo.model.Mark;
 import com.example.demo.model.StaffMember;
 import com.example.demo.model.Student;
 import com.example.demo.model.Course; // Make sure you have this model!
+import com.example.demo.model.Department;
 import com.example.demo.repository.AnnouncementRepository;
 import com.example.demo.repository.AttendanceRepository;
 import com.example.demo.repository.ComplaintRepository;
