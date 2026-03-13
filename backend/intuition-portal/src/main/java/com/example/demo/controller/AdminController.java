@@ -25,7 +25,7 @@ import com.example.demo.repository.StudentRepository;
 
 @RestController
 @RequestMapping("/api/admin")
-@CrossOrigin(origins = "*") 
+@CrossOrigin(origins = {"http://localhost:5173", "https://fullstack-five-sage.vercel.app"}) 
 public class AdminController {
     
 
