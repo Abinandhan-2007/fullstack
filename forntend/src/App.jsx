@@ -10,16 +10,22 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Note: Make sure this URL matches your active Render backend!
   const API_URL = "https://fullstack-8cjk.onrender.com";
-  const HOST_EMAIL = {"kvabhinanthan@gmail.com":"sivanagu7771@gmail.com"};
+  
+  // FIX: Use an Array to safely store multiple host emails
+  const HOST_EMAILS = [
+    "kvabhinanthan@gmail.com", 
+    "sivanagu7771@gmail.com"
+  ];
 
   const determineRole = async (email) => {
-    if (email.toLowerCase() === HOST_EMAIL[email.toLowerCase()].toLowerCase()) {
+    // FIX: Safely check if the email exists in the array
+    if (HOST_EMAILS.includes(email.toLowerCase())) {
       setRole('host');
       setLoading(false);
       return;
     }
+    
     try {
       // Check database for Staff
       const res = await fetch(`${API_URL}/api/host/all-staff`);
@@ -37,7 +43,6 @@ export default function App() {
   };
 
   const handleLogin = (response) => {
-    // Google sends back an encrypted token. This decodes it into an object with name, email, picture, etc.
     const decoded = jwtDecode(response.credential);
     setUser(decoded);
     localStorage.setItem("user", JSON.stringify(decoded));
@@ -79,7 +84,6 @@ export default function App() {
           <p className="text-slate-500 mb-10">Sign in with Google to continue</p>
           
           <div className="flex justify-center scale-110">
-            {/* The Official Google Login Button */}
             <GoogleLogin 
               onSuccess={handleLogin} 
               onError={() => console.log('Login Failed')}
