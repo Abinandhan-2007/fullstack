@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
-import HostPortal from './page/HostPortal';
+import HostPortal from './page/AdminPortal';
 import StaffPortal from './page/StaffPortal';
 import StudentPortal from './page/StudentPortal';
 

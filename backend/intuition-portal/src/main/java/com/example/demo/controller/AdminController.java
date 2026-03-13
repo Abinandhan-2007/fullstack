@@ -15,13 +15,34 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.model.StaffMember;
 import com.example.demo.model.Student;
+import com.example.demo.repository.AdminRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
+import com.example.demo.model.Admin;
 
 @RestController
-@RequestMapping("/api/host")
+@RequestMapping("/api/admin")
 @CrossOrigin(origins = "*") 
-public class HostController {
+public class AdminController {
+    @Autowired
+private AdminRepository courseRepository;
+
+// Add these endpoints inside the class
+@GetMapping("/all-courses")
+public List<Admin> getAllCourses() {
+    return courseRepository.findAll();
+}
+
+@PostMapping("/add-course")
+public Admin addCourse(@RequestBody Admin course) {
+    return courseRepository.save(course);
+}
+
+@DeleteMapping("/delete-course/{id}")
+public String deleteCourse(@PathVariable Long id) {
+    courseRepository.deleteById(id);
+    return "Course deleted";
+}
 
     @Autowired
     private StaffRepository staffRepository;
