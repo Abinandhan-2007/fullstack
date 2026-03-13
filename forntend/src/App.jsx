@@ -1,30 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
 import HostPortal from './page/HostPortal';
 import StaffPortal from './page/StaffPortal';
 import StudentPortal from './page/StudentPortal';
 
-// Note: Replace this with your actual Google Login import
-// import { GoogleLogin } from '@react-oauth/google'; 
-
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // 'host', 'staff', or 'student'
-  const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const HOST_EMAIL = "kvabhinanthan@gmail.com";
+  // Note: Make sure this URL matches your active Render backend!
   const API_URL = "https://fullstack-8cjk.onrender.com";
-
-  // Simulate or handle Google Login success
-  const handleLoginSuccess = async (credentialResponse) => {
-    setLoading(true);
-    // Decode your Google credential here to get the email
-    // For this example, we assume you extract the email successfully:
-    const userEmail = "extracted_email@gmail.com"; // Replace with actual decoded email
-    const userData = { email: userEmail, name: "Google User" }; // Replace with actual decoded data
-    
-    setUser(userData);
-    await determineRole(userData.email);
-  };
+  const HOST_EMAIL = "kvabhinanthan@gmail.com";
 
   const determineRole = async (email) => {
     if (email.toLowerCase() === HOST_EMAIL.toLowerCase()) {
@@ -32,53 +20,84 @@ export default function App() {
       setLoading(false);
       return;
     }
-    
     try {
+      // Check database for Staff
       const res = await fetch(`${API_URL}/api/host/all-staff`);
       if (res.ok) {
         const staffList = await res.json();
-        const isStaff = staffList.some(s => 
-          s.email.trim().toLowerCase() === email.trim().toLowerCase()
-        );
+        const isStaff = staffList.some(s => s.email.toLowerCase() === email.toLowerCase());
         setRole(isStaff ? 'staff' : 'student');
       } else { 
         setRole('student'); 
       }
-    } catch (error) { 
-      console.error("Gatekeeper Error:", error);
+    } catch { 
       setRole('student'); 
     }
     setLoading(false);
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setRole(null);
-    // Add any specific Google logout logic here if needed
+  const handleLogin = (response) => {
+    // Google sends back an encrypted token. This decodes it into an object with name, email, picture, etc.
+    const decoded = jwtDecode(response.credential);
+    setUser(decoded);
+    localStorage.setItem("user", JSON.stringify(decoded));
+    determineRole(decoded.email);
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    window.location.reload();
+  };
+
+  useEffect(() => {
+    const saved = localStorage.getItem("user");
+    if (saved) {
+      const u = JSON.parse(saved);
+      setUser(u);
+      determineRole(u.email);
+    } else { 
+      setLoading(false); 
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center font-bold text-slate-400 bg-slate-50 animate-pulse">
+        Synchronizing Data...
+      </div>
+    );
+  }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center">
-          <h1 className="text-2xl font-bold mb-6">College ERP Portal</h1>
-          {/* Put your actual Google Login button component here */}
-          <button 
-            onClick={() => handleLoginSuccess()} // Replace with real auth handler
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Sign in with Google
-          </button>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white max-w-md w-full p-12 rounded-[3rem] shadow-2xl text-center border border-slate-100">
+          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-white font-black text-4xl mx-auto mb-8 shadow-lg">
+            C
+          </div>
+          <h2 className="text-3xl font-black text-slate-800 mb-2">Institution Portal</h2>
+          <p className="text-slate-500 mb-10">Sign in with Google to continue</p>
+          
+          <div className="flex justify-center scale-110">
+            {/* The Official Google Login Button */}
+            <GoogleLogin 
+              onSuccess={handleLogin} 
+              onError={() => console.log('Login Failed')}
+              theme="filled_blue" 
+              shape="pill" 
+              size="large" 
+            />
+          </div>
         </div>
       </div>
     );
   }
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-xl font-bold">Verifying Access...</div>;
-  }
-
-  if (role === 'host') return <HostPortal handleLogout={handleLogout} apiUrl={API_URL} />;
-  if (role === 'staff') return <StaffPortal handleLogout={handleLogout} user={user} />;
-  return <StudentPortal handleLogout={handleLogout} user={user} />;
+  return (
+    <>
+      {role === 'host' && <HostPortal user={user} handleLogout={handleLogout} apiUrl={API_URL} />}
+      {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} />}
+      {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} />}
+    </>
+  );
 }

@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.model.StaffMember;
+import com.example.demo.model.Student;
 import com.example.demo.repository.StaffRepository;
+import com.example.demo.repository.StudentRepository;
 
 @RestController
 @RequestMapping("/api/host")
@@ -21,6 +23,10 @@ public class HostController {
     @Autowired
     private StaffRepository staffRepository;
 
+    @Autowired
+    private StudentRepository studentRepository;
+
+    // --- STAFF ENDPOINTS ---
     @GetMapping("/all-staff")
     public List<StaffMember> getAllStaff() {
         return staffRepository.findAll();
@@ -29,5 +35,16 @@ public class HostController {
     @PostMapping("/add-staff")
     public StaffMember addStaff(@RequestBody StaffMember staff) {
         return staffRepository.save(staff);
+    }
+
+    // --- STUDENT ENDPOINTS ---
+    @GetMapping("/all-students")
+    public List<Student> getAllStudents() {
+        return studentRepository.findAll();
+    }
+
+    @PostMapping("/add-student")
+    public Student addStudent(@RequestBody Student student) {
+        return studentRepository.save(student);
     }
 }

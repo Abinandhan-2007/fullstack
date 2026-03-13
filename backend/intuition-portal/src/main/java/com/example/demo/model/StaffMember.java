@@ -16,7 +16,8 @@ public class StaffMember {
     private Long id;
 
     private String name;
-
+    @Column(nullable = false)
+    private String registerNumber;
     @Column(unique = true, nullable = false)
     private String email;
 
@@ -27,4 +28,6 @@ public class StaffMember {
     public void setName(String name) { this.name = name; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public String getRegisterNumber() { return registerNumber; }
+    public void setRegisterNumber(String registerNumber) { this.registerNumber = registerNumber; }
 }
