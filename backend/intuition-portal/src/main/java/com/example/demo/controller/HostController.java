@@ -1,6 +1,7 @@
 package com.example.demo.controller;
-
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -63,5 +64,12 @@ public String deleteStaff(@PathVariable Long id) {
 public String deleteStudent(@PathVariable Long id) {
     studentRepository.deleteById(id);
     return "Student deleted successfully";
+}
+@GetMapping("/stats")
+public Map<String, Long> getStats() {
+    Map<String, Long> stats = new HashMap<>();
+    stats.put("totalStudents", studentRepository.count());
+    stats.put("totalStaff", staffRepository.count());
+    return stats;
 }
 }
