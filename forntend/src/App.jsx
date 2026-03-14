@@ -1,24 +1,47 @@
-// ==========================================
-// MAIN GATEKEEPER
-// ==========================================
+import React, { useState, useEffect } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
+import AdminPortal from './page/AdminPortal.jsx'; 
+
+// 1. STAFF PORTAL PLACEHOLDER
+const StaffPortal = ({ user, handleLogout }) => (
+  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+    <h1 className="text-3xl font-black text-slate-800 tracking-tighter">STAFF<span className="text-indigo-600">PORTAL</span></h1>
+    <p className="text-slate-500 mt-2 mb-8 font-medium italic">Welcome, {user.name}. Accessing faculty records...</p>
+    <button onClick={handleLogout} className="px-8 py-3 bg-rose-500 text-white font-bold rounded-2xl shadow-lg">Sign Out</button>
+  </div>
+);
+
+// 2. STUDENT PORTAL PLACEHOLDER (We built the UI earlier, this is the wrapper)
+const StudentPortal = ({ user, handleLogout }) => (
+  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+    <h1 className="text-3xl font-black text-slate-800 tracking-tighter">STUDENT<span className="text-blue-600">PORTAL</span></h1>
+    <p className="text-slate-500 mt-2 mb-8 font-medium italic">Welcome, {user.name}. Synchronizing your academic dashboard...</p>
+    <button onClick={handleLogout} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg">Sign Out</button>
+  </div>
+);
+
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
+  const [role, setRole] = useState(null); // 'host', 'staff', 'student', or 'denied'
   const [loading, setLoading] = useState(true);
 
   const HOST_EMAIL = "kvabhinanthan@gmail.com";
-  const apiUrl = "https://fullstack-q3c5.onrender.com"; // Your backend URL
+  const apiUrl = "https://fullstack-q3c5.onrender.com";
 
+  // THIS IS THE LOGIC YOU ARE STRIKING ON:
   const determineRole = async (email) => {
-    // 1. Check for Admin/Host
+    setLoading(true);
+    
+    // Step A: Check if it's YOU (The Admin)
     if (email.toLowerCase() === HOST_EMAIL.toLowerCase()) {
       setRole('host');
       setLoading(false);
       return;
     }
-    
+
     try {
-      // 2. Fetch BOTH Staff and Student lists from database
+      // Step B: Ask the backend for the lists the Admin created
       const [staffRes, studentRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`)
@@ -27,28 +50,26 @@ export default function App() {
       let isStaff = false;
       let isStudent = false;
 
-      // 3. Check if email exists in Staff List
+      // Step C: Check Staff list
       if (staffRes.ok) {
         const staffList = await staffRes.json();
-        isStaff = staffList.some(s => s.email.toLowerCase() === email.toLowerCase());
+        isStaff = staffList.some(s => s.email?.toLowerCase() === email.toLowerCase());
       }
 
-      // 4. Check if email exists in Student List
+      // Step D: Check Student list
       if (studentRes.ok && !isStaff) {
         const studentList = await studentRes.json();
-        isStudent = studentList.some(s => s.email.toLowerCase() === email.toLowerCase());
+        isStudent = studentList.some(s => s.email?.toLowerCase() === email.toLowerCase());
       }
 
-      // 5. Assign appropriate role, or DENY access
-      if (isStaff) {
-        setRole('staff');
-      } else if (isStudent) {
-        setRole('student');
-      } else {
-        setRole('denied'); // <--- NEW: Triggers the Access Denied screen
-      }
-    } catch {
-      setRole('denied'); // If database connection fails, deny access for safety
+      // Step E: Final Decision
+      if (isStaff) setRole('staff');
+      else if (isStudent) setRole('student');
+      else setRole('denied'); // NOT FOUND IN DB -> NO ACCESS
+
+    } catch (error) {
+      console.error("Auth System Error:", error);
+      setRole('denied');
     }
     setLoading(false);
   };
@@ -71,17 +92,17 @@ export default function App() {
       const u = JSON.parse(saved);
       setUser(u);
       determineRole(u.email);
-    } else { 
-      setLoading(false); 
+    } else {
+      setLoading(false);
     }
   }, []);
 
-  // --- UI SCREENS ---
+  // --- RENDERING SCREENS ---
 
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
-      <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-      <p className="font-bold text-slate-500 tracking-widest uppercase text-sm animate-pulse">Authenticating User...</p>
+      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p className="text-slate-400 font-black text-[10px] tracking-widest uppercase">Verifying Authorization</p>
     </div>
   );
 
@@ -90,12 +111,10 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white max-w-md w-full p-12 rounded-[3rem] shadow-xl text-center border border-slate-100">
-          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-white font-black text-4xl mx-auto mb-8 shadow-lg shadow-blue-600/30">C</div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2">Institution Portal</h2>
-          <p className="text-slate-500 mb-10 font-medium">Sign in with your registered Google account</p>
-          <div className="flex justify-center scale-110">
-            <GoogleLogin onSuccess={handleLogin} theme="filled_blue" shape="pill" size="large" />
-          </div>
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl mx-auto mb-6 shadow-lg shadow-blue-600/20">C</div>
+          <h2 className="text-3xl font-black text-slate-800 mb-2">Campus Portal</h2>
+          <p className="text-slate-400 mb-10 text-sm font-medium">Use your registered Google account to enter</p>
+          <div className="flex justify-center"><GoogleLogin onSuccess={handleLogin} theme="filled_blue" shape="pill" /></div>
         </div>
       </div>
     );
@@ -106,30 +125,23 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white max-w-md w-full p-10 rounded-[2.5rem] shadow-xl text-center border border-rose-100">
-          <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 border border-rose-100">
-            ⛔
-          </div>
-          <h2 className="text-2xl font-black text-slate-800 mb-3 tracking-tight">Access Denied</h2>
-          <p className="text-slate-500 mb-8 font-medium leading-relaxed">
-            Your email address <span className="font-bold text-slate-800">({user.email})</span> is not registered in the system. Please ask the Administrator to add you to the directory.
+          <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">⛔</div>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">Unregistered Account</h2>
+          <p className="text-slate-500 mb-8 text-sm leading-relaxed">
+            The email <span className="font-bold text-slate-900">{user.email}</span> has not been added to the system by an Admin.
           </p>
-          <button 
-            onClick={handleLogout} 
-            className="w-full bg-slate-900 text-white px-6 py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-sm"
-          >
-            Sign out & Try another account
-          </button>
+          <button onClick={handleLogout} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-sm">Back to Login</button>
         </div>
       </div>
     );
   }
 
-  // 3. AUTHORIZED PORTAL ROUTING
+  // 3. SUCCESSFUL ROUTING
   return (
     <>
       {role === 'host' && <AdminPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
-      {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
-      {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
+      {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} />}
+      {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} />}
     </>
   );
 }
