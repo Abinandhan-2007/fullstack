@@ -26,7 +26,7 @@ export default function App() {
   const [role, setRole] = useState(null); // 'host', 'staff', 'student', or 'denied'
   const [loading, setLoading] = useState(true);
 
-  const HOST_EMAIL = ["kvabhinanthan@gmail.com","sivanagu7771@gmail.com"]; // <-- ADD YOUR EMAIL HERE FOR TESTING (MULTIPLE ALLOWED)
+ const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
   const apiUrl = "https://fullstack-q3c5.onrender.com";
 
   // THIS IS THE LOGIC YOU ARE STRIKING ON:
@@ -34,7 +34,7 @@ export default function App() {
     setLoading(true);
     
     // Step A: Check if it's YOU (The Admin)
-    if (email.toLowerCase() === HOST_EMAIL.toLowerCase()) {
+   if (HOST_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) {
       setRole('host');
       setLoading(false);
       return;
