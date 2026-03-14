@@ -26,7 +26,7 @@ export default function App() {
   const [role, setRole] = useState(null); // 'host', 'staff', 'student', or 'denied'
   const [loading, setLoading] = useState(true);
 
-  const HOST_EMAIL = "kvabhinanthan@gmail.com";
+  const HOST_EMAIL = ["kvabhinanthan@gmail.com","sivanagu7771@gmail.com"]; // <-- ADD YOUR EMAIL HERE FOR TESTING (MULTIPLE ALLOWED)
   const apiUrl = "https://fullstack-q3c5.onrender.com";
 
   // THIS IS THE LOGIC YOU ARE STRIKING ON:
