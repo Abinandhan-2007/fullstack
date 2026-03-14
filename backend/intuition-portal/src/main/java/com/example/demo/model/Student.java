@@ -16,6 +16,11 @@ public class Student {
     private String name;
     private String email;
     private String registerNumber;
+    @Column(nullable = false)
+    private String batch = "Unassigned";
+
+    public String getBatch() { return batch; }
+    public void setBatch(String batch) { this.batch = batch; }
 
     // Getters and Setters
     @Column(nullable = false)

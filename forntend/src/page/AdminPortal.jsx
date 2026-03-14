@@ -5,17 +5,22 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState('Dashboard'); 
   const [activeSubTab, setActiveSubTab] = useState('students'); 
+  
   // Department Master States
   const [departmentList, setDepartmentList] = useState([]);
   const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptShortForm, setNewDeptShortForm] = useState("");
+  const [newDeptDegree, setNewDeptDegree] = useState("B.E.");
+  const [newDeptCluster, setNewDeptCluster] = useState("Core Engineering");
+  const [selectedDeptDetailForModal, setSelectedDeptDetailForModal] = useState(null);
+  const [selectedDemographicDept, setSelectedDemographicDept] = useState(null);
   const [isSavingDept, setIsSavingDept] = useState(false);
-
 
   // Courses & Subjects States
   const [subjectName, setSubjectName] = useState("");
   const [subjectCode, setSubjectCode] = useState("");
   const [credits, setCredits] = useState("");
-  const [courseDepartment, setCourseDepartment] = useState(""); // <-- ADDED
+  const [courseDepartment, setCourseDepartment] = useState(""); 
   const [filterCourseDept, setFilterCourseDept] = useState("ALL");
   const [selectedDeptForModal, setSelectedDeptForModal] = useState(null);
   const [courseList, setCourseList] = useState([]);
@@ -26,6 +31,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [selectedStudent, setSelectedStudent] = useState(""); 
   const [attendanceData, setAttendanceData] = useState({}); 
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [attendanceView, setAttendanceView] = useState("STUDENTS");
   const [studentSearch, setStudentSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   
@@ -38,20 +44,33 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [announcementAudience, setAnnouncementAudience] = useState("ALL");
   const [announcementList, setAnnouncementList] = useState([]);
-const [announcementDept, setAnnouncementDept] = useState("ALL"); // This was likely missing
-const [isPosting, setIsPosting] = useState(false);
+  const [announcementDept, setAnnouncementDept] = useState("ALL"); 
+  const [isPosting, setIsPosting] = useState(false);
+  
   // Complaints State
   const [complaintList, setComplaintList] = useState([]);
+  
   // User Management States
   const [name, setName] = useState("");
   const [regNo, setRegNo] = useState("");
   const [email, setEmail] = useState("");
-  const [department, setDepartment] = useState("Computer Science (CSE)"); // ONLY ONE OF THESE
+  const [department, setDepartment] = useState(""); 
   const [isSaving, setIsSaving] = useState(false);
   const [staffList, setStaffList] = useState([]);
   const [studentList, setStudentList] = useState([]);
   const [stats, setStats] = useState({ totalStudents: 0, totalStaff: 0 });
   const [filterDepartment, setFilterDepartment] = useState("ALL");
+  const [batch, setBatch] = useState("");
+
+  // Placement States
+  const [companyName, setCompanyName] = useState("");
+  const [jobRole, setJobRole] = useState("");
+  const [ctc, setCtc] = useState("");
+  const [placedStudentsCount, setPlacedStudentsCount] = useState("");
+  const [placementList, setPlacementList] = useState([]);
+  const [isSavingPlacement, setIsSavingPlacement] = useState(false);
+  const [filterBatch, setFilterBatch] = useState("ALL");
+  
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
@@ -62,23 +81,21 @@ const [isPosting, setIsPosting] = useState(false);
     { name: 'Marks & Performance', icon: '📈' },
     { name: 'Announcements', icon: '📢' },
     { name: 'Complaints', icon: '⚠️' },
-    { name: 'Reports & Analytics', icon: '📑' },
+    { name: 'Placement Details', icon: '💼' },
     { name: 'System Settings', icon: '⚙️' },
     { name: 'Security Logs', icon: '🛡️' },
   ];
 
   // Fetch all data
-  // Fetch all data
   const fetchData = async () => {
     try {
-      // 1. Notice we added 'deptRes' to this list!
       const [staffRes, studentRes, statsRes, courseRes, announceRes, deptRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`),
         fetch(`${apiUrl}/api/host/stats`),
         fetch(`${apiUrl}/api/host/all-courses`),
         fetch(`${apiUrl}/api/host/all-announcements`),
-        fetch(`${apiUrl}/api/host/all-departments`) // 2. This pulls the departments!
+        fetch(`${apiUrl}/api/host/all-departments`) 
       ]);
 
       if (staffRes.ok) setStaffList(await staffRes.json());
@@ -86,8 +103,6 @@ const [isPosting, setIsPosting] = useState(false);
       if (courseRes.ok) setCourseList(await courseRes.json());
       if (announceRes.ok) setAnnouncementList(await announceRes.json());
       if (studentRes.ok) setStudentList(await studentRes.json());
-      
-      // 3. This saves them to your screen
       if (deptRes.ok) setDepartmentList(await deptRes.json()); 
 
     } catch (err) { console.error("Database sync failed:", err); }
@@ -98,46 +113,51 @@ const [isPosting, setIsPosting] = useState(false);
   const handleSubmitUser = async (e) => {
     e.preventDefault();
     setIsSaving(true);
+    
     const endpoint = activeSubTab === 'staff' ? '/api/host/add-staff' : '/api/host/add-student';
+    
+    const payload = { 
+      name, 
+      registerNumber: regNo, 
+      email, 
+      department 
+    };
+    
+    if (activeSubTab === 'students') {
+      payload.batch = batch; 
+    }
+
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, registerNumber: regNo, email, department }) // <-- ADDED department
+        body: JSON.stringify(payload)
       });
+      
       if (res.ok) {
-        setName(""); setRegNo(""); setEmail(""); setDepartment("Computer Science (CSE)"); // <-- RESET
+        setName(""); 
+        setRegNo(""); 
+        setEmail(""); 
+        setDepartment(""); 
+        setBatch("");      
         fetchData();
+      } else {
+        alert("Failed to save record. Please check for duplicate IDs or missing fields.");
       }
-    } catch (err) { alert("Error saving"); } 
-    finally { setIsSaving(false); }
-  };
-
-  const handleAddCourse = async (e) => {
-    e.preventDefault();
-    setIsSavingCourse(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/host/add-course`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subjectName, subjectCode, credits: parseInt(credits) })
-      });
-      if (res.ok) {
-        setSubjectName(""); setSubjectCode(""); setCredits("");
-        fetchData();
-      } else { alert("Failed to save course. Check for duplicate Subject Codes."); }
-    } catch (err) { alert("Error connecting to server"); } 
-    finally { setIsSavingCourse(false); }
+    } catch (err) { 
+      alert("Error connecting to the server."); 
+    } finally { 
+      setIsSaving(false); 
+    }
   };
 
   const handleDelete = async (id, type) => {
     if (!window.confirm(`Permanently delete this ${type}?`)) return;
-const endpoint = type === 'course' ? `/api/host/delete-course/${id}` 
+    const endpoint = type === 'course' ? `/api/host/delete-course/${id}` 
                    : type === 'staff' ? `/api/host/delete-staff/${id}` 
                    : type === 'announcement' ? `/api/host/delete-announcement/${id}`
                    : type === 'complaint' ? `/api/host/delete-complaint/${id}`
                    : type === 'department' ? `/api/host/delete-department/${id}`
-                    // <-- ADDED THIS
                    : `/api/host/delete-student/${id}`;
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, { method: "DELETE" });
@@ -165,7 +185,7 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
         
         <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md flex flex-col justify-between">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Courses</p>
-          <p className="text-3xl font-bold text-emerald-400">{courseList.length}</p>
+          <p className="text-3xl font-bold text-emerald-400">{(courseList || []).length}</p>
         </div>
 
         <div className="bg-violet-600 text-white p-5 rounded-xl shadow-md flex flex-col justify-between">
@@ -230,11 +250,9 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
     </div>
   );
 
- const renderUserManagement = () => {
-    // 1. Determine if we are looking at staff or students
-    const currentList = activeSubTab === 'staff' ? staffList : studentList;
+  const renderUserManagement = () => {
+    const currentList = activeSubTab === 'staff' ? (staffList || []) : (studentList || []);
     
-    // 2. Filter the list based on the dropdown selection
     const filteredList = filterDepartment === "ALL" 
       ? currentList 
       : currentList.filter(person => person.department === filterDepartment);
@@ -257,13 +275,20 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
               <input type="text" required value={regNo} onChange={e => setRegNo(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="ID / Register Number" />
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="Email Address" />
               
-              {/* DYNAMIC Department Dropdown (Pulls from Database) */}
               <select required value={department} onChange={e => setDepartment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none font-medium text-slate-700 cursor-pointer">
                 <option value="">-- Select Department --</option>
-                {departmentList.map(d => (
+                {(departmentList || []).map(d => (
                   <option key={d.id} value={d.name}>{d.name}</option>
                 ))}
               </select>
+
+              {activeSubTab === 'students' && (
+                <input 
+                  type="text" required value={batch} onChange={e => setBatch(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" 
+                  placeholder="Academic Batch (e.g. 2022-2026)" 
+                />
+              )}
 
               <button disabled={isSaving} className={`w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white transition-colors ${activeSubTab === 'staff' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-blue-600 hover:bg-blue-500'}`}>
                 {isSaving ? "Saving..." : "Create Record"}
@@ -272,8 +297,6 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
           </div>
           
           <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            
-            {/* Header with the DYNAMIC Filter Dropdown */}
             <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Database Records</h3>
               <select 
@@ -282,7 +305,7 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
                 className="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-400 cursor-pointer transition-colors max-w-[200px] truncate"
               >
                 <option value="ALL">All Departments</option>
-                {departmentList.map(d => (
+                {(departmentList || []).map(d => (
                   <option key={d.id} value={d.name}>{d.name}</option>
                 ))}
               </select>
@@ -291,7 +314,7 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
               {filteredList.length === 0 ? (
                 <div className="col-span-2 text-center py-12 text-slate-400 text-sm font-medium">
-                  No records found in this department.
+                  No records found in this view.
                 </div>
               ) : (
                 filteredList.map((person) => (
@@ -299,18 +322,25 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
                     <div className="overflow-hidden pr-2">
                       <p className="font-semibold text-sm text-slate-800 truncate">{person.name}</p>
                       
-                      {/* Department Badge next to RegNo */}
-                      <div className="flex items-center gap-2 my-0.5">
-                        <p className="text-[11px] font-bold text-blue-600">{person.registerNumber}</p>
+                      <div className="flex items-center gap-2 my-1 flex-wrap">
+                        <p className="text-[11px] font-bold text-blue-600">{person.registerNumber || person.employeeId}</p>
+                        
                         {person.department && (
                           <span className="text-[9px] font-bold uppercase tracking-widest bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[100px]">
-                            {person.department.split(' ')[0]} {/* Shows just the first word for neatness */}
+                            {person.department.split(' ')[0]}
+                          </span>
+                        )}
+
+                        {person.batch && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded">
+                            {person.batch}
                           </span>
                         )}
                       </div>
 
                       <p className="text-xs text-slate-500 truncate">{person.email}</p>
                     </div>
+                    
                     <button onClick={() => handleDelete(person.id, activeSubTab)} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 flex-shrink-0">
                       ✕
                     </button>
@@ -323,147 +353,310 @@ const endpoint = type === 'course' ? `/api/host/delete-course/${id}`
       </div>
     );
   };
-const renderAnnouncements = () => {
-  const handlePostAnnouncement = async (e) => {
-    e.preventDefault();
-    setIsPosting(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          title: announcementTitle, 
-          message: announcementMessage, 
-          targetAudience: announcementAudience,
-          department: announcementDept 
-        })
-      });
-      if (res.ok) {
-        setAnnouncementTitle(""); 
-        setAnnouncementMessage(""); 
-        setAnnouncementAudience("ALL");
-        setAnnouncementDept("ALL"); 
-        fetchData();
+
+  const renderAnnouncements = () => {
+    const handlePostAnnouncement = async (e) => {
+      e.preventDefault();
+      setIsPosting(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            title: announcementTitle, 
+            message: announcementMessage, 
+            targetAudience: announcementAudience,
+            department: announcementDept 
+          })
+        });
+        if (res.ok) {
+          setAnnouncementTitle(""); 
+          setAnnouncementMessage(""); 
+          setAnnouncementAudience("ALL");
+          setAnnouncementDept("ALL"); 
+          fetchData();
+        }
+      } catch (err) { 
+        alert("Server Connection Error"); 
+      } finally { 
+        setIsPosting(false); 
       }
-    } catch (err) { 
-      alert("Server Connection Error"); 
-    } finally { 
-      setIsPosting(false); 
-    }
-  };
+    };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "Just now";
-    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
+    const formatDate = (dateString) => {
+      if (!dateString) return "Just now";
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
 
-  // SAFETY CHECK: Ensure lists are arrays before filtering
-  const safeAnnouncements = announcementList || [];
-  const safeDepartments = departmentList || [];
+    const safeAnnouncements = announcementList || [];
+    const safeDepartments = departmentList || [];
 
-  return (
-    <div className="animate-in fade-in duration-500">
-      <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Campus Broadcasting</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* CREATE FORM */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
-          <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">New Broadcast</h3>
-          <form onSubmit={handlePostAnnouncement} className="space-y-3.5">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Target Group</label>
-                <select value={announcementAudience} onChange={e => setAnnouncementAudience(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-teal-400">
-                  <option value="ALL">Everyone</option>
-                  <option value="STUDENTS">Students</option>
-                  <option value="STAFF">Staff</option>
-                </select>
+    return (
+      <div className="animate-in fade-in duration-500">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Campus Broadcasting</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">New Broadcast</h3>
+            <form onSubmit={handlePostAnnouncement} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Target Group</label>
+                  <select value={announcementAudience} onChange={e => setAnnouncementAudience(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-teal-400">
+                    <option value="ALL">Everyone</option>
+                    <option value="STUDENTS">Students</option>
+                    <option value="STAFF">Staff</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Dept Filter</label>
+                  <select value={announcementDept} onChange={e => setAnnouncementDept(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-teal-600 outline-none focus:border-teal-400">
+                    <option value="ALL">All Depts</option>
+                    {safeDepartments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Dept Filter</label>
-                <select value={announcementDept} onChange={e => setAnnouncementDept(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-teal-600 outline-none focus:border-teal-400">
-                  <option value="ALL">All Depts</option>
-                  {safeDepartments.map(d => (
-                    <option key={d.id} value={d.name}>{d.name}</option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Title</label>
+                <input type="text" required value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400" placeholder="e.g. Lab Maintenance" />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject Title</label>
-              <input type="text" required value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400" placeholder="e.g. Lab Maintenance" />
-            </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Message Body</label>
+                <textarea required rows="4" value={announcementMessage} onChange={e => setAnnouncementMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 resize-none" placeholder="Type your message..." />
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Message Body</label>
-              <textarea required rows="4" value={announcementMessage} onChange={e => setAnnouncementMessage(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-400 resize-none" placeholder="Type your message..." />
-            </div>
-
-            <button disabled={isPosting} className="w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 shadow-sm transition-colors">
-              {isPosting ? "Sending..." : "Dispatch Broadcast"}
-            </button>
-          </form>
-        </div>
-
-        {/* BROADCAST HISTORY */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Broadcast History</h3>
-            <select 
-              value={filterCourseDept} 
-              onChange={e => setFilterCourseDept(e.target.value)}
-              className="text-[10px] font-bold bg-slate-100 border-none rounded px-2 py-1 text-slate-500 outline-none"
-            >
-              <option value="ALL">Show All History</option>
-              {safeDepartments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-            </select>
+              <button disabled={isPosting} className="w-full py-2.5 mt-1 rounded-lg font-semibold text-sm text-white bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 shadow-sm transition-colors">
+                {isPosting ? "Sending..." : "Dispatch Broadcast"}
+              </button>
+            </form>
           </div>
 
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {safeAnnouncements
-              .filter(a => filterCourseDept === "ALL" || a.department === filterCourseDept)
-              .length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-sm italic">No history found.</div>
-            ) : (
-              safeAnnouncements
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Broadcast History</h3>
+              <select 
+                value={filterCourseDept} 
+                onChange={e => setFilterCourseDept(e.target.value)}
+                className="text-[10px] font-bold bg-slate-100 border-none rounded px-2 py-1 text-slate-500 outline-none"
+              >
+                <option value="ALL">Show All History</option>
+                {safeDepartments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              {safeAnnouncements
                 .filter(a => filterCourseDept === "ALL" || a.department === filterCourseDept)
-                .map((announcement) => (
-                <div key={announcement.id} className="p-4 rounded-lg border border-slate-200 group relative hover:border-teal-300 hover:bg-teal-50/20 transition-all">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
-                        announcement.targetAudience === 'ALL' ? 'bg-slate-100 text-slate-600' : 
-                        announcement.targetAudience === 'STUDENTS' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {announcement.targetAudience}
-                      </span>
-                      {announcement.department && announcement.department !== "ALL" && (
-                        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-teal-100 text-teal-700 border border-teal-200">
-                          {announcement.department}
+                .length === 0 ? (
+                <div className="text-center py-16 text-slate-400 text-sm italic">No history found.</div>
+              ) : (
+                safeAnnouncements
+                  .filter(a => filterCourseDept === "ALL" || a.department === filterCourseDept)
+                  .map((announcement) => (
+                  <div key={announcement.id} className="p-4 rounded-lg border border-slate-200 group relative hover:border-teal-300 hover:bg-teal-50/20 transition-all">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                          announcement.targetAudience === 'ALL' ? 'bg-slate-100 text-slate-600' : 
+                          announcement.targetAudience === 'STUDENTS' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {announcement.targetAudience}
                         </span>
-                      )}
-                      <span className="text-[10px] text-slate-400 font-medium italic">{formatDate(announcement.postedAt)}</span>
+                        {announcement.department && announcement.department !== "ALL" && (
+                          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-teal-100 text-teal-700 border border-teal-200">
+                            {announcement.department}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-medium italic">{formatDate(announcement.postedAt)}</span>
+                      </div>
+                      <button onClick={() => handleDelete(announcement.id, 'announcement')} className="text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all">✕</button>
                     </div>
-                    <button onClick={() => handleDelete(announcement.id, 'announcement')} className="text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all">✕</button>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">{announcement.title}</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{announcement.message}</p>
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800 mb-1">{announcement.title}</h4>
-                  <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{announcement.message}</p>
-                </div>
-              ))
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPlacements = () => {
+    // 1. Array Safety Checks
+    const safePlacements = Array.isArray(placementList) ? placementList : [];
+    const safeStudents = Array.isArray(studentList) ? studentList : [];
+
+    // 2. Auto-extract unique batches from your student database for the dropdown
+    const availableBatches = [...new Set(safeStudents.map(s => s?.batch).filter(Boolean))].sort();
+
+    // 3. Double Filter: Filter Placements by Dept AND Batch
+    const filteredPlacements = safePlacements.filter(p => {
+      const matchDept = filterCourseDept === "ALL" || p.department === filterCourseDept;
+      const matchBatch = filterBatch === "ALL" || p.batch === filterBatch;
+      return matchDept && matchBatch;
+    });
+
+    // 4. Dynamic Analytics Calculations
+    const totalOffers = filteredPlacements.reduce((sum, p) => sum + (p.placedStudents || 0), 0);
+    
+    const highestCTC = filteredPlacements.length > 0 
+      ? Math.max(...filteredPlacements.map(p => p.ctc || 0)) 
+      : 0;
+      
+    const avgCTC = filteredPlacements.length > 0 
+      ? (filteredPlacements.reduce((sum, p) => sum + (parseFloat(p.ctc) || 0), 0) / filteredPlacements.length).toFixed(2) 
+      : 0;
+
+    // Assuming your backend sends a 'status' field. If not, it defaults safely.
+    const ongoingProcesses = filteredPlacements.filter(p => p.status === 'Ongoing' || p.status === 'IN_PROGRESS').length;
+
+    // Calculate Registered Students dynamically based on current filters
+    const registeredStudentsCount = safeStudents.filter(s => {
+      const matchDept = filterCourseDept === "ALL" || s.department === filterCourseDept;
+      const matchBatch = filterBatch === "ALL" || s.batch === filterBatch;
+      return matchDept && matchBatch;
+    }).length;
+
+    return (
+      <div className="animate-in fade-in duration-500 relative">
+        {/* HEADER & FILTERS */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Placement Analytics</h2>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">Recruitment Drive Dashboard</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dept:</label>
+              <select 
+                value={filterCourseDept} 
+                onChange={e => setFilterCourseDept(e.target.value)}
+                className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm cursor-pointer"
+              >
+                <option value="ALL">All Departments</option>
+                {(departmentList || []).map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Batch:</label>
+              <select 
+                value={filterBatch} 
+                onChange={e => setFilterBatch(e.target.value)}
+                className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm cursor-pointer"
+              >
+                <option value="ALL">All Batches</option>
+                {availableBatches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* 6-GRID KPI DASHBOARD */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-2">Total Offers</p>
+            <p className="text-3xl font-black tracking-tighter">{totalOffers}</p>
+          </div>
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mb-2">Highest CTC</p>
+            <p className="text-3xl font-black tracking-tighter">{highestCTC} <span className="text-sm font-bold opacity-80">LPA</span></p>
+          </div>
+          <div className="bg-gradient-to-br from-violet-600 to-purple-800 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-purple-200 uppercase tracking-widest mb-2">Average CTC</p>
+            <p className="text-3xl font-black tracking-tighter">{avgCTC} <span className="text-sm font-bold opacity-80">LPA</span></p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Registered</p>
+            <p className="text-3xl font-black text-slate-800 tracking-tighter">{registeredStudentsCount}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2">Ongoing Drives</p>
+            <p className="text-3xl font-black text-amber-600 tracking-tighter">{ongoingProcesses}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Companies</p>
+            <p className="text-3xl font-black text-slate-800 tracking-tighter">{filteredPlacements.length}</p>
+          </div>
+        </div>
+
+        {/* PLACEMENT RECORDS LIST */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Recruitment Drives</h3>
+          </div>
+          
+          <div className="max-h-[500px] overflow-y-auto custom-scrollbar p-5">
+            {filteredPlacements.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-sm font-medium italic">
+                No drives found for the selected department and batch.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {filteredPlacements.map((record, index) => {
+                  const isOngoing = record.status === 'Ongoing' || record.status === 'IN_PROGRESS';
+                  
+                  return (
+                    <div key={record.id || index} className="p-5 rounded-xl border border-slate-200 group hover:border-blue-300 hover:bg-blue-50/20 transition-all relative flex flex-col h-full bg-white">
+                      <button onClick={() => handleDelete(record.id, 'placement')} className="absolute top-3 right-3 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                      
+                      {/* Status & Batch Badges */}
+                      <div className="flex gap-2 mb-3">
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                          isOngoing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {isOngoing ? '🔴 Ongoing' : '✅ Completed'}
+                        </span>
+                        {record.batch && (
+                          <span className="text-[8px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
+                            Batch {record.batch}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center font-black text-blue-600 text-xl border border-slate-200 uppercase shadow-sm">
+                          {record.companyName ? record.companyName.charAt(0) : 'C'}
+                        </div>
+                        <div className="pr-4">
+                          <h4 className="font-bold text-slate-800 leading-tight text-base truncate max-w-[120px]" title={record.companyName}>{record.companyName}</h4>
+                          <p className="text-[11px] font-semibold text-slate-500 mt-0.5 truncate">{record.jobRole}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between items-end pt-3 border-t border-slate-100 mt-auto">
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Offers</p>
+                          <p className="font-black text-blue-600 text-lg leading-none mt-1">
+                            {isOngoing ? '-' : record.placedStudents}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Package</p>
+                          <p className="font-black text-emerald-600 text-lg leading-none mt-1">{record.ctc} <span className="text-xs">LPA</span></p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
       </div>
-    </div>
-  );
-};
- const renderCoursesAndSubjects = () => {
-    
-    // Filter the courses based on the dropdown selection
+    );
+  };
+  const renderCoursesAndSubjects = () => {
     const filteredCourses = filterCourseDept === "ALL" 
-      ? courseList 
-      : courseList.filter(course => course.department === filterCourseDept);
+      ? (courseList || []) 
+      : (courseList || []).filter(course => course.department === filterCourseDept);
 
     const handleAddCourse = async (e) => {
       e.preventDefault();
@@ -506,7 +699,7 @@ const renderAnnouncements = () => {
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Owning Department</label>
                 <select required value={courseDepartment} onChange={e => setCourseDepartment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors appearance-none font-medium text-slate-700 cursor-pointer">
                   <option value="">-- Select Department --</option>
-                  {departmentList.map(d => (
+                  {(departmentList || []).map(d => (
                     <option key={d.id} value={d.name}>{d.name}</option>
                   ))}
                 </select>
@@ -533,7 +726,7 @@ const renderAnnouncements = () => {
                 className="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-400 cursor-pointer transition-colors max-w-[200px] truncate"
               >
                 <option value="ALL">All Departments</option>
-                {departmentList.map(d => (
+                {(departmentList || []).map(d => (
                   <option key={d.id} value={d.name}>{d.name}</option>
                 ))}
               </select>
@@ -583,11 +776,11 @@ const renderAnnouncements = () => {
                 </tr>
               </thead>
               <tbody className="text-slate-700">
-                {departmentList.length === 0 ? (
+                {(departmentList || []).length === 0 ? (
                   <tr><td colSpan="2" className="text-center py-10 text-slate-400 font-medium">No departments registered.</td></tr>
                 ) : (
                   departmentList.map(dept => {
-                    const deptCoursesCount = courseList.filter(c => c.department === dept.name).length;
+                    const deptCoursesCount = (courseList || []).filter(c => c.department === dept.name).length;
                     return (
                       <tr 
                         key={`summary-${dept.id}`} 
@@ -621,11 +814,11 @@ const renderAnnouncements = () => {
 
               {/* Modal Body */}
               <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar bg-slate-50/30">
-                {courseList.filter(c => c.department === selectedDeptForModal).length === 0 ? (
+                {(courseList || []).filter(c => c.department === selectedDeptForModal).length === 0 ? (
                   <div className="text-center py-12 text-slate-400 text-sm font-medium">No subjects assigned to this department yet.</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {courseList.filter(c => c.department === selectedDeptForModal).map(course => (
+                    {(courseList || []).filter(c => c.department === selectedDeptForModal).map(course => (
                       <div key={course.id} className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-col gap-3 hover:border-amber-300 transition-colors">
                         <p className="font-bold text-slate-800 text-sm leading-tight">{course.subjectName}</p>
                         <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
@@ -646,57 +839,184 @@ const renderAnnouncements = () => {
       </div>
     );
   };
-  const renderAttendanceMonitoring = () => {
-    const filteredStudents = studentList.filter(s => 
-      s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
-      s.registerNumber.toLowerCase().includes(studentSearch.toLowerCase())
-    );
-    const activeStudent = studentList.find(s => s.registerNumber === selectedStudent);
 
-    const toggleAttendance = (subjectCode) => {
-      setAttendanceData(prev => ({ ...prev, [subjectCode]: !prev[subjectCode] }));
+  const renderAttendance = () => {
+    const safeStudents = studentList || [];
+    const safeStaff = staffList || [];
+    const safeDepartments = departmentList || [];
+    
+    const activeList = attendanceView === "STUDENTS" ? safeStudents : safeStaff;
+    
+    const filteredPeople = filterCourseDept === "ALL" 
+      ? activeList 
+      : activeList.filter(person => person?.department === filterCourseDept);
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              Attendance Monitoring
+              <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">Live</span>
+            </h2>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
+              Currently Viewing: <span className="text-indigo-600 font-bold">{attendanceView}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+              <button 
+                type="button"
+                onClick={() => setAttendanceView("STUDENTS")}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${attendanceView === "STUDENTS" ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Students
+              </button>
+              <button 
+                type="button"
+                onClick={() => setAttendanceView("STAFF")}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${attendanceView === "STAFF" ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Staff / Faculty
+              </button>
+            </div>
+
+            <select 
+              value={filterCourseDept} 
+              onChange={e => setFilterCourseDept(e.target.value)}
+              className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none shadow-sm transition-all"
+            >
+              <option value="ALL">All Departments</option>
+              {safeDepartments.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                <th className="py-4 px-6">{attendanceView === "STUDENTS" ? "Student" : "Staff Member"}</th>
+                <th className="py-4 px-6">ID / Roll No</th>
+                <th className="py-4 px-6">Department</th>
+                <th className="py-4 px-6 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredPeople.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="text-center py-20 text-slate-400 font-medium italic">
+                    No {attendanceView.toLowerCase()} found in {filterCourseDept === "ALL" ? "the database" : filterCourseDept}
+                  </td>
+                </tr>
+              ) : (
+                filteredPeople.map((person, index) => (
+                  <tr key={person?.id || index} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">
+                          {person?.name ? person.name.charAt(0) : '?'}
+                        </div>
+                        <span className="font-bold text-slate-800 text-sm">
+                          {person?.name || "Unknown User"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        {person?.rollNo || person?.employeeId || person?.registerNumber || 'No ID'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100 uppercase">
+                        {person?.department || "Unassigned"}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex justify-center gap-2">
+                        <button className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all">
+                          Present
+                        </button>
+                        <button className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white transition-all">
+                          Absent
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderMarksAndPerformance = () => {
+    const deptFilteredStudents = filterCourseDept === "ALL" 
+      ? (studentList || []) 
+      : (studentList || []).filter(s => s.department === filterCourseDept);
+
+    const filteredStudents = deptFilteredStudents.filter(s => 
+      s?.name?.toLowerCase().includes(studentSearch.toLowerCase()) || 
+      s?.registerNumber?.toLowerCase().includes(studentSearch.toLowerCase())
+    );
+
+    const activeStudent = (studentList || []).find(s => s.registerNumber === selectedStudent);
+
+    const handleSelectStudent = async (regNo) => {
+      setSelectedStudent(regNo);
+      setShowDropdown(false);
+      setIsFetchingMarks(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/student-marks/${regNo}`);
+        setStudentMarks(res.ok ? await res.json() : []);
+      } catch (err) { console.error("Failed to fetch marks"); } 
+      finally { setIsFetchingMarks(false); }
     };
 
-    const handleSaveAttendance = async () => {
-      if (!selectedStudent) return alert("Please select a student first!");
-      setIsSavingAttendance(true);
-      const payload = courseList.map(course => ({
-        registerNumber: selectedStudent,
-        subjectCode: course.subjectCode,
-        date: attendanceDate,
-        isPresent: attendanceData[course.subjectCode] || false
-      }));
-
-      try {
-        const res = await fetch(`${apiUrl}/api/host/save-attendance`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) alert("✅ Attendance Locked in for " + attendanceDate);
-      } catch (err) { alert("Server Connection Error"); }
-      finally { setIsSavingAttendance(false); }
+    const getSubjectName = (code) => {
+      const course = (courseList || []).find(c => c.subjectCode === code);
+      return course ? course.subjectName : code;
     };
 
     return (
       <div className="animate-in fade-in duration-500">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Attendance Operations</h2>
-        
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 items-end relative">
-          <div className="flex-1 min-w-[160px]">
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Date</label>
-            <input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:bg-white text-slate-700 transition-colors" />
-          </div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Academic Records</h2>
           
-          <div className="flex-[2] min-w-[250px] relative">
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Search Student</label>
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Dept:</label>
+            <select 
+              value={filterCourseDept} 
+              onChange={e => {
+                setFilterCourseDept(e.target.value);
+                setSelectedStudent(""); 
+                setStudentMarks([]);
+              }}
+              className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm"
+            >
+              <option value="ALL">All Departments</option>
+              {(departmentList || []).map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+          <div className="w-full relative max-w-xl">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              Locate Student in {filterCourseDept === "ALL" ? "Institution" : filterCourseDept}
+            </label>
             {activeStudent ? (
-              <div className="flex items-center justify-between w-full bg-violet-50 border border-violet-200 rounded-lg px-4 py-2">
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5">
                 <div>
-                  <p className="text-sm font-bold text-violet-900">{activeStudent.name}</p>
-                  <p className="text-[11px] font-semibold text-violet-600">{activeStudent.registerNumber}</p>
+                  <p className="text-sm font-bold text-slate-900">{activeStudent.name}</p>
+                  <p className="text-xs text-slate-500">{activeStudent.registerNumber} • {activeStudent.department}</p>
                 </div>
-                <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setAttendanceData({}); }} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-white text-violet-500 hover:text-rose-500 transition-colors">✕</button>
+                <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setStudentMarks([]); }} className="text-slate-400 hover:text-slate-700 p-1">✕</button>
               </div>
             ) : (
               <div className="relative">
@@ -704,21 +1024,19 @@ const renderAnnouncements = () => {
                   type="text" value={studentSearch} 
                   onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
                   onFocus={() => setShowDropdown(true)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-violet-400 focus:bg-white text-slate-700 transition-colors" 
-                  placeholder="Enter ID or Name..." 
+                  className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" 
+                  placeholder={`Search by ID or Name...`} 
                 />
-                <span className="absolute left-3.5 top-2.5 text-slate-400 text-sm">🔍</span>
+                <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
                 {showDropdown && studentSearch.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {filteredStudents.length === 0 ? (
-                      <div className="p-3 text-sm text-slate-500 text-center">No students found</div>
+                      <div className="p-3 text-sm text-slate-500 text-center">No records found in {filterCourseDept}</div>
                     ) : (
                       filteredStudents.map(student => (
-                        <div key={student.id} onClick={() => { setSelectedStudent(student.registerNumber); setShowDropdown(false); }} className="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex justify-between items-center">
-                          <div>
-                            <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
-                            <p className="text-[11px] text-slate-500">{student.registerNumber}</p>
-                          </div>
+                        <div key={student.id} onClick={() => handleSelectStudent(student.registerNumber)} className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer transition-colors">
+                          <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
+                          <p className="text-[11px] text-slate-500">{student.registerNumber} • {student.department}</p>
                         </div>
                       ))
                     )}
@@ -727,37 +1045,43 @@ const renderAnnouncements = () => {
               </div>
             )}
           </div>
-
-          <button onClick={handleSaveAttendance} disabled={isSavingAttendance || courseList.length === 0 || !selectedStudent} className="px-6 py-2.5 rounded-lg font-semibold text-sm text-white bg-slate-800 hover:bg-slate-700 transition-colors disabled:bg-slate-300">
-            {isSavingAttendance ? "Saving..." : "Log Entry"}
-          </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full text-left border-collapse text-sm">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-5">Subject Name</th>
-                <th className="py-3 px-5 hidden md:table-cell">Subject Code</th>
-                <th className="py-3 px-5 text-right">Status</th>
+                <th className="py-4 px-5">Subject Details</th>
+                <th className="py-4 px-5 hidden sm:table-cell">Assessment Type</th>
+                <th className="py-4 px-5 text-right">Performance Score</th>
               </tr>
             </thead>
-            <tbody className="text-slate-800">
+            <tbody>
               {!selectedStudent ? (
-                 <tr><td colSpan="3" className="text-center py-12 text-slate-400">Search and select a student to mark attendance.</td></tr>
-              ) : courseList.length === 0 ? (
-                 <tr><td colSpan="3" className="text-center py-12 text-slate-400">No subjects found in Curriculum.</td></tr>
+                <tr><td colSpan="3" className="text-center py-20 text-slate-400 font-medium">Please select a student from the {filterCourseDept} list above.</td></tr>
+              ) : isFetchingMarks ? (
+                <tr><td colSpan="3" className="text-center py-20 text-blue-500 font-bold animate-pulse tracking-widest">LOADING RECORDS...</td></tr>
+              ) : (studentMarks || []).length === 0 ? (
+                <tr><td colSpan="3" className="text-center py-20 text-slate-400 italic">No scores recorded for {activeStudent?.name} yet.</td></tr>
               ) : (
-                courseList.map((course) => {
-                  const isPresent = attendanceData[course.subjectCode] || false;
+                (studentMarks || []).map((mark) => {
+                  const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
                   return (
-                    <tr key={course.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3 px-5 font-medium">{course.subjectName}</td>
-                      <td className="py-3 px-5 text-slate-500 text-xs hidden md:table-cell">{course.subjectCode}</td>
-                      <td className="py-3 px-5 text-right">
-                        <button onClick={() => toggleAttendance(course.subjectCode)} className={`px-4 py-1.5 rounded-md text-xs font-bold tracking-wide transition-colors w-24 border ${isPresent ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'}`}>
-                          {isPresent ? 'PRESENT' : 'ABSENT'}
-                        </button>
+                    <tr key={mark.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/30 transition-colors">
+                      <td className="py-4 px-5">
+                        <p className="font-bold text-slate-800">{getSubjectName(mark.subjectCode)}</p>
+                        <p className="text-[11px] font-mono text-slate-500 uppercase tracking-tighter">{mark.subjectCode}</p>
+                      </td>
+                      <td className="py-4 px-5 hidden sm:table-cell">
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200">{mark.examType}</span>
+                      </td>
+                      <td className="py-4 px-5 text-right">
+                        <div className="flex justify-end items-center gap-4">
+                          <p className="font-black text-slate-800 text-lg">{mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span></p>
+                          <div className={`text-[10px] font-black px-2 py-1 rounded w-14 text-center border-2 ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                            {isPass ? 'PASS' : 'FAIL'}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -770,281 +1094,133 @@ const renderAnnouncements = () => {
     );
   };
 
-  const renderMarksAndPerformance = () => {
-  // 1. First, narrow down the student pool by the selected Department filter
-  const deptFilteredStudents = filterCourseDept === "ALL" 
-    ? studentList 
-    : studentList.filter(s => s.department === filterCourseDept);
-
-  // 2. Then, apply the search text filter on that department's students
-  const filteredStudents = deptFilteredStudents.filter(s => 
-    s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
-    s.registerNumber.toLowerCase().includes(studentSearch.toLowerCase())
-  );
-
-  const activeStudent = studentList.find(s => s.registerNumber === selectedStudent);
-
-  const handleSelectStudent = async (regNo) => {
-    setSelectedStudent(regNo);
-    setShowDropdown(false);
-    setIsFetchingMarks(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/host/student-marks/${regNo}`);
-      setStudentMarks(res.ok ? await res.json() : []);
-    } catch (err) { console.error("Failed to fetch marks"); } 
-    finally { setIsFetchingMarks(false); }
-  };
-
-  const getSubjectName = (code) => {
-    const course = courseList.find(c => c.subjectCode === code);
-    return course ? course.subjectName : code;
-  };
-
-  return (
-    <div className="animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Academic Records</h2>
-        
-        {/* DEPARTMENT SELECTOR */}
-        <div className="flex items-center gap-2">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Dept:</label>
-          <select 
-            value={filterCourseDept} 
-            onChange={e => {
-              setFilterCourseDept(e.target.value);
-              setSelectedStudent(""); // Clear selection when switching departments
-              setStudentMarks([]);
-            }}
-            className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm"
-          >
-            <option value="ALL">All Departments</option>
-            {departmentList.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-          </select>
-        </div>
-      </div>
-      
-      {/* SEARCH SECTION */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
-        <div className="w-full relative max-w-xl">
-          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Locate Student in {filterCourseDept === "ALL" ? "Institution" : filterCourseDept}
-          </label>
-          {activeStudent ? (
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5">
-              <div>
-                <p className="text-sm font-bold text-slate-900">{activeStudent.name}</p>
-                <p className="text-xs text-slate-500">{activeStudent.registerNumber} • {activeStudent.department}</p>
-              </div>
-              <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setStudentMarks([]); }} className="text-slate-400 hover:text-slate-700 p-1">✕</button>
-            </div>
-          ) : (
-            <div className="relative">
-              <input 
-                type="text" value={studentSearch} 
-                onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
-                onFocus={() => setShowDropdown(true)}
-                className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" 
-                placeholder={`Search by ID or Name...`} 
-              />
-              <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
-              {showDropdown && studentSearch.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {filteredStudents.length === 0 ? (
-                    <div className="p-3 text-sm text-slate-500 text-center">No records found in {filterCourseDept}</div>
-                  ) : (
-                    filteredStudents.map(student => (
-                      <div key={student.id} onClick={() => handleSelectStudent(student.registerNumber)} className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer transition-colors">
-                        <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
-                        <p className="text-[11px] text-slate-500">{student.registerNumber} • {student.department}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* MARKS TABLE */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-              <th className="py-4 px-5">Subject Details</th>
-              <th className="py-4 px-5 hidden sm:table-cell">Assessment Type</th>
-              <th className="py-4 px-5 text-right">Performance Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!selectedStudent ? (
-              <tr><td colSpan="3" className="text-center py-20 text-slate-400 font-medium">Please select a student from the {filterCourseDept} list above.</td></tr>
-            ) : isFetchingMarks ? (
-              <tr><td colSpan="3" className="text-center py-20 text-blue-500 font-bold animate-pulse tracking-widest">LOADING RECORDS...</td></tr>
-            ) : studentMarks.length === 0 ? (
-              <tr><td colSpan="3" className="text-center py-20 text-slate-400 italic">No scores recorded for {activeStudent?.name} yet.</td></tr>
-            ) : (
-              studentMarks.map((mark) => {
-                const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
-                return (
-                  <tr key={mark.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/30 transition-colors">
-                    <td className="py-4 px-5">
-                      <p className="font-bold text-slate-800">{getSubjectName(mark.subjectCode)}</p>
-                      <p className="text-[11px] font-mono text-slate-500 uppercase tracking-tighter">{mark.subjectCode}</p>
-                    </td>
-                    <td className="py-4 px-5 hidden sm:table-cell">
-                      <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200">{mark.examType}</span>
-                    </td>
-                    <td className="py-4 px-5 text-right">
-                      <div className="flex justify-end items-center gap-4">
-                        <p className="font-black text-slate-800 text-lg">{mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span></p>
-                        <div className={`text-[10px] font-black px-2 py-1 rounded w-14 text-center border-2 ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
-                          {isPass ? 'PASS' : 'FAIL'}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
   const renderComplaints = () => {
-  // 1. Filter the complaints based on the selected department
-  // This assumes your ticket object has a 'department' field from the backend
-  const filteredComplaints = filterCourseDept === "ALL" 
-    ? complaintList 
-    : complaintList.filter(c => c.department === filterCourseDept);
+    const safeComplaints = complaintList || [];
+    const filteredComplaints = filterCourseDept === "ALL" 
+      ? safeComplaints 
+      : safeComplaints.filter(c => c.department === filterCourseDept);
 
-  const handleStatusUpdate = async (id, newStatus) => {
-    try {
-      const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus })
+    const handleStatusUpdate = async (id, newStatus) => {
+      try {
+        const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) fetchData();
+      } catch (err) { console.error("Failed to update status"); }
+    };
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "";
+      return new Date(dateString).toLocaleDateString('en-US', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
       });
-      if (res.ok) fetchData();
-    } catch (err) { console.error("Failed to update status"); }
-  };
+    };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-    });
-  };
+    const pendingCount = filteredComplaints.filter(c => c.status === 'PENDING').length;
+    const resolvedCount = filteredComplaints.filter(c => c.status === 'RESOLVED').length;
 
-  // 2. Calculate stats specifically for the FILTERED list
-  const pendingCount = filteredComplaints.filter(c => c.status === 'PENDING').length;
-  const resolvedCount = filteredComplaints.filter(c => c.status === 'RESOLVED').length;
-
-  return (
-    <div className="animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-sm font-medium text-slate-500">Manage and resolve campus issues.</p>
-            <span className="h-4 w-[1px] bg-slate-300"></span>
-            
-            {/* DEPARTMENT FILTER DROPDOWN */}
-            <select 
-              value={filterCourseDept} 
-              onChange={e => setFilterCourseDept(e.target.value)}
-              className="text-xs font-bold text-blue-600 bg-blue-50 border-none rounded px-2 py-1 outline-none cursor-pointer hover:bg-blue-100 transition-colors"
-            >
-              <option value="ALL">All Departments</option>
-              {departmentList.map(d => (
-                <option key={d.id} value={d.name}>{d.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Dynamic Stats based on Filter */}
-        <div className="flex gap-4">
-          <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center min-w-[80px]">
-            <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
-            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
-          </div>
-          <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center min-w-[80px]">
-            <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
-            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-        <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-          {filteredComplaints.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="text-5xl mb-4 opacity-30 italic font-serif">
-                {filterCourseDept === "ALL" ? "✅" : "📂"}
-              </div>
-              <p className="text-slate-400 font-medium">
-                {filterCourseDept === "ALL" 
-                  ? "Inbox zero. No complaints reported." 
-                  : `No tickets found for ${filterCourseDept}.`}
-              </p>
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm font-medium text-slate-500">Manage and resolve campus issues.</p>
+              <span className="h-4 w-[1px] bg-slate-300"></span>
+              
+              <select 
+                value={filterCourseDept} 
+                onChange={e => setFilterCourseDept(e.target.value)}
+                className="text-xs font-bold text-blue-600 bg-blue-50 border-none rounded px-2 py-1 outline-none cursor-pointer hover:bg-blue-100 transition-colors"
+              >
+                <option value="ALL">All Departments</option>
+                {(departmentList || []).map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
             </div>
-          ) : (
-            filteredComplaints.map((ticket) => (
-              <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
-                
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
-                      ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {ticket.userRole}
-                    </span>
-                    {/* SHOW TICKET DEPARTMENT TAG */}
-                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase tracking-tighter">
-                      {ticket.department}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
-                    <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
-                  </div>
+          </div>
 
-                  {/* Action Controls */}
-                  <div className="flex items-center gap-3">
-                    <select 
-                      value={ticket.status} 
-                      onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
-                      className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none cursor-pointer appearance-none text-center ${
-                        ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                        ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                        'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}
-                    >
-                      <option value="PENDING">PENDING</option>
-                      <option value="IN_PROGRESS">IN PROGRESS</option>
-                      <option value="RESOLVED">RESOLVED</option>
-                    </select>
-                    
-                    <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
-                      ✕
-                    </button>
-                  </div>
+          <div className="flex gap-4">
+            <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center min-w-[80px]">
+              <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
+              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
+            </div>
+            <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center min-w-[80px]">
+              <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            {filteredComplaints.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="text-5xl mb-4 opacity-30 italic font-serif">
+                  {filterCourseDept === "ALL" ? "✅" : "📂"}
                 </div>
-
-                <div>
-                  <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
-                  <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
-                </div>
+                <p className="text-slate-400 font-medium">
+                  {filterCourseDept === "ALL" 
+                    ? "Inbox zero. No complaints reported." 
+                    : `No tickets found for ${filterCourseDept}.`}
+                </p>
               </div>
-            ))
-          )}
+            ) : (
+              filteredComplaints.map((ticket) => (
+                <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                        ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {ticket.userRole}
+                      </span>
+                      <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase tracking-tighter">
+                        {ticket.department}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
+                      <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <select 
+                        value={ticket.status} 
+                        onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
+                        className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none cursor-pointer appearance-none text-center ${
+                          ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                          ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="IN_PROGRESS">IN PROGRESS</option>
+                        <option value="RESOLVED">RESOLVED</option>
+                      </select>
+                      
+                      <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
-const renderDepartments = () => {
+    );
+  };
+
+ const renderDepartments = () => {
     const handleAddDept = async (e) => {
       e.preventDefault();
       setIsSavingDept(true);
@@ -1052,11 +1228,19 @@ const renderDepartments = () => {
         const res = await fetch(`${apiUrl}/api/host/add-department`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newDeptName })
+          body: JSON.stringify({ 
+            name: newDeptName,
+            shortForm: newDeptShortForm.toUpperCase(),
+            degree: newDeptDegree,
+            cluster: newDeptCluster
+          })
         });
         if (res.ok) {
           setNewDeptName("");
-          fetchData(); // Refreshes the list instantly
+          setNewDeptShortForm("");
+          setNewDeptDegree("B.E.");
+          setNewDeptCluster("Core Engineering");
+          fetchData(); 
         } else {
           alert("Failed to add. Department might already exist.");
         }
@@ -1065,45 +1249,101 @@ const renderDepartments = () => {
     };
 
     return (
-      <div className="animate-in fade-in duration-500">
+      <div className="animate-in fade-in duration-500 relative">
         <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Department Master</h2>
         
-        {/* TOP SECTION: Form & Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          
           {/* Add Department Form */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
             <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add Department</h3>
             <form onSubmit={handleAddDept} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Department Name</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Full Name</label>
                 <input 
                   type="text" required value={newDeptName} onChange={e => setNewDeptName(e.target.value)} 
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" 
-                  placeholder="e.g. Computer Science (CSE)" 
+                  placeholder="e.g. Computer Science" 
                 />
               </div>
-              <button disabled={isSavingDept} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm">
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Short Form</label>
+                  <input 
+                    type="text" required value={newDeptShortForm} onChange={e => setNewDeptShortForm(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors uppercase" 
+                    placeholder="e.g. CSE" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Degree</label>
+                  <select 
+                    value={newDeptDegree} onChange={e => setNewDeptDegree(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="B.E.">B.E.</option>
+                    <option value="B.Tech">B.Tech</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Cluster</label>
+                <select 
+                  value={newDeptCluster} onChange={e => setNewDeptCluster(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none cursor-pointer font-medium text-slate-700"
+                >
+                  <option value="Core Engineering">Core Engineering</option>
+                  <option value="CSE Cluster">CSE Cluster</option>
+                </select>
+              </div>
+
+              <button disabled={isSavingDept} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:bg-slate-400">
                 {isSavingDept ? "Saving..." : "Register Department"}
               </button>
             </form>
           </div>
 
-          {/* Department Quick List */}
+          {/* Clickable Department Grid */}
           <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Manage Active Departments</h3>
+              <span className="text-[10px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded font-black uppercase tracking-widest">
+                Total: {(departmentList || []).length}
+              </span>
             </div>
 
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-              {departmentList.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-sm font-medium">No departments registered yet.</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {(departmentList || []).length === 0 ? (
+                <div className="col-span-full text-center py-12 text-slate-400 text-sm font-medium">No departments registered yet.</div>
               ) : (
-                departmentList.map((dept) => (
-                  <div key={dept.id} className="p-4 rounded-lg border border-slate-200 flex justify-between items-center group hover:border-blue-300 hover:bg-blue-50/20 transition-all">
-                    <h4 className="font-semibold text-sm text-slate-800">{dept.name}</h4>
-                    <button onClick={() => handleDelete(dept.id, 'department')} className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity p-2">
-                      ✕ Delete
+                (departmentList || []).map((dept) => (
+                  <div 
+                    key={dept.id} 
+                    onClick={() => setSelectedDeptDetailForModal(dept)}
+                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 group hover:bg-white hover:border-blue-400 hover:shadow-md transition-all relative flex flex-col items-center text-center gap-2 cursor-pointer"
+                  >
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(dept.id, 'department'); }} 
+                      className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-slate-100 text-slate-400 rounded hover:bg-rose-100 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Delete Department"
+                    >
+                      ✕
                     </button>
+                    
+                    <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-xl border-4 border-white shadow-sm">
+                      {dept.shortForm ? dept.shortForm : (dept.name ? dept.name.charAt(0) : 'D')}
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800 tracking-wide mt-1">
+                        {dept.shortForm || dept.name}
+                      </h4>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                        {dept.degree || 'B.E/B.Tech'}
+                      </p>
+                    </div>
                   </div>
                 ))
               )}
@@ -1115,7 +1355,7 @@ const renderDepartments = () => {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Institution Demographics Report</h3>
-            <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Live Data</span>
+            <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Click row for full details</span>
           </div>
           
           <div className="overflow-x-auto">
@@ -1129,41 +1369,183 @@ const renderDepartments = () => {
                 </tr>
               </thead>
               <tbody className="text-slate-700">
-                {departmentList.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center py-10 text-slate-400 font-medium">Add departments to see demographics.</td>
-                  </tr>
+                {(departmentList || []).length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 font-medium">Add departments to see demographics.</td></tr>
                 ) : (
-                  departmentList.map((dept) => {
-                    // Calculate exact numbers for this specific department
-                    const deptStudents = studentList.filter(s => s.department === dept.name).length;
-                    const deptStaff = staffList.filter(s => s.department === dept.name).length;
+                  (departmentList || []).map((dept) => {
+                    const deptStudents = (studentList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
+                    const deptStaff = (staffList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
                     const totalMembers = deptStudents + deptStaff;
 
                     return (
-                      <tr key={`summary-${dept.id}`} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3.5 px-6 font-semibold text-slate-800">{dept.name}</td>
-                        <td className="py-3.5 px-6 text-center font-bold text-blue-600">{deptStudents}</td>
-                        <td className="py-3.5 px-6 text-center font-bold text-indigo-600">{deptStaff}</td>
-                        <td className="py-3.5 px-6 text-right font-bold text-slate-900 bg-slate-50/30">{totalMembers}</td>
+                      <tr 
+                        key={`summary-${dept.id}`} 
+                        onClick={() => setSelectedDemographicDept(dept)} 
+                        className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-6 font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
+                          {dept.name} <span className="text-slate-400 ml-1">({dept.shortForm || 'N/A'})</span>
+                        </td>
+                        <td className="py-3.5 px-6 text-center font-bold text-blue-600 group-hover:scale-110 transition-transform">{deptStudents}</td>
+                        <td className="py-3.5 px-6 text-center font-bold text-indigo-600 group-hover:scale-110 transition-transform">{deptStaff}</td>
+                        <td className="py-3.5 px-6 text-right font-bold text-slate-900 bg-slate-50/30 group-hover:bg-blue-100/50 transition-colors">
+                          {totalMembers} <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-blue-500">→</span>
+                        </td>
                       </tr>
                     );
                   })
-                )}
-                
-                {/* Grand Total Row at the absolute bottom */}
-                {departmentList.length > 0 && (
-                  <tr className="bg-slate-100/50 border-t-2 border-slate-200">
-                    <td className="py-4 px-6 font-bold text-slate-900 uppercase tracking-widest text-xs">Grand Total</td>
-                    <td className="py-4 px-6 text-center font-black text-blue-700">{studentList.length}</td>
-                    <td className="py-4 px-6 text-center font-black text-indigo-700">{staffList.length}</td>
-                    <td className="py-4 px-6 text-right font-black text-slate-900 text-base">{studentList.length + staffList.length}</td>
-                  </tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* MODAL 1: DEPARTMENT DETAILS */}
+        {selectedDeptDetailForModal && (
+          <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={() => setSelectedDeptDetailForModal(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200" onClick={e => e.stopPropagation()}>
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-2 border-white shadow-sm">
+                    {selectedDeptDetailForModal.shortForm ? selectedDeptDetailForModal.shortForm.charAt(0) : 'D'}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-xl leading-none tracking-tight">{selectedDeptDetailForModal.shortForm || 'Dept'}</h3>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">ID: {selectedDeptDetailForModal.id}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedDeptDetailForModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all shadow-sm">✕</button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Full Department Name</p>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800">
+                    {selectedDeptDetailForModal.name}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Program</p>
+                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-center">
+                      <p className="font-black text-blue-700 text-base">{selectedDeptDetailForModal.degree || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Cluster Group</p>
+                    <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-center justify-center text-center">
+                      <p className="font-black text-indigo-700 text-xs uppercase tracking-wider">{selectedDeptDetailForModal.cluster || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: UPGRADED DEMOGRAPHICS (STUDENTS + STAFF DETAILS) */}
+        {selectedDemographicDept && (
+          <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={() => setSelectedDemographicDept(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200" onClick={e => e.stopPropagation()}>
+              
+              {/* Modal Header */}
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">{selectedDemographicDept.shortForm || selectedDemographicDept.name}</h3>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Demographic Breakdown</p>
+                </div>
+                <button onClick={() => setSelectedDemographicDept(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shadow-sm">✕</button>
+              </div>
+
+              {/* Modal Body (Scrollable) */}
+              <div className="p-6 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-8">
+                {(() => {
+                  // Data fetching & calculation
+                  const deptStudents = (studentList || []).filter(s => s.department === selectedDemographicDept.name || s.department === selectedDemographicDept.shortForm);
+                  const deptStaff = (staffList || []).filter(s => s.department === selectedDemographicDept.name || s.department === selectedDemographicDept.shortForm);
+                  
+                  const batchCounts = deptStudents.reduce((acc, student) => {
+                    const b = student.batch || 'Unassigned';
+                    acc[b] = (acc[b] || 0) + 1;
+                    return acc;
+                  }, {});
+                  const sortedBatches = Object.entries(batchCounts).sort((a, b) => a[0].localeCompare(b[0]));
+
+                  return (
+                    <>
+                      {/* SECTION 1: STUDENTS BY BATCH */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center border-b border-slate-100 pb-2">
+                          <span>Student Batches</span>
+                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs">{deptStudents.length} Total</span>
+                        </h4>
+                        
+                        {sortedBatches.length === 0 ? (
+                          <p className="text-center text-slate-400 text-sm py-4 italic">No students enrolled yet.</p>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {sortedBatches.map(([batchName, count]) => (
+                              <div key={batchName} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                                  <span className="font-bold text-slate-700 text-sm">
+                                    {batchName === 'Unassigned' ? 'No Batch Assigned' : `Batch ${batchName}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black text-base text-blue-600">{count}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SECTION 2: STAFF LIST */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center border-b border-slate-100 pb-2">
+                          <span>Faculty & Staff</span>
+                          <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs">{deptStaff.length} Total</span>
+                        </h4>
+
+                        {deptStaff.length === 0 ? (
+                          <p className="text-center text-slate-400 text-sm py-4 italic">No staff assigned yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {deptStaff.map(staff => (
+                              <div key={staff.id} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-slate-50/80 hover:bg-white hover:border-indigo-200 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold uppercase">
+                                    {staff.name ? staff.name.charAt(0) : 'S'}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-800 text-sm block leading-tight">{staff.name}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                      {staff.email}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1 rounded shadow-sm">
+                                  {staff.employeeId || staff.registerNumber || 'ID N/A'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* GRAND TOTAL SUMMARY */}
+                      <div className="pt-4 border-t-2 border-slate-200 flex justify-between items-center px-1 bg-slate-50 p-4 rounded-xl">
+                        <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Total Headcount</span>
+                        <span className="font-black text-2xl text-slate-900">{deptStudents.length + deptStaff.length}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     );
@@ -1250,10 +1632,11 @@ const renderDepartments = () => {
           {activeMenu === 'Departments' && renderDepartments()}
           {activeMenu === 'User Management' && renderUserManagement()}
           {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
-          {activeMenu === 'Attendance Monitoring' && renderAttendanceMonitoring()}
+          {activeMenu === 'Attendance Monitoring' && renderAttendance()}
           {activeMenu === 'Marks & Performance' && renderMarksAndPerformance()}
           {activeMenu === 'Announcements' && renderAnnouncements()}
           {activeMenu === 'Complaints' && renderComplaints()}
+          {activeMenu === 'Placement Details' && renderPlacements()}
           {
             activeMenu !== 'Dashboard' && 
             activeMenu !== 'Departments' &&
@@ -1263,6 +1646,7 @@ const renderDepartments = () => {
             activeMenu !== 'Marks & Performance' && 
             activeMenu !== 'Announcements' && 
             activeMenu !== 'Complaints' &&
+            activeMenu !== 'Placement Details' &&
             renderPlaceholder()
           }
         </div>

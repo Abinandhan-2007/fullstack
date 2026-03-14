@@ -1,6 +1,11 @@
 package com.example.demo.model;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "departments")
@@ -11,6 +16,16 @@ public class Department {
 
     @Column(nullable = false, unique = true)
     private String name;
+    @Column(name = "short_form")
+private String shortForm;
+
+@Column(name = "degree")
+private String degree;
+
+@Column(name = "cluster")
+private String cluster;
+
+// Generate Getters and Setters for these three!
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
