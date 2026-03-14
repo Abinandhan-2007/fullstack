@@ -27,7 +27,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
  const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
-  const apiUrl = "https://fullstack-q3c5.onrender.com";
+  const apiUrl = "https://fullstack-8cjk.onrender.com";
 
   // THIS IS THE LOGIC YOU ARE STRIKING ON:
   const determineRole = async (email) => {
