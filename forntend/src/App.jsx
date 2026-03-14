@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import AdminPortal from './page/AdminPortal.jsx'; 
 import StudentPortal from './page/StudentPortal';
+import LoginPage from './page/LoginPage'; 
 
 // 1. STAFF PORTAL PLACEHOLDER
 const StaffPortal = ({ user, handleLogout }) => (
@@ -13,28 +14,26 @@ const StaffPortal = ({ user, handleLogout }) => (
   </div>
 );
 
-
 export default function App() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // 'host', 'staff', 'student', or 'denied'
+  const [role, setRole] = useState(null); 
   const [loading, setLoading] = useState(true);
 
- const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
+  const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
   const apiUrl = "https://fullstack-8cjk.onrender.com";
 
-  // THIS IS THE LOGIC YOU ARE STRIKING ON:
   const determineRole = async (email) => {
     setLoading(true);
     
-    // Step A: Check if it's YOU (The Admin)
-   if (HOST_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) {
+    // Step A: Check if it's Admin
+    if (HOST_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) {
       setRole('host');
       setLoading(false);
       return;
     }
 
     try {
-      // Step B: Ask the backend for the lists the Admin created
+      // Step B: Fetch DB lists
       const [staffRes, studentRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`)
@@ -43,22 +42,20 @@ export default function App() {
       let isStaff = false;
       let isStudent = false;
 
-      // Step C: Check Staff list
+      // Step C & D: Verification
       if (staffRes.ok) {
         const staffList = await staffRes.json();
         isStaff = staffList.some(s => s.email?.toLowerCase() === email.toLowerCase());
       }
-
-      // Step D: Check Student list
       if (studentRes.ok && !isStaff) {
         const studentList = await studentRes.json();
         isStudent = studentList.some(s => s.email?.toLowerCase() === email.toLowerCase());
       }
 
-      // Step E: Final Decision
+      // Step E: Final Routing
       if (isStaff) setRole('staff');
       else if (isStudent) setRole('student');
-      else setRole('denied'); // NOT FOUND IN DB -> NO ACCESS
+      else setRole('denied'); 
 
     } catch (error) {
       console.error("Auth System Error:", error);
@@ -90,26 +87,54 @@ export default function App() {
     }
   }, []);
 
+
   // --- RENDERING SCREENS ---
 
-  if (loading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p className="text-slate-400 font-black text-[10px] tracking-widest uppercase">Verifying Authorization</p>
+ if (loading) return (
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
+      
+      {/* Ambient Background Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-indigo-500/15 rounded-full blur-[80px] animate-pulse"></div>
+
+      <div className="relative z-10 flex flex-col items-center">
+        {/* Floating Logo */}
+        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-[1.5rem] shadow-xl shadow-indigo-500/30 flex items-center justify-center mb-6 animate-[bounce_2s_infinite]">
+           <span className="text-3xl font-black text-white">{"</>"}</span>
+        </div>
+
+        {/* App Branding */}
+        <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-8">
+          Student<span className="text-indigo-600 font-normal">HQ</span>
+        </h2>
+
+        {/* Sleek Indeterminate Progress Bar */}
+        <div className="w-48 h-1.5 bg-slate-200 rounded-full overflow-hidden mb-4 relative">
+          <div className="absolute top-0 left-0 h-full w-1/2 bg-indigo-600 rounded-full animate-[progress_1.5s_ease-in-out_infinite_alternate]"></div>
+        </div>
+        
+        {/* Blinking Status Text */}
+        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] animate-pulse">
+          Verifying Authorization...
+        </p>
+      </div>
+
+      {/* Custom Animation for the sleek sliding bar */}
+      <style>{`
+        @keyframes progress {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+      `}</style>
     </div>
   );
 
-  // 1. LOGIN SCREEN
+  // 1. THE NEW LOGIN SCREEN
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white max-w-md w-full p-12 rounded-[3rem] shadow-xl text-center border border-slate-100">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-3xl mx-auto mb-6 shadow-lg shadow-blue-600/20">C</div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2">Campus Portal</h2>
-          <p className="text-slate-400 mb-10 text-sm font-medium">Use your registered Google account to enter</p>
-          <div className="flex justify-center"><GoogleLogin onSuccess={handleLogin} theme="filled_blue" shape="pill" /></div>
-        </div>
-      </div>
+      <LoginPage 
+        onGoogleSuccess={handleLogin} 
+        GoogleLoginComponent={<GoogleLogin onSuccess={handleLogin} type="standard" theme="outline" size="large" />} 
+      />
     );
   }
 

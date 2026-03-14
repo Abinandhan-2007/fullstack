@@ -14,24 +14,27 @@ const StudentPortal = ({ user, handleLogout }) => {
   // Use your new backend URL
   const apiUrl = "https://fullstack-8cjk.onrender.com";
 useEffect(() => {
-    const fetchMyMarks = async () => {
-      if (activeMenu === 'Marks / Results' && studentProfile?.registerNumber) {
-        setIsFetchingMarks(true);
-        try {
-          const res = await fetch(`${apiUrl}/api/host/student-marks/${studentProfile.registerNumber}`);
-          if (res.ok) {
-            setMyMarks(await res.json());
-          }
-        } catch (err) {
-          console.error("Failed to fetch marks", err);
-        } finally {
-          setIsFetchingMarks(false);
-        }
-      }
-    };
-    fetchMyMarks();
-  }, [activeMenu, studentProfile]);
+    const fetchMyProfile = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/host/all-students`);
+        if (res.ok) {
+          const allStudents = await res.json();
+          
+          // --- DEBUGGING LINES ---
+          console.log("1. All students from database:", allStudents);
+          console.log("2. Your Google Email:", user?.email);
+          
+          const myData = allStudents.find(s => s.email.toLowerCase() === user.email.toLowerCase());
+          
+          console.log("3. Did we find a match?:", myData);
+          // -----------------------
 
+          if (myData) setStudentProfile(myData);
+        }
+      } catch (err) { console.error("Failed to fetch student profile", err); }
+    };
+    if (user?.email) fetchMyProfile();
+  }, [user]);
   const menuItems = [
     { name: 'Dashboard', icon: '📊', color: 'text-blue-500', bg: 'bg-blue-500', desc: 'Main overview and quick access links.' },
     { name: 'Profile', icon: '👤', color: 'text-slate-500', bg: 'bg-slate-500', desc: 'Manage your personal and academic details.' },
