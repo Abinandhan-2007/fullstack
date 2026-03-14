@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import AdminPortal from './page/AdminPortal.jsx'; 
+import StudentPortal from './page/StudentPortal';
 
 // 1. STAFF PORTAL PLACEHOLDER
 const StaffPortal = ({ user, handleLogout }) => (
@@ -12,14 +13,6 @@ const StaffPortal = ({ user, handleLogout }) => (
   </div>
 );
 
-// 2. STUDENT PORTAL PLACEHOLDER (We built the UI earlier, this is the wrapper)
-const StudentPortal = ({ user, handleLogout }) => (
-  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-    <h1 className="text-3xl font-black text-slate-800 tracking-tighter">STUDENT<span className="text-blue-600">PORTAL</span></h1>
-    <p className="text-slate-500 mt-2 mb-8 font-medium italic">Welcome, {user.name}. Synchronizing your academic dashboard...</p>
-    <button onClick={handleLogout} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-2xl shadow-lg">Sign Out</button>
-  </div>
-);
 
 export default function App() {
   const [user, setUser] = useState(null);

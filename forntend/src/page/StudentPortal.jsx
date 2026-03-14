@@ -1,11 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const StudentPortal = ({ user, handleLogout }) => {
-  // Navigation States
   const [activeMenu, setActiveMenu] = useState('Dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [myMarks, setMyMarks] = useState([]);
+  const [isFetchingMarks, setIsFetchingMarks] = useState(false);
+  // Add this right under your other state variables at the top of StudentPortal
+  const [attendanceDate, setAttendanceDate] = useState(new Date('2026-03-14'));
+  
+  // NEW: State to hold the student's real database record
+  const [studentProfile, setStudentProfile] = useState(null);
+  
+  // Use your new backend URL
+  const apiUrl = "https://fullstack-8cjk.onrender.com";
+useEffect(() => {
+    const fetchMyMarks = async () => {
+      if (activeMenu === 'Marks / Results' && studentProfile?.registerNumber) {
+        setIsFetchingMarks(true);
+        try {
+          const res = await fetch(`${apiUrl}/api/host/student-marks/${studentProfile.registerNumber}`);
+          if (res.ok) {
+            setMyMarks(await res.json());
+          }
+        } catch (err) {
+          console.error("Failed to fetch marks", err);
+        } finally {
+          setIsFetchingMarks(false);
+        }
+      }
+    };
+    fetchMyMarks();
+  }, [activeMenu, studentProfile]);
 
-  // Full Menu Definition
   const menuItems = [
     { name: 'Dashboard', icon: '📊', color: 'text-blue-500', bg: 'bg-blue-500', desc: 'Main overview and quick access links.' },
     { name: 'Profile', icon: '👤', color: 'text-slate-500', bg: 'bg-slate-500', desc: 'Manage your personal and academic details.' },
@@ -19,47 +45,377 @@ const StudentPortal = ({ user, handleLogout }) => {
     { name: 'Documents', icon: '📂', color: 'text-teal-500', bg: 'bg-teal-500', desc: 'Download fee receipts, bonafide, and certificates.' },
   ];
 
-  // --- UI RENDERERS ---
+  const renderDashboard = () => {
+    // We keep these stats static for now until we build the Marks API connection
+    const studentStats = {
+      mentorName: "Dr. Faculty Assigned",
+      currentSemester: "Active Semester",
+      attendancePercentage: 88.5,
+      totalSubjects: 6,
+      arrearCount: 0,
+      sgpa: 8.42,
+      cgpa: 8.55
+    };
 
-  const renderDashboard = () => (
-    <div className="animate-in fade-in duration-500">
-      <div className="mb-10 text-center md:text-left bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
-        <div className="relative z-10">
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-            Welcome back, {user?.given_name || 'Student'}! 👋
-          </h2>
-          <p className="text-slate-500 mt-2 font-medium text-sm max-w-xl">
-            Here is your academic overview. Select a module below or use the sidebar to access your tools and records.
-          </p>
-        </div>
-        {/* Decorative background shape */}
-        <div className="absolute -right-10 -top-20 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
-      </div>
-
-      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-5 px-1">Quick Access Apps</h3>
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {menuItems.filter(item => item.name !== 'Dashboard').map((portal, index) => (
-          <button 
-            key={index} 
-            onClick={() => setActiveMenu(portal.name)}
-            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 group text-left flex flex-col h-full"
-          >
-            <div className={`w-12 h-12 ${portal.bg} text-white rounded-xl flex items-center justify-center text-2xl shadow-inner mb-4 group-hover:scale-110 transition-transform duration-300`}>
-              {portal.icon}
+    return (
+      <div className="animate-in fade-in duration-500">
+        {/* UPDATED HEADER SECTION: Pulling REAL data from studentProfile */}
+        <div className="mb-8 text-center md:text-left bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col md:flex-row items-center gap-6">
+          <img 
+            src={user?.picture || "https://via.placeholder.com/100"} 
+            alt="Profile" 
+            className="w-24 h-24 rounded-2xl border-4 border-white shadow-md z-10"
+          />
+          <div className="relative z-10 flex flex-col justify-center">
+            <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+              {studentProfile?.name || user?.name || 'Loading Student...'}
+            </h2>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-2">
+              <span className="bg-slate-100 text-slate-700 font-bold px-3 py-1 rounded-lg text-sm border border-slate-200">
+                {studentProfile?.registerNumber || 'Loading ID...'}
+              </span>
+              <span className="text-slate-500 font-medium text-sm">
+                • {studentProfile?.department || 'Loading Department...'}
+              </span>
+              {studentProfile?.batch && (
+                <span className="text-slate-500 font-medium text-sm">
+                  • Batch {studentProfile.batch}
+                </span>
+              )}
             </div>
-            <h3 className="text-base font-bold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">
-              {portal.name}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-auto">
-              {portal.desc}
-            </p>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+            <p className="text-blue-600 font-semibold text-xs mt-2">{user?.email}</p>
+          </div>
+          <div className="absolute -right-10 -top-20 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-60 pointer-events-none"></div>
+        </div>
 
+        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-5 px-1">Academic Overview</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* 1. Mentor & Semester Card */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-blue-300 transition-colors">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Faculty Mentor</p>
+              <p className="font-bold text-slate-800 text-lg">{studentStats.mentorName}</p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Semester</p>
+              <p className="font-bold text-blue-600">{studentStats.currentSemester}</p>
+            </div>
+          </div>
+
+          {/* 2. Attendance Card */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-emerald-300 transition-colors">
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overall Attendance</p>
+              <span className="text-2xl">✅</span>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-slate-800 tracking-tighter mb-2">
+                {studentStats.attendancePercentage}%
+              </p>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full ${studentStats.attendancePercentage >= 75 ? 'bg-emerald-500' : 'bg-rose-500'}`} 
+                  style={{ width: `${studentStats.attendancePercentage}%` }}
+                ></div>
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 mt-2">
+                {studentStats.attendancePercentage >= 75 ? 'Safe Zone' : 'Shortage Warning'}
+              </p>
+            </div>
+          </div>
+
+          {/* 3. Performance (SGPA/CGPA) Card */}
+          <div className="bg-slate-900 p-6 rounded-2xl shadow-md border border-slate-800 flex flex-col justify-between text-white hover:shadow-lg transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Academic Performance</p>
+              <span className="text-2xl">📈</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">SGPA</p>
+                <p className="text-2xl font-black text-amber-400">{studentStats.sgpa}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">CGPA</p>
+                <p className="text-2xl font-black text-white">{studentStats.cgpa}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Arrear & Subject Tracker */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-rose-300 transition-colors lg:col-span-3 xl:col-span-1">
+            <div className="grid grid-cols-2 gap-4 h-full">
+              <div className="flex flex-col justify-center border-r border-slate-100 pr-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Subjects</p>
+                <p className="text-3xl font-black text-slate-800">{studentStats.totalSubjects}</p>
+              </div>
+              <div className="flex flex-col justify-center pl-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Standing Arrears</p>
+                <p className={`text-3xl font-black ${studentStats.arrearCount === 0 ? 'text-emerald-500' : 'text-rose-600'}`}>
+                  {studentStats.arrearCount}
+                </p>
+                {studentStats.arrearCount === 0 && (
+                  <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-1 bg-emerald-50 inline-block px-2 py-0.5 rounded">All Clear</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+const renderMarksAndPerformance = () => {
+    // Group marks by Semester or Exam Type (Optional, but for now we list them cleanly)
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Marks & Results</h2>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
+              Academic Performance Record
+            </p>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl">
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Register No.</p>
+            <p className="font-bold text-indigo-700">{studentProfile?.registerNumber || 'Loading...'}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-4 px-6">Subject Code</th>
+                <th className="py-4 px-6">Assessment Type</th>
+                <th className="py-4 px-6 text-right">Score Obtained</th>
+                <th className="py-4 px-6 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {!studentProfile ? (
+                <tr><td colSpan="4" className="text-center py-20 text-slate-400 font-medium">Loading your profile...</td></tr>
+              ) : isFetchingMarks ? (
+                <tr><td colSpan="4" className="text-center py-20 text-indigo-500 font-bold animate-pulse tracking-widest">FETCHING YOUR SECURE RECORDS...</td></tr>
+              ) : myMarks.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="text-center py-20">
+                    <span className="text-4xl block mb-3 opacity-50">📭</span>
+                    <p className="text-slate-500 font-medium">No marks have been published for you yet.</p>
+                  </td>
+                </tr>
+              ) : (
+                myMarks.map((mark) => {
+                  const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
+                  return (
+                    <tr key={mark.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-4 px-6">
+                        <span className="font-bold text-slate-800 uppercase bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 tracking-wider">
+                          {mark.subjectCode}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          {mark.examType}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <p className="font-black text-slate-800 text-lg">
+                          {mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span>
+                        </p>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex justify-center">
+                          <div className={`text-[10px] font-black px-3 py-1.5 rounded w-16 text-center border-2 ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                            {isPass ? 'PASS' : 'FAIL'}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+ const renderAttendance = () => {
+    // 1. DATE NAVIGATION LOGIC
+    const handlePrevDay = () => {
+      const prev = new Date(attendanceDate);
+      prev.setDate(prev.getDate() - 1);
+      setAttendanceDate(prev);
+    };
+
+    const handleNextDay = () => {
+      const next = new Date(attendanceDate);
+      next.setDate(next.getDate() + 1);
+      setAttendanceDate(next);
+    };
+
+    const formattedDate = attendanceDate.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    }).replace(/ /g, '-');
+
+    const dateString = attendanceDate.toISOString().split('T')[0];
+
+    // 2. MOCK DATABASE (Simulating a real backend fetch based on the date)
+    // When the staff enters data in the backend, you will fetch it here using the `dateString`.
+    let backendData;
+    
+    if (dateString === '2026-03-14') {
+      backendData = {
+        overall: 92.74, totalClasses: 120, attended: 106, leaves: 14,
+        dailyLog: [
+          { id: 1, time: '08:30 AM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - FN', code: 'GATE-IN', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
+          { id: 2, time: '08:45 AM', duration: '50m', type: 'Theory', title: 'Data Structures', code: 'CS8391', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Block B - Room 204' },
+          { id: 3, time: '09:35 AM', duration: '50m', type: 'Theory', title: 'Operating Systems', code: 'CS8392', status: 'Present', faculty: 'Prof. Gayathri S', venue: 'Block B - Room 204' },
+          { id: 4, time: '10:40 AM', duration: '50m', type: 'Theory', title: 'Digital Principles', code: 'CS8351', status: 'Present', faculty: 'Prof. Gayathri S', venue: 'Block B - Room 204' },
+          { id: 5, time: '11:30 AM', duration: '50m', type: 'Laboratory', title: 'OS Laboratory', code: 'CS8381', status: 'Absent', faculty: 'Dr. Karthik M', venue: 'Computer Lab 3' },
+          { id: 6, time: '12:20 PM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - AN', code: 'GATE-AN', status: 'Present', faculty: 'Automated System', venue: 'Department Foyer' },
+          { id: 7, time: '01:10 PM', duration: '50m', type: 'Theory', title: 'Discrete Math', code: 'MA8351', status: 'Present', faculty: 'Dr. Karthik M', venue: 'Block B - Room 204' },
+          { id: 8, time: '02:00 PM', duration: '50m', type: 'Theory', title: 'Software Engineering', code: 'CS8491', status: 'Present', faculty: 'Prof. Anitha V', venue: 'Block B - Room 204' },
+          { id: 9, time: '02:50 PM', duration: '50m', type: 'Theory', title: 'Computer Networks', code: 'CS8591', status: 'Present', faculty: 'Dr. Suresh P', venue: 'Block B - Room 204' },
+          { id: 10, time: '03:40 PM', duration: '50m', type: 'Seminar', title: 'Library / Technical Seminar', code: 'GE8071', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Central Library' },
+          { id: 11, time: '04:30 PM', duration: 'Check-out', type: 'Biometric', title: 'Biometric - Exit', code: 'GATE-OUT', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
+        ]
+      };
+    } else {
+      // Data for any previous dates to prove the buttons work!
+      backendData = {
+        overall: 92.74, totalClasses: 112, attended: 98, leaves: 14,
+        dailyLog: [
+          { id: 1, time: '08:25 AM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - FN', code: 'GATE-IN', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
+          { id: 2, time: '08:45 AM', duration: '1h 40m', type: 'Laboratory', title: 'Data Structures Lab', code: 'CS8382', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Computer Lab 1' },
+          { id: 3, time: '12:25 PM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - AN', code: 'GATE-AN', status: 'Present', faculty: 'Automated System', venue: 'Department Foyer' },
+          { id: 4, time: '01:10 PM', duration: '50m', type: 'Theory', title: 'Environmental Science', code: 'GE8291', status: 'Present', faculty: 'Prof. Anitha V', venue: 'Block B - Room 204' },
+          { id: 5, time: '04:35 PM', duration: 'Check-out', type: 'Biometric', title: 'Biometric - Exit', code: 'GATE-OUT', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
+        ]
+      };
+    }
+
+    return (
+      <div className="animate-in fade-in duration-500 max-w-4xl mx-auto">
+        
+        {/* HEADER & WORKING DATE CONTROLS */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight">Daily Log</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Timeline View</p>
+          </div>
+          
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+            <button onClick={handlePrevDay} className="px-3 py-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Previous Day">◀</button>
+            <div className="px-4 py-1.5 font-bold text-indigo-700 text-sm flex items-center gap-2 min-w-[130px] justify-center">
+              <span>📅</span> {formattedDate}
+            </div>
+            <button onClick={handleNextDay} className="px-3 py-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Next Day">▶</button>
+          </div>
+        </div>
+
+        {/* PROGRESS BAR SUMMARY */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-1 w-full">
+            <div className="flex justify-between items-end mb-2">
+              <span className="font-bold text-slate-800">Semester Attendance</span>
+              <span className="text-2xl font-black text-indigo-600">{backendData.overall}%</span>
+            </div>
+            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+              <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${backendData.overall}%` }}></div>
+            </div>
+          </div>
+          <div className="flex gap-4 w-full md:w-auto border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attended</p>
+              <p className="font-bold text-slate-800 text-lg">{backendData.attended} <span className="text-xs text-slate-400 font-medium">/ {backendData.totalClasses}</span></p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Leaves</p>
+              <p className="font-bold text-rose-500 text-lg">{backendData.leaves}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* FULL DAY CONNECTED TIMELINE */}
+        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6 border-b border-slate-100 pb-4">Full Period Schedule</h3>
+          
+          <div className="relative pl-4 md:pl-0">
+            {/* The Vertical Line */}
+            <div className="absolute left-[23px] md:left-[110px] top-4 bottom-8 w-[2px] bg-slate-100"></div>
+
+            {backendData.dailyLog.map((session) => {
+              const isBiometric = session.type === 'Biometric';
+              
+              return (
+                <div key={session.id} className="relative flex flex-col md:flex-row items-start mb-8 last:mb-0 group">
+                  
+                  {/* Time Stamp */}
+                  <div className="md:w-[90px] pt-1.5 md:text-right md:pr-6 mb-2 md:mb-0 pl-12 md:pl-0">
+                    <p className={`text-xs font-black ${isBiometric ? 'text-blue-600' : 'text-slate-800'}`}>{session.time}</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{session.duration}</p>
+                  </div>
+
+                  {/* Timeline Node (The Dot) */}
+                  <div className={`absolute left-0 md:left-[96px] top-1.5 w-[28px] h-[28px] rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 transition-colors duration-300
+                    ${isBiometric ? 'bg-blue-500' : session.status === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}
+                  `}>
+                    <div className={`w-2.5 h-2.5 rounded-full bg-white`}></div>
+                  </div>
+
+                  {/* Content Card */}
+                  <div className={`flex-1 ml-12 md:ml-10 border rounded-xl p-4 transition-all ${
+                    isBiometric ? 'bg-blue-50/50 border-blue-100 shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30'
+                  }`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className={`font-bold text-sm md:text-base leading-tight ${isBiometric ? 'text-blue-800' : 'text-slate-800'}`}>
+                          {isBiometric ? '👆 ' : ''}{session.title}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className={`text-[9px] font-black bg-white border px-1.5 py-0.5 rounded uppercase tracking-widest ${isBiometric ? 'border-blue-200 text-blue-600' : 'border-slate-200 text-slate-500'}`}>
+                            {session.code}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">{session.type}</span>
+                        </div>
+                      </div>
+                      
+                      <div className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${
+                        isBiometric ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                        session.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                      }`}>
+                        {session.status}
+                      </div>
+                    </div>
+                    
+                    {/* FOOTER: Staff Name AND Venue */}
+                    <div className={`mt-3 pt-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isBiometric ? 'border-blue-100' : 'border-slate-200/60'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                        <p className={`text-xs font-medium ${isBiometric ? 'text-blue-600' : 'text-slate-500'}`}>
+                          Marked by: <span className="font-bold">{session.faculty}</span>
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                          📍 {session.venue}
+                        </p>
+                      </div>
+
+                      {session.status === 'Absent' && !isBiometric && (
+                        <button className="text-[10px] font-bold text-rose-500 hover:text-rose-700 underline underline-offset-2 self-start sm:self-auto">Apply OD/Leave</button>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+    );
+  };
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <div className="text-5xl mb-4 text-slate-300">
@@ -72,12 +428,8 @@ const StudentPortal = ({ user, handleLogout }) => {
     </div>
   );
 
-  // --- MAIN LAYOUT ---
-
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden relative">
-      
-      {/* MOBILE OVERLAY */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/40 z-20 lg:hidden backdrop-blur-sm transition-opacity"
@@ -85,7 +437,6 @@ const StudentPortal = ({ user, handleLogout }) => {
         />
       )}
 
-      {/* LEFT SIDEBAR */}
       <aside className={`
         absolute lg:static z-30 flex flex-col h-full w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -116,12 +467,15 @@ const StudentPortal = ({ user, handleLogout }) => {
           ))}
         </div>
 
+        {/* UPDATED SIDEBAR BOTTOM: Shows real Department and Email */}
         <div className="p-5 border-t border-slate-200 bg-slate-50/50">
           <div className="flex items-center gap-3 mb-4">
             <img src={user?.picture || "https://via.placeholder.com/40"} alt="Profile" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
             <div className="overflow-hidden">
-              <p className="text-sm font-bold text-slate-900 truncate">{user?.name || "Student Name"}</p>
-              <p className="text-[10px] font-semibold text-slate-500 truncate uppercase tracking-wide">B.E. Computer Science</p>
+              <p className="text-sm font-bold text-slate-900 truncate">{studentProfile?.name || user?.name}</p>
+              <p className="text-[10px] font-semibold text-slate-500 truncate uppercase tracking-wide">
+                {studentProfile?.department || 'Loading...'}
+              </p>
             </div>
           </div>
           <button onClick={handleLogout} className="w-full py-2.5 bg-white border border-slate-200 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm">
@@ -130,8 +484,7 @@ const StudentPortal = ({ user, handleLogout }) => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 overflow-y-auto relative custom-scrollbar w-full">
+    <main className="flex-1 overflow-y-auto relative custom-scrollbar w-full">
         <header className="bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-slate-200 px-5 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3 lg:gap-0">
             <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-1.5 -ml-1.5 text-slate-500 hover:bg-slate-100 rounded-md">
@@ -142,12 +495,21 @@ const StudentPortal = ({ user, handleLogout }) => {
             </h2>
           </div>
           <div className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-            Student Account
+            {studentProfile?.registerNumber || 'Student'} Account
           </div>
         </header>
 
+        {/* THIS IS THE CORRECT PLACEMENT FOR THE ROUTING LOGIC */}
         <div className="p-5 lg:p-8 max-w-7xl mx-auto">
-          {activeMenu === 'Dashboard' ? renderDashboard() : renderPlaceholder()}
+          {activeMenu === 'Dashboard' && renderDashboard()}
+          {activeMenu === 'Marks / Results' && renderMarksAndPerformance()}
+          {activeMenu === 'Attendance' && renderAttendance()}
+          
+          {/* Keep the placeholder for the rest! */}
+          {activeMenu !== 'Dashboard' && 
+           activeMenu !== 'Marks / Results' && 
+           activeMenu !== 'Attendance' && 
+           renderPlaceholder()}
         </div>
       </main>
     </div>
