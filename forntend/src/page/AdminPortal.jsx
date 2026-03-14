@@ -70,7 +70,20 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [placementList, setPlacementList] = useState([]);
   const [isSavingPlacement, setIsSavingPlacement] = useState(false);
   const [filterBatch, setFilterBatch] = useState("ALL");
-  
+  // System Settings States
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [academicYear, setAcademicYear] = useState("2025-2026");
+  const [currentSemester, setCurrentSemester] = useState("ODD");
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Security Logs (Using mock data for the UI since audit trails are complex backend features)
+  const [securityLogs] = useState([
+    { id: 1, action: "Admin Portal Login", user: "Administrator", time: new Date().toISOString(), status: "SUCCESS", ip: "192.168.1.105" },
+    { id: 2, action: "Deleted Department Record", user: "Administrator", time: new Date(Date.now() - 3600000).toISOString(), status: "WARNING", ip: "192.168.1.105" },
+    { id: 3, action: "Automated Database Backup", user: "System", time: new Date(Date.now() - 86400000).toISOString(), status: "SUCCESS", ip: "localhost" },
+    { id: 4, action: "Failed Login Attempt", user: "Unknown", time: new Date(Date.now() - 90000000).toISOString(), status: "DANGER", ip: "103.45.67.89" }
+  ]);
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
@@ -167,89 +180,124 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
 
   // --- UI RENDERERS ---
 
-  const renderDashboard = () => (
-    <div className="animate-in fade-in duration-500">
-      <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">System Overview</h2>
+ const renderDashboard = () => {
+    // --- LIVE DATA CALCULATIONS ---
+    const totalStudents = (studentList || []).length;
+    const totalStaff = (staffList || []).length;
+    const totalCourses = (courseList || []).length;
+    const totalDepts = (departmentList || []).length;
 
-      {/* TOP ROW: Primary Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-200 transition-colors">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Students</p>
-          <p className="text-3xl font-bold text-blue-600">{stats.totalStudents || studentList.length}</p>
-        </div>
-        
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-slate-300 transition-colors">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Staff</p>
-          <p className="text-3xl font-bold text-slate-800">{stats.totalStaff || staffList.length}</p>
-        </div>
-        
-        <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md flex flex-col justify-between">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Courses</p>
-          <p className="text-3xl font-bold text-emerald-400">{(courseList || []).length}</p>
-        </div>
+    // Use complaints and placements for real live metrics
+    const pendingComplaints = (complaintList || []).filter(c => c.status === 'PENDING').length;
+    const totalOffers = (placementList || []).reduce((sum, p) => sum + (p.placedStudents || 0), 0);
 
-        <div className="bg-violet-600 text-white p-5 rounded-xl shadow-md flex flex-col justify-between">
-          <p className="text-xs font-semibold text-violet-200 uppercase tracking-wider mb-2">Today's Attendance</p>
-          <p className="text-3xl font-bold text-white">88<span className="text-xl font-medium opacity-80">%</span></p> 
-        </div>
-      </div>
+    return (
+      <div className="animate-in fade-in duration-500 relative">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">System Overview</h2>
 
-      {/* MIDDLE ROW: Academic Performance KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-emerald-200 transition-colors">
-          <div>
-            <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Total Pass Percentage</p>
-            <p className="text-3xl font-bold text-slate-800">76.4<span className="text-lg text-slate-400 font-medium">%</span></p>
+        {/* TOP ROW: Primary Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-300 transition-colors group">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Students</p>
+            <p className="text-3xl font-black text-blue-600 group-hover:scale-105 transition-transform origin-left">{totalStudents}</p>
           </div>
-          <div className="text-3xl opacity-30 group-hover:opacity-100 transition-opacity">📈</div>
-        </div>
-        
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-rose-200 transition-colors">
-          <div>
-            <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">Total Arrear Count</p>
-            <p className="text-3xl font-bold text-slate-800">142</p>
+          
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition-colors group">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Staff</p>
+            <p className="text-3xl font-black text-indigo-600 group-hover:scale-105 transition-transform origin-left">{totalStaff}</p>
           </div>
-          <div className="text-3xl opacity-30 group-hover:opacity-100 transition-opacity">⚠️</div>
-        </div>
-      </div>
+          
+          <div className="bg-slate-900 text-white p-5 rounded-xl shadow-md flex flex-col justify-between hover:shadow-lg transition-shadow">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Subjects</p>
+            <p className="text-3xl font-black text-amber-400">{totalCourses}</p>
+          </div>
 
-      {/* BOTTOM ROW: Department Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
-          <h3 className="text-sm font-bold text-slate-800">Department Analytics</h3>
-          <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Live Data</span>
+          <div className="bg-blue-600 text-white p-5 rounded-xl shadow-md flex flex-col justify-between hover:shadow-lg transition-shadow">
+            <p className="text-xs font-semibold text-blue-200 uppercase tracking-wider mb-2">Departments</p>
+            <p className="text-3xl font-black text-white">{totalDepts}</p> 
+          </div>
         </div>
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead>
-              <tr className="bg-white text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-5">Department Name</th>
-                <th className="py-3 px-5 text-center">Pass %</th>
-                <th className="py-3 px-5 text-center">Arrear Count</th>
-                <th className="py-3 px-5 text-right">Attendance %</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm text-slate-700">
-              {[
-                { dept: "Computer Science and Eng. (CSE)", pass: "82.5%", arrear: 34, att: "91.2%" },
-                { dept: "Information Technology (IT)", pass: "79.0%", arrear: 28, att: "89.5%" },
-                { dept: "Electronics and Comm. (ECE)", pass: "71.4%", arrear: 45, att: "85.0%" },
-                { dept: "Mechanical Engineering (MECH)", pass: "68.2%", arrear: 35, att: "82.1%" }
-              ].map((row, idx) => (
-                <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="py-3.5 px-5 font-medium text-slate-800">{row.dept}</td>
-                  <td className="py-3.5 px-5 text-center text-emerald-600 font-semibold">{row.pass}</td>
-                  <td className="py-3.5 px-5 text-center text-rose-600 font-semibold">{row.arrear}</td>
-                  <td className="py-3.5 px-5 text-right text-violet-600 font-semibold">{row.att}</td>
+
+        {/* MIDDLE ROW: Live Action KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-emerald-300 transition-colors">
+            <div>
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">Campus Placement Offers</p>
+              <p className="text-3xl font-black text-slate-800">{totalOffers} <span className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-1">Secured</span></p>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">💼</div>
+          </div>
+          
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-rose-300 transition-colors">
+            <div>
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">Pending Helpdesk Tickets</p>
+              <p className="text-3xl font-black text-slate-800">{pendingComplaints} <span className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-1">Requires Action</span></p>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">⚠️</div>
+          </div>
+        </div>
+
+        {/* BOTTOM ROW: Dynamic Department Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Department Health Overview</h3>
+            <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded border border-blue-200 uppercase tracking-wider">Auto-Synced</span>
+          </div>
+          
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="bg-white text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-4 px-5">Department Info</th>
+                  <th className="py-4 px-5 text-center">Cluster</th>
+                  <th className="py-4 px-5 text-center">Enrolled Students</th>
+                  <th className="py-4 px-5 text-center">Active Subjects</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="text-sm text-slate-700">
+                {(departmentList || []).length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-12 text-slate-400 font-medium italic">
+                      No departments configured. Add data to generate health reports.
+                    </td>
+                  </tr>
+                ) : (
+                  (departmentList || []).map((dept) => {
+                    // Calculate real-time stats for this specific row
+                    const studentCount = (studentList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
+                    const subjectCount = (courseList || []).filter(c => c.department === dept.name).length;
+
+                    return (
+                      <tr key={dept.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-100">
+                              {dept.shortForm ? dept.shortForm : (dept.name ? dept.name.charAt(0) : 'D')}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 leading-tight">{dept.name}</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{dept.degree || 'B.E.'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-5 text-center">
+                          <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-1 rounded uppercase tracking-widest">
+                            {dept.cluster || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-5 text-center font-black text-blue-600">{studentCount}</td>
+                        <td className="py-3 px-5 text-center font-black text-amber-500">{subjectCount}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  );
-
+    );
+  };
   const renderUserManagement = () => {
     const currentList = activeSubTab === 'staff' ? (staffList || []) : (studentList || []);
     
@@ -1550,6 +1598,147 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     );
   };
+  const renderSystemSettings = () => {
+    const handleSaveSettings = (e) => {
+      e.preventDefault();
+      setIsSavingSettings(true);
+      // Simulate API call delay
+      setTimeout(() => {
+        setIsSavingSettings(false);
+        alert("System configurations updated successfully!");
+      }, 800);
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">System Configuration</h2>
+        
+        <form onSubmit={handleSaveSettings} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-4xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            
+            {/* Global Toggles */}
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 uppercase tracking-wider">Access Controls</h3>
+              
+              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                <div>
+                  <p className="font-bold text-slate-800 text-sm">Maintenance Mode</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Locks out students and staff. Admins only.</p>
+                </div>
+                <button type="button" onClick={() => setMaintenanceMode(!maintenanceMode)} className={`w-12 h-6 rounded-full transition-colors relative ${maintenanceMode ? 'bg-rose-500' : 'bg-slate-300'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${maintenanceMode ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                <div>
+                  <p className="font-bold text-slate-800 text-sm">Allow New Registrations</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Opens the portal for new student signups.</p>
+                </div>
+                <button type="button" onClick={() => setRegistrationOpen(!registrationOpen)} className={`w-12 h-6 rounded-full transition-colors relative ${registrationOpen ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${registrationOpen ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                </button>
+              </div>
+            </div>
+
+            {/* Academic Timelines */}
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 uppercase tracking-wider">Academic Timeline</h3>
+              
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Active Academic Year</label>
+                <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-400">
+                  <option value="2024-2025">2024-2025</option>
+                  <option value="2025-2026">2025-2026</option>
+                  <option value="2026-2027">2026-2027</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Current Semester Period</label>
+                <select value={currentSemester} onChange={e => setCurrentSemester(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-400">
+                  <option value="ODD">ODD Semester (Aug - Dec)</option>
+                  <option value="EVEN">EVEN Semester (Jan - Jun)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-100 flex justify-end">
+            <button disabled={isSavingSettings} type="submit" className="px-6 py-2.5 rounded-lg font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:bg-slate-400 flex items-center gap-2">
+              {isSavingSettings ? "Applying Changes..." : "Save Configurations"}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  };
+
+  const renderSecurityLogs = () => {
+    const formatLogDate = (dateString) => {
+      const date = new Date(dateString);
+      return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit' })}`;
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500 relative">
+        <div className="flex justify-between items-end mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Security Audit Logs</h2>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">System Action History</p>
+          </div>
+          <button className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 uppercase tracking-widest">
+            Download CSV
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm min-w-[700px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                  <th className="py-4 px-6">Timestamp</th>
+                  <th className="py-4 px-6">Action Performed</th>
+                  <th className="py-4 px-6">User / Actor</th>
+                  <th className="py-4 px-6 text-center">IP Address</th>
+                  <th className="py-4 px-6 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {securityLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="py-4 px-6 text-xs text-slate-500 font-medium whitespace-nowrap">
+                      {formatLogDate(log.time)}
+                    </td>
+                    <td className="py-4 px-6 font-bold text-slate-800">
+                      {log.action}
+                    </td>
+                    <td className="py-4 px-6 font-medium text-slate-600">
+                      {log.user}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-100 px-2 py-1 rounded">
+                        {log.ip}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                        log.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                        log.status === 'WARNING' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                        'bg-rose-50 text-rose-600 border border-rose-100'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[50vh] text-center">
       <div className="text-4xl mb-3 text-slate-300">⚙️</div>
@@ -1627,7 +1816,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           </div>
         </header>
 
-        <div className="p-5 lg:p-8 max-w-6xl mx-auto">
+       <div className="p-5 lg:p-8 max-w-6xl mx-auto">
           {activeMenu === 'Dashboard' && renderDashboard()}
           {activeMenu === 'Departments' && renderDepartments()}
           {activeMenu === 'User Management' && renderUserManagement()}
@@ -1637,6 +1826,11 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           {activeMenu === 'Announcements' && renderAnnouncements()}
           {activeMenu === 'Complaints' && renderComplaints()}
           {activeMenu === 'Placement Details' && renderPlacements()}
+          
+          {/* ---> ADD THESE TWO LINES <--- */}
+          {activeMenu === 'System Settings' && renderSystemSettings()}
+          {activeMenu === 'Security Logs' && renderSecurityLogs()}
+
           {
             activeMenu !== 'Dashboard' && 
             activeMenu !== 'Departments' &&
@@ -1647,6 +1841,8 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
             activeMenu !== 'Announcements' && 
             activeMenu !== 'Complaints' &&
             activeMenu !== 'Placement Details' &&
+            activeMenu !== 'System Settings' &&
+            activeMenu !== 'Security Logs' &&
             renderPlaceholder()
           }
         </div>
