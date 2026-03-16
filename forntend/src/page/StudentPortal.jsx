@@ -5,29 +5,27 @@ const StudentPortal = ({ user, handleLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [myMarks, setMyMarks] = useState([]);
   const [isFetchingMarks, setIsFetchingMarks] = useState(false);
-  // Add this right under your other state variables at the top of StudentPortal
-  const [attendanceDate, setAttendanceDate] = useState(new Date('2026-03-14'));
   
-  // NEW: State to hold the student's real database record
+  // Sets the date to today (You can remove the hardcoded '2026-03-14' if you want it to always be today)
+  const [attendanceDate, setAttendanceDate] = useState(new Date()); 
+  
   const [studentProfile, setStudentProfile] = useState(null);
   
-  // Use your new backend URL
   const apiUrl = "https://fullstack-8cjk.onrender.com";
-useEffect(() => {
+
+  useEffect(() => {
     const fetchMyProfile = async () => {
       try {
         const res = await fetch(`${apiUrl}/api/host/all-students`);
         if (res.ok) {
           const allStudents = await res.json();
           
-          // --- DEBUGGING LINES ---
           console.log("1. All students from database:", allStudents);
           console.log("2. Your Google Email:", user?.email);
           
           const myData = allStudents.find(s => s.email.toLowerCase() === user.email.toLowerCase());
           
           console.log("3. Did we find a match?:", myData);
-          // -----------------------
 
           if (myData) setStudentProfile(myData);
         }
@@ -35,6 +33,7 @@ useEffect(() => {
     };
     if (user?.email) fetchMyProfile();
   }, [user]);
+
   const menuItems = [
     { name: 'Dashboard', icon: '📊', color: 'text-blue-500', bg: 'bg-blue-500', desc: 'Main overview and quick access links.' },
     { name: 'Profile', icon: '👤', color: 'text-slate-500', bg: 'bg-slate-500', desc: 'Manage your personal and academic details.' },
@@ -49,7 +48,6 @@ useEffect(() => {
   ];
 
   const renderDashboard = () => {
-    // We keep these stats static for now until we build the Marks API connection
     const studentStats = {
       mentorName: "Dr. Faculty Assigned",
       currentSemester: "Active Semester",
@@ -62,7 +60,6 @@ useEffect(() => {
 
     return (
       <div className="animate-in fade-in duration-500">
-        {/* UPDATED HEADER SECTION: Pulling REAL data from studentProfile */}
         <div className="mb-8 text-center md:text-left bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden flex flex-col md:flex-row items-center gap-6">
           <img 
             src={user?.picture || "https://via.placeholder.com/100"} 
@@ -94,7 +91,6 @@ useEffect(() => {
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-5 px-1">Academic Overview</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* 1. Mentor & Semester Card */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-blue-300 transition-colors">
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Faculty Mentor</p>
@@ -106,7 +102,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* 2. Attendance Card */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-emerald-300 transition-colors">
             <div className="flex justify-between items-start mb-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overall Attendance</p>
@@ -128,7 +123,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* 3. Performance (SGPA/CGPA) Card */}
           <div className="bg-slate-900 p-6 rounded-2xl shadow-md border border-slate-800 flex flex-col justify-between text-white hover:shadow-lg transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Academic Performance</p>
@@ -146,7 +140,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* 4. Arrear & Subject Tracker */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between hover:border-rose-300 transition-colors lg:col-span-3 xl:col-span-1">
             <div className="grid grid-cols-2 gap-4 h-full">
               <div className="flex flex-col justify-center border-r border-slate-100 pr-4">
@@ -168,8 +161,8 @@ useEffect(() => {
       </div>
     );
   };
-const renderMarksAndPerformance = () => {
-    // Group marks by Semester or Exam Type (Optional, but for now we list them cleanly)
+
+  const renderMarksAndPerformance = () => {
     return (
       <div className="animate-in fade-in duration-500">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -244,8 +237,25 @@ const renderMarksAndPerformance = () => {
       </div>
     );
   };
- const renderAttendance = () => {
-    // 1. DATE NAVIGATION LOGIC
+
+  // ==========================================
+  // UPDATED ATTENDANCE TIMELINE (Read from Admin)
+  // ==========================================
+  const renderAttendance = () => {
+    
+    // 1. Fetch mappings created by the Admin portal from LocalStorage!
+    const globalTimetable = JSON.parse(localStorage.getItem('globalTimetable')) || [];
+
+    // 2. Filter mappings so the student only sees classes for THEIR department
+    const myClasses = globalTimetable.filter(m => {
+      // If studentProfile is still loading, don't show any classes to prevent errors
+      if (!studentProfile?.department) return false;
+      
+      return m.department === studentProfile.department || m.department === 'All Departments';
+    });
+
+    const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
+
     const handlePrevDay = () => {
       const prev = new Date(attendanceDate);
       prev.setDate(prev.getDate() - 1);
@@ -262,51 +272,14 @@ const renderMarksAndPerformance = () => {
       day: '2-digit', month: 'short', year: 'numeric'
     }).replace(/ /g, '-');
 
-    const dateString = attendanceDate.toISOString().split('T')[0];
-
-    // 2. MOCK DATABASE (Simulating a real backend fetch based on the date)
-    // When the staff enters data in the backend, you will fetch it here using the `dateString`.
-    let backendData;
-    
-    if (dateString === '2026-03-14') {
-      backendData = {
-        overall: 92.74, totalClasses: 120, attended: 106, leaves: 14,
-        dailyLog: [
-          { id: 1, time: '08:30 AM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - FN', code: 'GATE-IN', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
-          { id: 2, time: '08:45 AM', duration: '50m', type: 'Theory', title: 'Data Structures', code: 'CS8391', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Block B - Room 204' },
-          { id: 3, time: '09:35 AM', duration: '50m', type: 'Theory', title: 'Operating Systems', code: 'CS8392', status: 'Present', faculty: 'Prof. Gayathri S', venue: 'Block B - Room 204' },
-          { id: 4, time: '10:40 AM', duration: '50m', type: 'Theory', title: 'Digital Principles', code: 'CS8351', status: 'Present', faculty: 'Prof. Gayathri S', venue: 'Block B - Room 204' },
-          { id: 5, time: '11:30 AM', duration: '50m', type: 'Laboratory', title: 'OS Laboratory', code: 'CS8381', status: 'Absent', faculty: 'Dr. Karthik M', venue: 'Computer Lab 3' },
-          { id: 6, time: '12:20 PM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - AN', code: 'GATE-AN', status: 'Present', faculty: 'Automated System', venue: 'Department Foyer' },
-          { id: 7, time: '01:10 PM', duration: '50m', type: 'Theory', title: 'Discrete Math', code: 'MA8351', status: 'Present', faculty: 'Dr. Karthik M', venue: 'Block B - Room 204' },
-          { id: 8, time: '02:00 PM', duration: '50m', type: 'Theory', title: 'Software Engineering', code: 'CS8491', status: 'Present', faculty: 'Prof. Anitha V', venue: 'Block B - Room 204' },
-          { id: 9, time: '02:50 PM', duration: '50m', type: 'Theory', title: 'Computer Networks', code: 'CS8591', status: 'Present', faculty: 'Dr. Suresh P', venue: 'Block B - Room 204' },
-          { id: 10, time: '03:40 PM', duration: '50m', type: 'Seminar', title: 'Library / Technical Seminar', code: 'GE8071', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Central Library' },
-          { id: 11, time: '04:30 PM', duration: 'Check-out', type: 'Biometric', title: 'Biometric - Exit', code: 'GATE-OUT', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
-        ]
-      };
-    } else {
-      // Data for any previous dates to prove the buttons work!
-      backendData = {
-        overall: 92.74, totalClasses: 112, attended: 98, leaves: 14,
-        dailyLog: [
-          { id: 1, time: '08:25 AM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - FN', code: 'GATE-IN', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
-          { id: 2, time: '08:45 AM', duration: '1h 40m', type: 'Laboratory', title: 'Data Structures Lab', code: 'CS8382', status: 'Present', faculty: 'Dr. Ramesh K', venue: 'Computer Lab 1' },
-          { id: 3, time: '12:25 PM', duration: 'Check-in', type: 'Biometric', title: 'Biometric - AN', code: 'GATE-AN', status: 'Present', faculty: 'Automated System', venue: 'Department Foyer' },
-          { id: 4, time: '01:10 PM', duration: '50m', type: 'Theory', title: 'Environmental Science', code: 'GE8291', status: 'Present', faculty: 'Prof. Anitha V', venue: 'Block B - Room 204' },
-          { id: 5, time: '04:35 PM', duration: 'Check-out', type: 'Biometric', title: 'Biometric - Exit', code: 'GATE-OUT', status: 'Present', faculty: 'Automated System', venue: 'Main Campus Entrance' },
-        ]
-      };
-    }
-
     return (
       <div className="animate-in fade-in duration-500 max-w-4xl mx-auto">
         
-        {/* HEADER & WORKING DATE CONTROLS */}
+        {/* HEADER & DATE CONTROLS */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">Daily Log</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Timeline View</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Live Timetable Sync</p>
           </div>
           
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
@@ -318,107 +291,81 @@ const renderMarksAndPerformance = () => {
           </div>
         </div>
 
-        {/* PROGRESS BAR SUMMARY */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row items-center gap-6">
-          <div className="flex-1 w-full">
-            <div className="flex justify-between items-end mb-2">
-              <span className="font-bold text-slate-800">Semester Attendance</span>
-              <span className="text-2xl font-black text-indigo-600">{backendData.overall}%</span>
-            </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${backendData.overall}%` }}></div>
-            </div>
-          </div>
-          <div className="flex gap-4 w-full md:w-auto border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6">
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attended</p>
-              <p className="font-bold text-slate-800 text-lg">{backendData.attended} <span className="text-xs text-slate-400 font-medium">/ {backendData.totalClasses}</span></p>
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Leaves</p>
-              <p className="font-bold text-rose-500 text-lg">{backendData.leaves}</p>
-            </div>
-          </div>
-        </div>
-
         {/* FULL DAY CONNECTED TIMELINE */}
         <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6 border-b border-slate-100 pb-4">Full Period Schedule</h3>
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6 border-b border-slate-100 pb-4">
+            Today's Classes for {studentProfile?.department || '...'}
+          </h3>
           
           <div className="relative pl-4 md:pl-0">
             {/* The Vertical Line */}
             <div className="absolute left-[23px] md:left-[110px] top-4 bottom-8 w-[2px] bg-slate-100"></div>
 
-            {backendData.dailyLog.map((session) => {
-              const isBiometric = session.type === 'Biometric';
-              
-              return (
-                <div key={session.id} className="relative flex flex-col md:flex-row items-start mb-8 last:mb-0 group">
-                  
-                  {/* Time Stamp */}
-                  <div className="md:w-[90px] pt-1.5 md:text-right md:pr-6 mb-2 md:mb-0 pl-12 md:pl-0">
-                    <p className={`text-xs font-black ${isBiometric ? 'text-blue-600' : 'text-slate-800'}`}>{session.time}</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{session.duration}</p>
-                  </div>
+            {myClasses.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-xl">
+                No classes scheduled by Admin for your department today.
+              </div>
+            ) : (
+              timeSlots.map((time, index) => {
+                const session = myClasses.find(c => c.time === time);
+                if (!session) return null;
 
-                  {/* Timeline Node (The Dot) */}
-                  <div className={`absolute left-0 md:left-[96px] top-1.5 w-[28px] h-[28px] rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 transition-colors duration-300
-                    ${isBiometric ? 'bg-blue-500' : session.status === 'Present' ? 'bg-emerald-500' : 'bg-rose-500'}
-                  `}>
-                    <div className={`w-2.5 h-2.5 rounded-full bg-white`}></div>
-                  </div>
+                return (
+                  <div key={index} className="relative flex flex-col md:flex-row items-start mb-8 last:mb-0 group">
+                    
+                    {/* Time Stamp */}
+                    <div className="md:w-[90px] pt-1.5 md:text-right md:pr-6 mb-2 md:mb-0 pl-12 md:pl-0">
+                      <p className="text-xs font-black text-slate-800">{session.time}</p>
+                      <p className="text-[10px] font-bold text-slate-400 mt-0.5">50m</p>
+                    </div>
 
-                  {/* Content Card */}
-                  <div className={`flex-1 ml-12 md:ml-10 border rounded-xl p-4 transition-all ${
-                    isBiometric ? 'bg-blue-50/50 border-blue-100 shadow-sm' : 'bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30'
-                  }`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className={`font-bold text-sm md:text-base leading-tight ${isBiometric ? 'text-blue-800' : 'text-slate-800'}`}>
-                          {isBiometric ? '👆 ' : ''}{session.title}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className={`text-[9px] font-black bg-white border px-1.5 py-0.5 rounded uppercase tracking-widest ${isBiometric ? 'border-blue-200 text-blue-600' : 'border-slate-200 text-slate-500'}`}>
-                            {session.code}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">{session.type}</span>
+                    {/* Timeline Node (The Yellow Dot) */}
+                    <div className="absolute left-0 md:left-[96px] top-1.5 w-[28px] h-[28px] rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 transition-colors duration-300 bg-amber-400">
+                      <div className="w-2.5 h-2.5 rounded-full bg-white"></div>
+                    </div>
+
+                    {/* Content Card */}
+                    <div className="flex-1 ml-12 md:ml-10 border rounded-xl p-4 transition-all bg-slate-50 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-bold text-sm md:text-base leading-tight text-slate-800">
+                            {session.name}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-[9px] font-black bg-white border px-1.5 py-0.5 rounded uppercase tracking-widest border-slate-200 text-slate-500">
+                              {session.code}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">{session.type}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-100">
+                          Scheduled
                         </div>
                       </div>
                       
-                      <div className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${
-                        isBiometric ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                        session.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
-                      }`}>
-                        {session.status}
+                      {/* FOOTER: Staff Name AND Venue */}
+                      <div className="mt-3 pt-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-slate-200/60">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                          <p className="text-xs font-medium text-slate-500">
+                            Faculty: <span className="font-bold">{session.faculty}</span>
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                            📍 {session.venue}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {/* FOOTER: Staff Name AND Venue */}
-                    <div className={`mt-3 pt-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isBiometric ? 'border-blue-100' : 'border-slate-200/60'}`}>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                        <p className={`text-xs font-medium ${isBiometric ? 'text-blue-600' : 'text-slate-500'}`}>
-                          Marked by: <span className="font-bold">{session.faculty}</span>
-                        </p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                          📍 {session.venue}
-                        </p>
-                      </div>
-
-                      {session.status === 'Absent' && !isBiometric && (
-                        <button className="text-[10px] font-bold text-rose-500 hover:text-rose-700 underline underline-offset-2 self-start sm:self-auto">Apply OD/Leave</button>
-                      )}
                     </div>
                   </div>
-
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
-
       </div>
     );
   };
+
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <div className="text-5xl mb-4 text-slate-300">
@@ -470,7 +417,6 @@ const renderMarksAndPerformance = () => {
           ))}
         </div>
 
-        {/* UPDATED SIDEBAR BOTTOM: Shows real Department and Email */}
         <div className="p-5 border-t border-slate-200 bg-slate-50/50">
           <div className="flex items-center gap-3 mb-4">
             <img src={user?.picture || "https://via.placeholder.com/40"} alt="Profile" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
@@ -502,13 +448,11 @@ const renderMarksAndPerformance = () => {
           </div>
         </header>
 
-        {/* THIS IS THE CORRECT PLACEMENT FOR THE ROUTING LOGIC */}
         <div className="p-5 lg:p-8 max-w-7xl mx-auto">
           {activeMenu === 'Dashboard' && renderDashboard()}
           {activeMenu === 'Marks / Results' && renderMarksAndPerformance()}
           {activeMenu === 'Attendance' && renderAttendance()}
           
-          {/* Keep the placeholder for the rest! */}
           {activeMenu !== 'Dashboard' && 
            activeMenu !== 'Marks / Results' && 
            activeMenu !== 'Attendance' && 

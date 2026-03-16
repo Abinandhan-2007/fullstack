@@ -17,11 +17,21 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [rollFrom, setRollFrom] = useState('');
   const [rollTo, setRollTo] = useState('');
 
-  // --- TIMETABLE STATES ---
-  const [mappings, setMappings] = useState([]);
+  // --- TIMETABLE STATES (UPDATED FOR GLOBAL SYNC) ---
+  // Automatically loads saved mappings when you open the page
+  const [mappings, setMappings] = useState(() => {
+    const saved = localStorage.getItem('globalTimetable');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [draggedId, setDraggedId] = useState(null);
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
+
+  // --- AUTOMATICALLY SAVE TO LOCALSTORAGE ---
+  // Every time 'mappings' changes, it saves to the browser so StudentPortal can read it
+  useEffect(() => {
+    localStorage.setItem('globalTimetable', JSON.stringify(mappings));
+  }, [mappings]);
 
   // --- 100% BULLETPROOF DATABASE FETCHING ---
   useEffect(() => {
@@ -73,10 +83,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         const masterDeptList = Array.from(allDepts).sort();
         setDbDepartments(masterDeptList);
 
-        // Debugging logs to help you see exactly what Spring Boot sent
-        console.log("✅ Master Departments Extracted:", masterDeptList);
-        console.log("✅ Subjects Fetched:", fetchedSubjects);
-
       } catch (error) {
         console.error("Failed to fetch from Admin Portal DB:", error);
       } finally {
@@ -124,6 +130,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
     const newMapping = {
       id: Date.now(),
+      department: selectedDept, // <--- CRITICAL FOR STUDENT PORTAL: Save the mapped department
       time: availableSlot,
       code: subjectCode,
       name: selectedSubject,
@@ -322,7 +329,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
                               {mappedSession.name}
                             </p>
                             <p className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] mt-1">
-                              🧑‍🎓 BATCH: {mappedSession.range}
+                              🧑‍🎓 BATCH: {mappedSession.range} | {mappedSession.department}
                             </p>
                           </div>
                         </div>
