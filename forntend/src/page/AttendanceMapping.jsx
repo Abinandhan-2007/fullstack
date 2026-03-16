@@ -3,13 +3,11 @@ import React, { useState, useEffect } from 'react';
 export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [activeMenu, setActiveMenu] = useState('Attendance Mapping');
 
-  // --- DATABASE STATES ---
   const [dbStaff, setDbStaff] = useState([]);
   const [dbDepartments, setDbDepartments] = useState([]);
   const [dbSubjects, setDbSubjects] = useState([]);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
 
-  // --- FORM STATES ---
   const [selectedDept, setSelectedDept] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedStaff, setSelectedStaff] = useState('');
@@ -17,33 +15,24 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [rollFrom, setRollFrom] = useState('');
   const [rollTo, setRollTo] = useState('');
 
-  // --- TIMETABLE STATES (SYNCED GLOBALLY) ---
-  const [mappings, setMappings] = useState(() => {
-    const saved = localStorage.getItem('globalTimetable');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // --- SERVER-LEVEL TIMETABLE STATES ---
+  const [mappings, setMappings] = useState([]);
   const [draggedId, setDraggedId] = useState(null);
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  useEffect(() => {
-    localStorage.setItem('globalTimetable', JSON.stringify(mappings));
-  }, [mappings]);
-
-  // --- AUTO-DETECT DATABASE FETCHING ---
+  // --- FETCH EVERYTHING FROM THE SERVER ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
       try {
-        // 1. Fetch Staff & Students
-        const [staffRes, studentRes] = await Promise.all([
+        const [staffRes, studentRes, timetableRes] = await Promise.all([
           fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-students`).catch(() => null)
+          fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
+          fetch(`${apiUrl}/api/host/timetable`).catch(() => null) // Fetch live DB timetable
         ]);
 
-        let allDepts = new Set([
-          "IT", "ECE", "EEE", "EIE", "Computer Science and Engineering"
-        ]);
+        let allDepts = new Set(["IT", "ECE", "EEE", "EIE", "Computer Science and Engineering"]);
 
         if (staffRes && staffRes.ok) {
           const staffData = await staffRes.json();
@@ -56,15 +45,14 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
           studentData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         }
 
-        // 2. HUNT FOR THE SUBJECTS (Tries multiple endpoints)
-        let fetchedSubjects = [];
-        const possibleEndpoints = [
-          `${apiUrl}/api/host/all-subjects`,
-          `${apiUrl}/api/host/all-courses`,
-          `${apiUrl}/api/courses`,
-          `${apiUrl}/api/subjects`
-        ];
+        // Load the live timetable from the server
+        if (timetableRes && timetableRes.ok) {
+          const timetableData = await timetableRes.json();
+          setMappings(timetableData);
+        }
 
+        let fetchedSubjects = [];
+        const possibleEndpoints = [`${apiUrl}/api/host/all-subjects`, `${apiUrl}/api/host/all-courses`, `${apiUrl}/api/courses`];
         for (let endpoint of possibleEndpoints) {
           try {
             const res = await fetch(endpoint);
@@ -72,20 +60,14 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
               const data = await res.json();
               if (data && data.length > 0) {
                 fetchedSubjects = data;
-                console.log(`✅ Success! Found courses at: ${endpoint}`, data);
-                break; // Stop hunting, we found the data!
+                break;
               }
             }
-          } catch (e) {
-            // Ignore and try the next URL
-          }
+          } catch (e) {}
         }
 
         setDbSubjects(fetchedSubjects);
-        fetchedSubjects.forEach(s => { 
-          if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); 
-        });
-
+        fetchedSubjects.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         setDbDepartments(Array.from(allDepts).sort());
 
       } catch (error) {
@@ -98,40 +80,31 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     if (apiUrl) fetchAdminData();
   }, [apiUrl]);
 
-  // --- FUZZY SUBJECT FILTER (Matches "COMPUTER" to "Computer Science") ---
   const getDisplaySubjects = () => {
     if (!dbSubjects || dbSubjects.length === 0) return [];
     if (!selectedDept) return dbSubjects;
     
     const filterDeptStr = selectedDept.toLowerCase();
-
     const filtered = dbSubjects.filter(s => {
       if (!s.department || s.department === "Unassigned") return true;
-      
       const subjDeptStr = s.department.toLowerCase();
-      
-      // 1. Exact Match
       if (subjDeptStr === filterDeptStr) return true;
-      // 2. Contains Match (e.g. "COMPUTER" is inside "Computer Science")
       if (filterDeptStr.includes(subjDeptStr) || subjDeptStr.includes(filterDeptStr)) return true;
-      // 3. Keyword Match
       if (filterDeptStr.includes('computer') && subjDeptStr.includes('computer')) return true;
-      if (filterDeptStr.includes('it') && subjDeptStr === 'it') return true;
-
       return false;
     });
     
-    // Always fall back to showing ALL subjects so you are never blocked
     return filtered.length > 0 ? filtered : dbSubjects;
   };
 
-  const hasConflict = mappings.some(m => m.faculty === selectedStaff || m.venue === selectedVenue);
+  const hasConflict = mappings.some(m => m.timeSlot === timeSlots.find(t => !mappings.map(map => map.timeSlot).includes(t)) && (m.faculty === selectedStaff || m.venue === selectedVenue));
 
-  const handleAddMapping = (e) => {
+  // --- SAVE TO SERVER ---
+  const handleAddMapping = async (e) => {
     e.preventDefault();
     if (hasConflict || !selectedSubject || !selectedStaff || !selectedVenue) return;
 
-    const usedSlots = mappings.map(m => m.time);
+    const usedSlots = mappings.map(m => m.timeSlot);
     const availableSlot = timeSlots.find(t => !usedSlots.includes(t));
 
     if (!availableSlot) {
@@ -142,53 +115,84 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
 
+    // Format matches our new Spring Boot Entity
     const newMapping = {
-      id: Date.now(),
-      department: selectedDept, // Critical for Student Portal!
-      time: availableSlot,
-      code: subjectCode,
-      name: selectedSubject,
+      department: selectedDept,
+      timeSlot: availableSlot,
+      subjectCode: subjectCode,
+      subjectName: selectedSubject,
       faculty: selectedStaff,
       venue: selectedVenue,
-      type: selectedVenue.includes('Lab') ? 'Laboratory' : 'Theory',
-      range: rollFrom && rollTo ? `${rollFrom} to ${rollTo}` : 'All Students'
+      sessionType: selectedVenue.includes('Lab') ? 'Laboratory' : 'Theory',
+      batchRange: rollFrom && rollTo ? `${rollFrom} to ${rollTo}` : 'All Students'
     };
 
-    setMappings([...mappings, newMapping]);
-    
-    setSelectedSubject('');
-    setSelectedStaff('');
-    setSelectedVenue('');
-    setRollFrom('');
-    setRollTo('');
+    try {
+      // POST to Spring Boot
+      const response = await fetch(`${apiUrl}/api/host/timetable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMapping)
+      });
+      if (response.ok) {
+        const savedMapping = await response.json(); // Get the DB-generated ID!
+        setMappings([...mappings, savedMapping]);
+        setSelectedSubject(''); setSelectedStaff(''); setSelectedVenue(''); setRollFrom(''); setRollTo('');
+      }
+    } catch (err) {
+      console.error("Failed to save mapping to server", err);
+    }
   };
 
-  const handleRemove = (id) => setMappings(mappings.filter(m => m.id !== id));
+  // --- DELETE FROM SERVER ---
+  const handleRemove = async (id) => {
+    try {
+      await fetch(`${apiUrl}/api/host/timetable/${id}`, { method: 'DELETE' });
+      setMappings(mappings.filter(m => m.id !== id));
+    } catch (err) {
+      console.error("Failed to delete mapping", err);
+    }
+  };
 
+  // --- UPDATE DRAG DROP ON SERVER ---
   const handleDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; e.target.style.opacity = '0.4'; };
   const handleDragEnd = (e) => { e.target.style.opacity = '1'; setDraggedId(null); };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
-  const handleDrop = (e, targetTime) => {
+  
+  const handleDrop = async (e, targetTime) => {
     e.preventDefault();
     if (!draggedId) return;
-    const targetSession = mappings.find(m => m.time === targetTime);
+    const targetSession = mappings.find(m => m.timeSlot === targetTime);
     const draggedSession = mappings.find(m => m.id === draggedId);
 
+    // Update the UI instantly for a smooth experience
     setMappings(prev => prev.map(m => {
-      if (m.id === draggedId) return { ...m, time: targetTime };
-      if (targetSession && m.id === targetSession.id) return { ...m, time: draggedSession.time };
+      if (m.id === draggedId) return { ...m, timeSlot: targetTime };
+      if (targetSession && m.id === targetSession.id) return { ...m, timeSlot: draggedSession.timeSlot };
       return m;
     }));
+
+    // Send the updates to the server in the background
+    try {
+      await fetch(`${apiUrl}/api/host/timetable/${draggedId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...draggedSession, timeSlot: targetTime })
+      });
+      if (targetSession) {
+        await fetch(`${apiUrl}/api/host/timetable/${targetSession.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...targetSession, timeSlot: draggedSession.timeSlot })
+        });
+      }
+    } catch (err) {
+      console.error("Failed to update drag-and-drop on server", err);
+    }
   };
 
   const menuItems = [
-    { name: 'Dashboard', icon: '📊' },
-    { name: 'Attendance Mapping', icon: '📍' },
-    { name: 'Active Sessions', icon: '🔴' },
-    { name: 'Students', icon: '🎓' },
-    { name: 'Staff', icon: '👥' },
-    { name: 'Venues', icon: '🏢' },
-    { name: 'Reports', icon: '📈' },
+    { name: 'Dashboard', icon: '📊' }, { name: 'Attendance Mapping', icon: '📍' }, { name: 'Active Sessions', icon: '🔴' }, { name: 'Students', icon: '🎓' }, { name: 'Staff', icon: '👥' }, { name: 'Venues', icon: '🏢' }, { name: 'Reports', icon: '📈' },
   ];
 
   const renderMappingStudio = () => (
@@ -202,7 +206,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         <div className="flex gap-3">
           <div className="bg-[#FFFFFF] px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${isLoadingDB ? 'bg-amber-400' : 'bg-[#10B981] animate-pulse'}`}></span>
-            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Hunting...' : 'Active'}</span></span>
+            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Fetching DB...' : 'Live (Server Mode)'}</span></span>
           </div>
         </div>
       </div>
@@ -210,19 +214,13 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       <div className="bg-[#FFFFFF] rounded-[2rem] p-6 shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-slate-800">Quick Mapping</h2>
-          <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Database Linked</span>
+          <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Global Sync</span>
         </div>
 
         <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-end">
-          
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">1. Department</label>
-            <select 
-              className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
-              value={selectedDept} 
-              onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }}
-              disabled={isLoadingDB}
-            >
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }} disabled={isLoadingDB}>
               <option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>
               {dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}
             </select>
@@ -230,22 +228,13 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">2. Subject / Course</label>
-            <select 
-              className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
-              value={selectedSubject} 
-              onChange={(e) => setSelectedSubject(e.target.value)} 
-              disabled={!selectedDept || isLoadingDB}
-            >
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}>
               <option value="">Select Subject...</option>
-              {getDisplaySubjects().length > 0 ? (
-                getDisplaySubjects().map((s, idx) => {
+              {getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => {
                   const name = s.subjectName || s.name || "Unnamed Course";
                   const code = s.subjectCode || s.code || "";
                   return <option key={idx} value={name}>{name} {code ? `(${code})` : ''}</option>;
-                })
-              ) : (
-                <option disabled>No courses found in DB</option>
-              )}
+                }) : <option disabled>No courses found in DB</option>}
             </select>
           </div>
 
@@ -259,20 +248,9 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">4. Faculty</label>
-            <select 
-              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none disabled:opacity-50" 
-              value={selectedStaff} 
-              onChange={(e) => setSelectedStaff(e.target.value)}
-              disabled={isLoadingDB}
-            >
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none disabled:opacity-50" value={selectedStaff} onChange={(e) => setSelectedStaff(e.target.value)} disabled={isLoadingDB}>
               <option value="">Select Faculty...</option>
-              {dbStaff.length > 0 ? (
-                dbStaff.map((staff, idx) => (
-                  <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>
-                ))
-              ) : (
-                <option disabled>No staff found in DB</option>
-              )}
+              {dbStaff.length > 0 ? dbStaff.map((staff, idx) => <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>) : <option disabled>No staff found in DB</option>}
             </select>
           </div>
 
@@ -313,7 +291,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {timeSlots.map(time => {
-              const mappedSession = mappings.find(m => m.time === time);
+              const mappedSession = mappings.find(m => m.timeSlot === time);
               return (
                 <tr key={time} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, time)} className={mappedSession ? "hover:bg-[#F8FAFC] transition-colors bg-white" : "bg-slate-50/50 border-dashed border-b-0"}>
                   <td className="py-4 px-6 font-bold text-slate-800 w-36">{time}</td>
@@ -324,11 +302,11 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
                           <span className="cursor-move text-slate-300 hover:text-slate-500 transition-colors" title="Drag to move">⋮⋮</span>
                           <div>
                             <p className="font-bold text-slate-800 flex items-center gap-2">
-                              <span className="bg-[#2563EB]/10 text-[#2563EB] font-bold px-2 py-0.5 rounded text-xs">{mappedSession.code}</span>
-                              {mappedSession.name}
+                              <span className="bg-[#2563EB]/10 text-[#2563EB] font-bold px-2 py-0.5 rounded text-xs">{mappedSession.subjectCode}</span>
+                              {mappedSession.subjectName}
                             </p>
                             <p className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] mt-1">
-                              🧑‍🎓 BATCH: {mappedSession.range} | {mappedSession.department}
+                              🧑‍🎓 BATCH: {mappedSession.batchRange} | {mappedSession.department}
                             </p>
                           </div>
                         </div>

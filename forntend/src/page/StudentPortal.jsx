@@ -6,33 +6,50 @@ const StudentPortal = ({ user, handleLogout }) => {
   const [myMarks, setMyMarks] = useState([]);
   const [isFetchingMarks, setIsFetchingMarks] = useState(false);
   
-  // Sets the date to today (You can remove the hardcoded '2026-03-14' if you want it to always be today)
+  // Sets the date to today
   const [attendanceDate, setAttendanceDate] = useState(new Date()); 
-  
   const [studentProfile, setStudentProfile] = useState(null);
+
+  // --- NEW: SERVER-LEVEL TIMETABLE STATES ---
+  const [globalTimetable, setGlobalTimetable] = useState([]);
+  const [isLoadingTimetable, setIsLoadingTimetable] = useState(false);
   
   const apiUrl = "https://fullstack-8cjk.onrender.com";
 
+  // 1. Fetch Student Profile
   useEffect(() => {
     const fetchMyProfile = async () => {
       try {
         const res = await fetch(`${apiUrl}/api/host/all-students`);
         if (res.ok) {
           const allStudents = await res.json();
-          
-          console.log("1. All students from database:", allStudents);
-          console.log("2. Your Google Email:", user?.email);
-          
           const myData = allStudents.find(s => s.email.toLowerCase() === user.email.toLowerCase());
-          
-          console.log("3. Did we find a match?:", myData);
-
           if (myData) setStudentProfile(myData);
         }
       } catch (err) { console.error("Failed to fetch student profile", err); }
     };
     if (user?.email) fetchMyProfile();
-  }, [user]);
+  }, [user, apiUrl]);
+
+  // --- 2. NEW: FETCH TIMETABLE FROM SERVER DATABASE ---
+  useEffect(() => {
+    if (activeMenu === 'Attendance') {
+      setIsLoadingTimetable(true);
+      fetch(`${apiUrl}/api/host/timetable`)
+        .then(res => {
+          if (!res.ok) throw new Error("Network response was not ok");
+          return res.json();
+        })
+        .then(data => {
+          setGlobalTimetable(data);
+          setIsLoadingTimetable(false);
+        })
+        .catch(err => {
+          console.error("Failed to load timetable from server", err);
+          setIsLoadingTimetable(false);
+        });
+    }
+  }, [activeMenu, apiUrl]);
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊', color: 'text-blue-500', bg: 'bg-blue-500', desc: 'Main overview and quick access links.' },
@@ -238,23 +255,16 @@ const StudentPortal = ({ user, handleLogout }) => {
     );
   };
 
- // ==========================================
-  // UPDATED ATTENDANCE TIMELINE (Case-Insensitive)
+  // ==========================================
+  // UPDATED ATTENDANCE TIMELINE (SERVER-SYNCED)
   // ==========================================
   const renderAttendance = () => {
     
-    // 1. Fetch mappings created by the Admin portal from LocalStorage!
-    const globalTimetable = JSON.parse(localStorage.getItem('globalTimetable')) || [];
-
-    // 2. Filter mappings (MADE CASE-INSENSITIVE)
+    // Filter Server Data (Case-Insensitive)
     const myClasses = globalTimetable.filter(m => {
-      // If studentProfile is still loading, wait.
       if (!studentProfile?.department) return false;
-      
-      // Convert both to lowercase and remove extra spaces so they match perfectly!
       const adminDept = (m.department || "").toLowerCase().trim();
       const studentDept = (studentProfile.department || "").toLowerCase().trim();
-      
       return adminDept === studentDept || adminDept === 'all departments';
     });
 
@@ -283,7 +293,7 @@ const StudentPortal = ({ user, handleLogout }) => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-black text-slate-800 tracking-tight">Daily Log</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Live Timetable Sync</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Live Database Sync</p>
           </div>
           
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
@@ -297,22 +307,29 @@ const StudentPortal = ({ user, handleLogout }) => {
 
         {/* FULL DAY CONNECTED TIMELINE */}
         <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6 border-b border-slate-100 pb-4">
-            Today's Classes for {studentProfile?.department || '...'}
-          </h3>
+          <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+               Today's Classes for {studentProfile?.department || '...'}
+             </h3>
+             {isLoadingTimetable && (
+               <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded animate-pulse">
+                 SYNCING WITH DB...
+               </span>
+             )}
+          </div>
           
           <div className="relative pl-4 md:pl-0">
             {/* The Vertical Line */}
             <div className="absolute left-[23px] md:left-[110px] top-4 bottom-8 w-[2px] bg-slate-100"></div>
 
-            {myClasses.length === 0 ? (
+            {myClasses.length === 0 && !isLoadingTimetable ? (
               <div className="text-center py-10 text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                 <p className="mb-2">No classes scheduled by Admin for your department today.</p>
-                <p className="text-xs">*(Note: Ensure you mapped the class on the exact same browser/URL as you are viewing this!)*</p>
               </div>
             ) : (
               timeSlots.map((time, index) => {
-                const session = myClasses.find(c => c.time === time);
+                // Match against the Spring Boot entity field name "timeSlot"
+                const session = myClasses.find(c => c.timeSlot === time);
                 if (!session) return null;
 
                 return (
@@ -320,7 +337,7 @@ const StudentPortal = ({ user, handleLogout }) => {
                     
                     {/* Time Stamp */}
                     <div className="md:w-[90px] pt-1.5 md:text-right md:pr-6 mb-2 md:mb-0 pl-12 md:pl-0">
-                      <p className="text-xs font-black text-slate-800">{session.time}</p>
+                      <p className="text-xs font-black text-slate-800">{session.timeSlot}</p>
                       <p className="text-[10px] font-bold text-slate-400 mt-0.5">50m</p>
                     </div>
 
@@ -334,13 +351,13 @@ const StudentPortal = ({ user, handleLogout }) => {
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <h4 className="font-bold text-sm md:text-base leading-tight text-slate-800">
-                            {session.name}
+                            {session.subjectName}
                           </h4>
                           <div className="flex items-center gap-2 mt-1.5">
                             <span className="text-[9px] font-black bg-white border px-1.5 py-0.5 rounded uppercase tracking-widest border-slate-200 text-slate-500">
-                              {session.code}
+                              {session.subjectCode}
                             </span>
-                            <span className="text-[10px] font-bold text-slate-400">{session.type}</span>
+                            <span className="text-[10px] font-bold text-slate-400">{session.sessionType}</span>
                           </div>
                         </div>
                         
@@ -370,6 +387,7 @@ const StudentPortal = ({ user, handleLogout }) => {
       </div>
     );
   };
+
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <div className="text-5xl mb-4 text-slate-300">
