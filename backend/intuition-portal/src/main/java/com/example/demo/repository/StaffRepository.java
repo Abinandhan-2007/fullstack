@@ -7,5 +7,6 @@ import com.example.demo.model.StaffMember;
 
 @Repository
 public interface StaffRepository extends JpaRepository<StaffMember, Long> {
-    // JpaRepository provides .findAll() and .save() automatically
+    // Finds a staff member by their Google Email
+    StaffMember findByEmail(String email);
 }

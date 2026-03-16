@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [activeMenu, setActiveMenu] = useState('Attendance Mapping');
 
-  // --- STRICT DATABASE STATES ---
+  // --- DATABASE STATES ---
   const [dbStaff, setDbStaff] = useState([]);
   const [dbDepartments, setDbDepartments] = useState([]);
-  const [dbSubjects, setDbSubjects] = useState([]); // ONLY DB Subjects
+  const [dbSubjects, setDbSubjects] = useState([]);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
 
   // --- FORM STATES ---
@@ -23,7 +23,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  // --- FETCH STRICTLY FROM ADMIN BACKEND ---
+  // --- 100% ACCURATE DATABASE FETCHING ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
@@ -31,21 +31,35 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         const [staffRes, studentRes, subjectRes] = await Promise.all([
           fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
           fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-subjects`).catch(() => null) // Fetching Subjects from Admin
+          fetch(`${apiUrl}/api/host/all-subjects`).catch(() => null)
         ]);
 
-        if (staffRes && staffRes.ok) setDbStaff(await staffRes.json()); 
-        
+        let allDepts = new Set(); // Using a Set to automatically remove duplicates
+
+        if (staffRes && staffRes.ok) {
+          setDbStaff(await staffRes.json()); 
+        }
+
         if (studentRes && studentRes.ok) {
           const studentData = await studentRes.json();
-          const uniqueDepts = [...new Set(studentData.map(s => s.department).filter(Boolean))];
-          setDbDepartments(uniqueDepts);
+          // Add all student departments to the list
+          studentData.forEach(s => {
+            if (s.department && s.department !== "Unassigned") allDepts.add(s.department);
+          });
         }
 
         if (subjectRes && subjectRes.ok) {
           const subjectData = await subjectRes.json();
-          setDbSubjects(subjectData); // Save ONLY Admin Subjects
+          setDbSubjects(subjectData);
+          // ALSO add all course departments to the list! 
+          // (Fixes the bug where a dept with courses but no students was hidden)
+          subjectData.forEach(s => {
+            if (s.department && s.department !== "Unassigned") allDepts.add(s.department);
+          });
         }
+
+        // Save the combined, complete list of departments
+        setDbDepartments(Array.from(allDepts));
 
       } catch (error) {
         console.error("Failed to fetch from Admin Portal DB:", error);
@@ -57,19 +71,15 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     if (apiUrl) fetchAdminData();
   }, [apiUrl]);
 
-  // --- STRICT DB SUBJECT FILTER ---
+  // --- SHOW ALL SUBJECTS CORRECTLY ---
   const getSubjectsForDept = (dept) => {
     if (!dbSubjects || dbSubjects.length === 0) return [];
-
-    // Try to match the exact department
-    const filtered = dbSubjects.filter(s => {
-      const subjDept = s.department || s.dept || s.departmentName || "";
-      if (!subjDept) return true; // If admin didn't assign a department to the subject, show it for all
-      return subjDept.toLowerCase() === dept.toLowerCase();
-    });
-
-    // If the department names don't match perfectly but we DO have subjects in the DB, 
-    // return all subjects so you aren't blocked from mapping.
+    
+    // Find subjects that match the selected department
+    const filtered = dbSubjects.filter(s => s.department === dept);
+    
+    // FAILSAFE: If the admin didn't assign the subject to this specific department, 
+    // we return ALL subjects from the database so you are never blocked from mapping it!
     return filtered.length > 0 ? filtered : dbSubjects;
   };
 
@@ -87,9 +97,9 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       return;
     }
 
-    // Grab the exact code from the database subject
-    const subjectObj = dbSubjects.find(s => (s.subjectName || s.name || s.title) === selectedSubject);
-    const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code || "SUB") : "SUB";
+    // Safely extract the subject code from your database object
+    const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
+    const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
 
     const newMapping = {
       id: Date.now(),
@@ -161,7 +171,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       <div className="bg-[#FFFFFF] rounded-[2rem] p-6 shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-slate-800">Quick Mapping</h2>
-          <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Strict DB Mode</span>
+          <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Database Linked</span>
         </div>
 
         <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-end">
@@ -175,7 +185,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
               onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }}
               disabled={isLoadingDB}
             >
-              <option value="">{isLoadingDB ? 'Loading DB...' : 'Select Department...'}</option>
+              <option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>
               {dbDepartments.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
@@ -190,11 +200,10 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
               disabled={!selectedDept || isLoadingDB}
             >
               <option value="">{selectedDept ? 'Select Subject...' : 'Pick Dept first'}</option>
-              {selectedDept && getSubjectsForDept(selectedDept).length === 0 && (
-                <option disabled>No subjects registered in Admin DB</option>
-              )}
+              
+              {/* Renders the precise subjects from your database */}
               {selectedDept && getSubjectsForDept(selectedDept).map((s, idx) => {
-                const name = s.subjectName || s.name || s.title || "Unnamed Subject";
+                const name = s.subjectName || s.name || "Unnamed Subject";
                 const code = s.subjectCode || s.code || "";
                 return <option key={idx} value={name}>{name} {code ? `(${code})` : ''}</option>;
               })}
@@ -203,7 +212,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
           {/* 3. STUDENT RANGE */}
           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 h-full flex flex-col justify-end">
-            <label className="block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-1.5 px-1">3. Bulk Map</label>
+            <label className="block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-1.5 px-1">3. Bulk Map (Optional)</label>
             <div className="grid grid-cols-2 gap-2">
               <input type="text" placeholder="Roll From" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value)} />
               <input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value)} />
@@ -220,13 +229,9 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
               disabled={isLoadingDB}
             >
               <option value="">Select...</option>
-              {dbStaff.length > 0 ? (
-                dbStaff.map((staff, idx) => (
-                  <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>
-                ))
-              ) : (
-                <option disabled>No staff in DB</option>
-              )}
+              {dbStaff.map((staff, idx) => (
+                <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>
+              ))}
             </select>
           </div>
 

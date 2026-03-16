@@ -4,7 +4,7 @@ import { jwtDecode } from "jwt-decode";
 import AdminPortal from './page/AdminPortal.jsx'; 
 import StudentPortal from './page/StudentPortal';
 import LoginPage from './page/LoginPage'; 
-import AttendancePortal from './page/AttendanceMapping.jsx'; // Your real portal imported here!
+import AttendancePortal from './page/AttendanceMapping.jsx';
 
 // 1. STAFF PORTAL PLACEHOLDER
 const StaffPortal = ({ user, handleLogout }) => (
@@ -23,10 +23,10 @@ export default function App() {
   const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
   const apiUrl = "https://fullstack-8cjk.onrender.com";
 
+  // Used for Google Auth routing
   const determineRole = async (email) => {
     setLoading(true);
     
-    // Step A: Check if it's Admin
     if (HOST_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase())) {
       setRole('host');
       setLoading(false);
@@ -34,7 +34,6 @@ export default function App() {
     }
 
     try {
-      // Step B: Fetch DB lists
       const [staffRes, studentRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`)
@@ -43,7 +42,6 @@ export default function App() {
       let isStaff = false;
       let isStudent = false;
 
-      // Step C & D: Verification
       if (staffRes.ok) {
         const staffList = await staffRes.json();
         isStaff = staffList.some(s => s.email?.toLowerCase() === email.toLowerCase());
@@ -53,7 +51,6 @@ export default function App() {
         isStudent = studentList.some(s => s.email?.toLowerCase() === email.toLowerCase());
       }
 
-      // Step E: Final Routing
       if (isStaff) setRole('staff');
       else if (isStudent) setRole('student');
       else setRole('denied'); 
@@ -72,17 +69,45 @@ export default function App() {
     determineRole(decoded.email);
   };
 
-  // Manual Login logic for the 1234 backdoor
-  const handleManualLogin = (loginId, password) => {
+  // --- TRUE MULTI-USER BACKEND AUTHENTICATION ---
+  const handleManualLogin = async (loginId, password) => {
+    setLoading(true);
+    
+    // TEMPORARY FALLBACK: While you are building your Spring Boot backend, 
+    // you can still use 1234/1234 to access the Attendance Portal!
     if (loginId === '1234' && password === '1234') {
-      const mockUser = { name: 'Attendance Admin', email: '1234@system.local', isAttendancePortal: true };
+      const mockUser = { name: 'Attendance Admin', email: '1234@system.local', role: 'attendance_portal' };
       setUser(mockUser);
       setRole('attendance_portal');
-      // Save special flag so it survives a page refresh
       localStorage.setItem("user", JSON.stringify(mockUser));
-    } else {
-      alert("Invalid credentials. Please use 'Continue with Google' or try again.");
+      setLoading(false);
+      return;
     }
+
+    try {
+      // Send the entered ID and Password to your Spring Boot database
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginId, password: password })
+      });
+
+      if (response.ok) {
+        // Backend confirms user exists and sends back their details and role!
+        const userData = await response.json(); 
+        
+        setUser(userData);
+        setRole(userData.role); // e.g., 'student', 'staff', 'host', or 'attendance_portal'
+        localStorage.setItem("user", JSON.stringify(userData));
+      } else {
+        alert("Invalid credentials. Please check your ID and Password.");
+      }
+    } catch (error) {
+      console.error("Login server error:", error);
+      alert("Could not connect to the authentication server. Please try again later.");
+    }
+    
+    setLoading(false);
   };
 
   const handleLogout = () => {
@@ -96,9 +121,9 @@ export default function App() {
       const u = JSON.parse(saved);
       setUser(u);
       
-      // Check if this is our special 1234 user before doing normal DB checks
-      if (u.isAttendancePortal) {
-        setRole('attendance_portal');
+      // If the backend explicitly set a role in the saved user data, use it directly!
+      if (u.role) {
+        setRole(u.role);
         setLoading(false);
       } else {
         determineRole(u.email);
@@ -112,38 +137,20 @@ export default function App() {
 
   if (loading) return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
-      
-      {/* Ambient Background Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-indigo-500/15 rounded-full blur-[80px] animate-pulse"></div>
-
       <div className="relative z-10 flex flex-col items-center">
-        {/* Floating Logo */}
         <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-[1.5rem] shadow-xl shadow-indigo-500/30 flex items-center justify-center mb-6 animate-[bounce_2s_infinite]">
            <span className="text-3xl font-black text-white">{"</>"}</span>
         </div>
-
-        {/* App Branding */}
         <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-8">
           Student<span className="text-indigo-600 font-normal">HQ</span>
         </h2>
-
-        {/* Sleek Indeterminate Progress Bar */}
         <div className="w-48 h-1.5 bg-slate-200 rounded-full overflow-hidden mb-4 relative">
           <div className="absolute top-0 left-0 h-full w-1/2 bg-indigo-600 rounded-full animate-[progress_1.5s_ease-in-out_infinite_alternate]"></div>
         </div>
-        
-        {/* Blinking Status Text */}
-        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] animate-pulse">
-          Verifying Authorization...
-        </p>
+        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] animate-pulse">Verifying Authorization...</p>
       </div>
-
-      <style>{`
-        @keyframes progress {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-      `}</style>
+      <style>{`@keyframes progress { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }`}</style>
     </div>
   );
 
@@ -164,7 +171,7 @@ export default function App() {
           <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">⛔</div>
           <h2 className="text-2xl font-black text-slate-800 mb-2">Unregistered Account</h2>
           <p className="text-slate-500 mb-8 text-sm leading-relaxed">
-            The email <span className="font-bold text-slate-900">{user.email}</span> has not been added to the system by an Admin.
+            The account <span className="font-bold text-slate-900">{user.email}</span> has not been authorized by an Admin.
           </p>
           <button onClick={handleLogout} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-sm">Back to Login</button>
         </div>
@@ -178,8 +185,6 @@ export default function App() {
       {role === 'host' && <AdminPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
       {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} />}
       {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} />}
-      
-      {/* Routing to your newly imported Attendance Portal */}
       {role === 'attendance_portal' && <AttendancePortal handleLogout={handleLogout} apiUrl={apiUrl} />}
     </>
   );
