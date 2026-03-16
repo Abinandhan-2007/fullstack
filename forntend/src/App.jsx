@@ -4,6 +4,7 @@ import { jwtDecode } from "jwt-decode";
 import AdminPortal from './page/AdminPortal.jsx'; 
 import StudentPortal from './page/StudentPortal';
 import LoginPage from './page/LoginPage'; 
+import AttendancePortal from './page/AttendanceMapping.jsx'; // Your real portal imported here!
 
 // 1. STAFF PORTAL PLACEHOLDER
 const StaffPortal = ({ user, handleLogout }) => (
@@ -71,6 +72,19 @@ export default function App() {
     determineRole(decoded.email);
   };
 
+  // Manual Login logic for the 1234 backdoor
+  const handleManualLogin = (loginId, password) => {
+    if (loginId === '1234' && password === '1234') {
+      const mockUser = { name: 'Attendance Admin', email: '1234@system.local', isAttendancePortal: true };
+      setUser(mockUser);
+      setRole('attendance_portal');
+      // Save special flag so it survives a page refresh
+      localStorage.setItem("user", JSON.stringify(mockUser));
+    } else {
+      alert("Invalid credentials. Please use 'Continue with Google' or try again.");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("user");
     window.location.reload();
@@ -81,16 +95,22 @@ export default function App() {
     if (saved) {
       const u = JSON.parse(saved);
       setUser(u);
-      determineRole(u.email);
+      
+      // Check if this is our special 1234 user before doing normal DB checks
+      if (u.isAttendancePortal) {
+        setRole('attendance_portal');
+        setLoading(false);
+      } else {
+        determineRole(u.email);
+      }
     } else {
       setLoading(false);
     }
   }, []);
 
-
   // --- RENDERING SCREENS ---
 
- if (loading) return (
+  if (loading) return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden">
       
       {/* Ambient Background Glow */}
@@ -118,7 +138,6 @@ export default function App() {
         </p>
       </div>
 
-      {/* Custom Animation for the sleek sliding bar */}
       <style>{`
         @keyframes progress {
           0% { transform: translateX(-100%); }
@@ -128,17 +147,16 @@ export default function App() {
     </div>
   );
 
-  // 1. THE NEW LOGIN SCREEN
   if (!user) {
     return (
       <LoginPage 
         onGoogleSuccess={handleLogin} 
+        onManualLogin={handleManualLogin} 
         GoogleLoginComponent={<GoogleLogin onSuccess={handleLogin} type="standard" theme="outline" size="large" />} 
       />
     );
   }
 
-  // 2. ACCESS DENIED SCREEN
   if (role === 'denied') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -160,6 +178,9 @@ export default function App() {
       {role === 'host' && <AdminPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
       {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} />}
       {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} />}
+      
+      {/* Routing to your newly imported Attendance Portal */}
+      {role === 'attendance_portal' && <AttendancePortal handleLogout={handleLogout} apiUrl={apiUrl} />}
     </>
   );
 }
