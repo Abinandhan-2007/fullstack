@@ -238,20 +238,24 @@ const StudentPortal = ({ user, handleLogout }) => {
     );
   };
 
-  // ==========================================
-  // UPDATED ATTENDANCE TIMELINE (Read from Admin)
+ // ==========================================
+  // UPDATED ATTENDANCE TIMELINE (Case-Insensitive)
   // ==========================================
   const renderAttendance = () => {
     
     // 1. Fetch mappings created by the Admin portal from LocalStorage!
     const globalTimetable = JSON.parse(localStorage.getItem('globalTimetable')) || [];
 
-    // 2. Filter mappings so the student only sees classes for THEIR department
+    // 2. Filter mappings (MADE CASE-INSENSITIVE)
     const myClasses = globalTimetable.filter(m => {
-      // If studentProfile is still loading, don't show any classes to prevent errors
+      // If studentProfile is still loading, wait.
       if (!studentProfile?.department) return false;
       
-      return m.department === studentProfile.department || m.department === 'All Departments';
+      // Convert both to lowercase and remove extra spaces so they match perfectly!
+      const adminDept = (m.department || "").toLowerCase().trim();
+      const studentDept = (studentProfile.department || "").toLowerCase().trim();
+      
+      return adminDept === studentDept || adminDept === 'all departments';
     });
 
     const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
@@ -302,8 +306,9 @@ const StudentPortal = ({ user, handleLogout }) => {
             <div className="absolute left-[23px] md:left-[110px] top-4 bottom-8 w-[2px] bg-slate-100"></div>
 
             {myClasses.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-xl">
-                No classes scheduled by Admin for your department today.
+              <div className="text-center py-10 text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                <p className="mb-2">No classes scheduled by Admin for your department today.</p>
+                <p className="text-xs">*(Note: Ensure you mapped the class on the exact same browser/URL as you are viewing this!)*</p>
               </div>
             ) : (
               timeSlots.map((time, index) => {
@@ -348,7 +353,7 @@ const StudentPortal = ({ user, handleLogout }) => {
                       <div className="mt-3 pt-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-slate-200/60">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
                           <p className="text-xs font-medium text-slate-500">
-                            Faculty: <span className="font-bold">{session.faculty}</span>
+                            Faculty: <span className="font-bold text-slate-800">{session.faculty}</span>
                           </p>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
                             📍 {session.venue}
@@ -365,7 +370,6 @@ const StudentPortal = ({ user, handleLogout }) => {
       </div>
     );
   };
-
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <div className="text-5xl mb-4 text-slate-300">
