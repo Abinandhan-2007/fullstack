@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 export default function AttendanceMapping({ handleLogout, apiUrl }) {
-  // --- SET INITIAL STATE TO WORKSPACE ---
-  const [activeMenu, setActiveMenu] = useState('Workspace');
+  const [activeMenu, setActiveMenu] = useState('Mapping Studio');
 
   const [dbStaff, setDbStaff] = useState([]);
   const [dbDepartments, setDbDepartments] = useState([]);
@@ -22,55 +21,55 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
   useEffect(() => {
-    const fetchAdminData = async () => {
-      setIsLoadingDB(true);
-      try {
-        const [staffRes, studentRes, timetableRes] = await Promise.all([
-          fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
-          fetch(`${apiUrl}/api/host/timetable`).catch(() => null) 
-        ]);
+  const fetchAdminData = async () => {
+    setIsLoadingDB(true);
+    try {
+      // 1. Fetch Departments, Staff, and Timetable simultaneously
+      const [deptRes, staffRes, timetableRes] = await Promise.all([
+        fetch(`${apiUrl}/api/host/all-departments`).catch(() => null),
+        fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
+        fetch(`${apiUrl}/api/host/timetable`).catch(() => null)
+      ]);
 
-        let allDepts = new Set(["IT", "ECE", "EEE", "EIE", "Computer Science and Engineering"]);
+      // 2. Handle Departments (The "Synthetic" Fix)
+      if (deptRes && deptRes.ok) {
+        const deptData = await deptRes.json();
+        // Extract just the names if your Department model is {id, name}
+        const deptNames = deptData.map(d => d.name || d.departmentName);
+        setDbDepartments(deptNames.sort());
+      } else {
+        // Fallback if the endpoint fails
+        setDbDepartments(["IT", "ECE", "EEE", "CSE"]);
+      }
 
-        if (staffRes && staffRes.ok) {
-          const staffData = await staffRes.json();
-          setDbStaff(staffData);
-          staffData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
-        }
+      // 3. Handle Staff
+      if (staffRes && staffRes.ok) {
+        const staffData = await staffRes.json();
+        setDbStaff(staffData);
+      }
 
-        if (studentRes && studentRes.ok) {
-          const studentData = await studentRes.json();
-          studentData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
-        }
+      // 4. Handle Existing Timetable
+      if (timetableRes && timetableRes.ok) {
+        const timetableData = await timetableRes.json();
+        setMappings(timetableData);
+      }
 
-        if (timetableRes && timetableRes.ok) {
-          const timetableData = await timetableRes.json();
-          setMappings(timetableData);
-        }
+      // 5. Handle Subjects/Courses
+      const subRes = await fetch(`${apiUrl}/api/host/all-courses`);
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        setDbSubjects(subData);
+      }
 
-        let fetchedSubjects = [];
-        const possibleEndpoints = [`${apiUrl}/api/host/all-subjects`, `${apiUrl}/api/host/all-courses`, `${apiUrl}/api/courses`];
-        for (let endpoint of possibleEndpoints) {
-          try {
-            const res = await fetch(endpoint);
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data.length > 0) { fetchedSubjects = data; break; }
-            }
-          } catch (e) {}
-        }
+    } catch (error) {
+      console.error("Sync Error:", error);
+    } finally {
+      setIsLoadingDB(false);
+    }
+  };
 
-        setDbSubjects(fetchedSubjects);
-        fetchedSubjects.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
-        setDbDepartments(Array.from(allDepts).sort());
-
-      } catch (error) { console.error("Failed to fetch from Admin Portal DB", error); } 
-      finally { setIsLoadingDB(false); }
-    };
-
-    if (apiUrl) fetchAdminData();
-  }, [apiUrl]);
+  if (apiUrl) fetchAdminData();
+}, [apiUrl]);
 
   const getDisplaySubjects = () => {
     if (!dbSubjects || dbSubjects.length === 0) return [];
@@ -95,6 +94,30 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     e.preventDefault();
     if (hasConflict || !selectedSubject || !selectedStaff || !selectedVenue) return;
 
+    // =======================================================
+    // 🛡️ STRICT BULK MAPPING RULES APPLIED HERE
+    // =======================================================
+    const fromStr = rollFrom.trim();
+    const toStr = rollTo.trim();
+
+    if (fromStr || toStr) {
+      // RULE 1: All or Nothing
+      if (!fromStr || !toStr) {
+        alert("Bulk Map Error: You must fill in BOTH 'Roll From' and 'Roll To', or leave them both empty for 'All Students'.");
+        return;
+      }
+      // RULE 3 & 4: Typo Prevention & Exact Match Block
+      if (fromStr === toStr) {
+        alert("Bulk Map Error: 'Roll From' and 'Roll To' cannot be the exact same number.");
+        return;
+      }
+      if (fromStr.length !== toStr.length) {
+        alert(`Bulk Map Warning: Length mismatch.\n\nFrom: ${fromStr} (${fromStr.length} chars)\nTo: ${toStr} (${toStr.length} chars)\n\nPlease check for missing digits or typos.`);
+        return;
+      }
+    }
+    // =======================================================
+
     const usedSlots = mappings.map(m => m.timeSlot);
     const availableSlot = timeSlots.find(t => !usedSlots.includes(t));
 
@@ -111,7 +134,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       faculty: selectedStaff,
       venue: selectedVenue,
       sessionType: selectedVenue.includes('Lab') ? 'Laboratory' : 'Theory',
-      batchRange: rollFrom && rollTo ? `${rollFrom} to ${rollTo}` : 'All Students'
+      batchRange: fromStr && toStr ? `${fromStr} to ${toStr}` : 'All Students'
     };
 
     try {
@@ -163,7 +186,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     } catch (err) { console.error("Failed to update drag-and-drop on server", err); }
   };
 
-  // --- WORKSPACE MENU ITEMS ---
   const menuItems = [
     { name: 'Dashboard', icon: '📈', bg: 'bg-indigo-500', desc: 'Main administrative overview and campus statistics.' },
     { name: 'Mapping Studio', icon: '📍', bg: 'bg-emerald-500', desc: 'Configure global class schedules and venue mappings.' },
@@ -173,9 +195,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     { name: 'Venue Manager', icon: '🏢', bg: 'bg-amber-500', desc: 'Oversee campus locations, labs, and room availability.' },
   ];
 
-  // ==========================================
-  // THE NEW WORKSPACE GRID
-  // ==========================================
   const renderWorkspace = () => (
     <div className="animate-in fade-in duration-500 max-w-6xl mx-auto py-8">
       <div className="text-center mb-12">
@@ -203,7 +222,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     </div>
   );
 
-  // --- THE MAPPING STUDIO TOOL ---
   const renderMappingStudio = () => (
     <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-6">
       
@@ -251,11 +269,24 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 h-full flex flex-col justify-end">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 h-full flex flex-col justify-end relative">
+            {/* The Auto-Uppercase magic happens on the 'onChange' event here */}
             <label className="block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-1.5 px-1">3. Bulk Map (Optional)</label>
             <div className="grid grid-cols-2 gap-2">
-              <input type="text" placeholder="Roll From" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value)} />
-              <input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value)} />
+              <input 
+                type="text" 
+                placeholder="Roll From" 
+                className={`w-full bg-white border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB] ${rollFrom && !rollTo ? 'border-amber-400 focus:ring-1 focus:ring-amber-400' : 'border-slate-200'}`} 
+                value={rollFrom} 
+                onChange={(e) => setRollFrom(e.target.value.toUpperCase())} // Rule 2
+              />
+              <input 
+                type="text" 
+                placeholder="Roll To" 
+                className={`w-full bg-white border rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB] ${!rollFrom && rollTo ? 'border-amber-400 focus:ring-1 focus:ring-amber-400' : 'border-slate-200'}`} 
+                value={rollTo} 
+                onChange={(e) => setRollTo(e.target.value.toUpperCase())} // Rule 2
+              />
             </div>
           </div>
 
@@ -360,8 +391,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-800 flex flex-col">
-      {/* PERSISTENT TOP NAVBAR */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveMenu('Workspace')}>
           <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">
             C
@@ -386,7 +416,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar relative">
         {activeMenu === 'Workspace' && renderWorkspace()}
         {activeMenu === 'Mapping Studio' && renderMappingStudio()}
