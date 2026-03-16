@@ -26,7 +26,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedVenue, setSelectedVenue] = useState('');
   const [selectedTime, setSelectedTime] = useState(''); 
-  const [seatingStrategy, setSeatingStrategy] = useState('sequential'); // NEW: Auto-Seating Algorithm
+  const [seatingStrategy, setSeatingStrategy] = useState('sequential');
   const [rollFrom, setRollFrom] = useState('');
   const [rollTo, setRollTo] = useState('');
 
@@ -110,7 +110,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const getVenueMaxOccupied = (venueName) => {
     const venueMappings = mappings.filter(m => m.venue === venueName);
     if (venueMappings.length === 0) return 0;
-    
     let maxCount = 0;
     venueMappings.forEach(m => {
       let seatData = [];
@@ -123,6 +122,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     return maxCount;
   };
 
+  // --- SMART STUDENT EXTRACTOR ---
   let rollListToMap = [];
   if (rollFrom && rollTo) {
     const fromStr = rollFrom.trim();
@@ -141,10 +141,37 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   } else if (selectedDept) {
     rollListToMap = dbStudents.filter(s => (s.department || '').toLowerCase().trim() === selectedDept.toLowerCase().trim()).map(s => s.registerNumber || s.email || 'Unknown');
   }
-
   const calculatedStudents = rollListToMap.length;
 
-  // --- AUTOMATED SEATING ALGORITHM ---
+  // --- PRE-CALCULATE CONFLICTS FOR UI WARNINGS ---
+  const selectedVenueObj = dbVenues.find(v => v.name === selectedVenue);
+  const mappingsAtSelectedTime = mappings.filter(m => m.timeSlot === selectedTime);
+  
+  // 1. Staff Conflict Check
+  const hasStaffConflict = selectedTime && mappingsAtSelectedTime.some(m => String(m.faculty) === String(selectedStaffId));
+  
+  // 2. Shared Venue Capacity Check
+  let venueOccupiedSeats = 0;
+  let existingVenueLayout = null;
+
+  mappingsAtSelectedTime.forEach(m => {
+      if (m.venue === selectedVenue) {
+          let seatData = [];
+          try { seatData = typeof m.seatAllocation === 'string' ? JSON.parse(m.seatAllocation) : m.seatAllocation; } catch(e) {}
+          if (Array.isArray(seatData)) {
+              venueOccupiedSeats += seatData.filter(s => s.roll).length;
+              if (seatData.length > 0) existingVenueLayout = seatData; 
+          }
+      }
+  });
+
+  const effectiveCapacity = seatingStrategy === 'exam' ? Math.ceil((selectedVenueObj?.capacity || 0) / 2) : (selectedVenueObj?.capacity || 0);
+  const isCapacityExceeded = selectedVenueObj && (venueOccupiedSeats + calculatedStudents) > effectiveCapacity;
+  
+  // Disable button if either is true
+  const hasConflict = hasStaffConflict || isCapacityExceeded;
+
+  // --- SHARED SEATING ALGORITHM ---
   const generateSeats = (rollList, deptName, venueObj, existingLayout, strategy) => {
     const allCols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
     const activeCols = allCols.slice(0, venueObj.cols); 
@@ -152,22 +179,26 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     let layout = [];
     if (existingLayout && existingLayout.length > 0) {
         layout = JSON.parse(JSON.stringify(existingLayout)); 
+        // Ensure legacy layouts have row/col indexes for Exam mode math
+        layout.forEach(cell => {
+            if (cell.r === undefined) {
+                const matchC = cell.seat.match(/[A-Z]+/);
+                const matchR = cell.seat.match(/\d+/);
+                cell.c = activeCols.indexOf(matchC ? matchC[0] : 'A');
+                cell.r = matchR ? parseInt(matchR[0], 10) : 1;
+            }
+        });
     } else {
         for (let r = 1; r <= venueObj.rows; r++) {
             for (let c = 0; c < activeCols.length; c++) {
-                // We add temporary r and c keys to help with Exam Mode math
                 layout.push({ seat: activeCols[c] + r, roll: null, dept: null, r: r, c: c });
             }
         }
     }
 
     let processedRolls = [...rollList];
-    if (strategy === 'random') {
-        processedRolls.sort(() => Math.random() - 0.5); // Shuffle
-    } else {
-        // Sequential (Default): Sort Alphanumerically
-        processedRolls.sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
-    }
+    if (strategy === 'random') processedRolls.sort(() => Math.random() - 0.5);
+    else processedRolls.sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
 
     let shortDept = deptName || "GEN";
     if(shortDept.includes(" ")) shortDept = shortDept.split(" ").map(w=>w[0]).join("").toUpperCase();
@@ -176,11 +207,13 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
     let rollIndex = 0;
 
+    // Isolate only the EMPTY seats in the grid
+    let emptySeats = layout.filter(s => s.roll === null);
+
     if (strategy === 'exam') {
-        // Checkerboard / Gap Seating Algorithm
-        layout.forEach(cell => {
-            if (cell.roll === null && rollIndex < processedRolls.length) {
-                // Only place student if (Row + Col) is Even (creates a checkerboard)
+        emptySeats.forEach(cell => {
+            if (rollIndex < processedRolls.length) {
+                // Checkerboard Logic (Row + Col must be Even)
                 if ((cell.r + cell.c) % 2 === 0) {
                     cell.roll = processedRolls[rollIndex];
                     cell.dept = shortDept;
@@ -189,9 +222,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             }
         });
     } else {
-        // Normal Fill (Sequential or Random)
-        layout.forEach(cell => {
-            if (cell.roll === null && rollIndex < processedRolls.length) {
+        emptySeats.forEach(cell => {
+            if (rollIndex < processedRolls.length) {
                 cell.roll = processedRolls[rollIndex];
                 cell.dept = shortDept;
                 rollIndex++;
@@ -199,8 +231,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         });
     }
 
-    // Clean up temporary math keys
-    return layout.map(({r, c, ...rest}) => rest);
+    // Keep r and c in the object, they are safe and useful!
+    return layout; 
   };
 
   const handleAddMapping = async (e) => {
@@ -214,45 +246,42 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
        return setConflictPopup({ title: "No Students Found", message: `No students found for ${selectedDept}. Please add students to the database or enter manual Roll Numbers.`});
     }
 
-    const mappingsAtTime = mappings.filter(m => m.timeSlot === selectedTime);
-    
-    let isStaffBusy = false;
-    let mappedRollsAtTime = new Set();
-    let venueOccupiedSeats = 0;
-    let existingVenueLayout = null;
+    const fromStr = rollFrom.trim();
+    const toStr = rollTo.trim();
+    if (fromStr || toStr) {
+      if (!fromStr || !toStr) return setConflictPopup({ title: "Invalid Input", message: "Bulk Map Error: Fill both Roll From and To."});
+      if (fromStr === toStr) return setConflictPopup({ title: "Invalid Input", message: "Bulk Map Error: Range cannot be identical."});
+      if (fromStr.length !== toStr.length) return setConflictPopup({ title: "Invalid Input", message: "Bulk Map Warning: Length mismatch in roll numbers."});
+    }
 
-    mappingsAtTime.forEach(m => {
-      if (String(m.faculty) === String(selectedStaffId)) isStaffBusy = true;
+    if (mappings.some(m => m.timeSlot === selectedTime && m.department === selectedDept)) {
+       return setConflictPopup({ title: "Batch Conflict", message: `Time slot ${selectedTime} is already mapped for ${selectedDept}!`});
+    }
+
+    // Check Student Overlaps globally at this time
+    let mappedRollsAtTime = new Set();
+    mappingsAtSelectedTime.forEach(m => {
       let seatData = [];
       try { seatData = typeof m.seatAllocation === 'string' ? JSON.parse(m.seatAllocation) : m.seatAllocation; } catch(e) {}
       if (Array.isArray(seatData)) {
         seatData.forEach(s => { if(s.roll) mappedRollsAtTime.add(s.roll); });
-        if (m.venue === selectedVenue) {
-            venueOccupiedSeats += seatData.filter(s => s.roll).length;
-            if (seatData.length > 0) existingVenueLayout = seatData; 
-        }
       }
     });
-
-    if (isStaffBusy) return setConflictPopup({ title: "Staff Double Booking", message: "This faculty member is already assigned to a different venue at this time." });
 
     const overlappingStudents = rollListToMap.filter(roll => mappedRollsAtTime.has(roll));
     if (overlappingStudents.length > 0) {
        return setConflictPopup({ title: "Student Double Booking", message: `Conflict: ${overlappingStudents.length} student(s) (e.g. ${overlappingStudents[0]}) are already scheduled for a class at ${selectedTime}.` });
     }
 
-    const selectedVenueObj = dbVenues.find(v => v.name === selectedVenue);
+    if (hasStaffConflict) {
+        return setConflictPopup({ title: "Staff Double Booking", message: "This faculty member is already assigned to a different venue at this time." });
+    }
+
     if (!selectedVenueObj) return setConflictPopup({ title: "Venue Not Found", message: "Please select a valid Venue."});
 
-    // --- DYNAMIC EXAM MODE CAPACITY CHECK ---
-    // If Exam Mode is on, the room only holds half as many people
-    const effectiveCapacity = seatingStrategy === 'exam' ? Math.ceil(selectedVenueObj.capacity / 2) : selectedVenueObj.capacity;
-
-    if ((venueOccupiedSeats + calculatedStudents) > effectiveCapacity) {
+    if (isCapacityExceeded) {
        let errorMsg = `Venue has ${selectedVenueObj.capacity} total seats. Currently occupied: ${venueOccupiedSeats}. You are trying to add ${calculatedStudents} more.`;
-       if (seatingStrategy === 'exam') {
-           errorMsg = `EXAM MODE ACTIVE: Venue capacity is halved to ${effectiveCapacity} to allow for gaps. You are trying to fit ${calculatedStudents} students into ${effectiveCapacity - venueOccupiedSeats} available exam seats.`;
-       }
+       if (seatingStrategy === 'exam') errorMsg = `EXAM MODE ACTIVE: Venue capacity is halved to ${effectiveCapacity} to allow for gaps. You are trying to fit ${calculatedStudents} students into ${effectiveCapacity - venueOccupiedSeats} available exam seats.`;
        return setConflictPopup({ title: "Capacity Exceeded", message: errorMsg });
     }
 
@@ -260,7 +289,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
     
-    // Pass the strategy to the generator
     const seatLayout = generateSeats(rollListToMap, selectedDept, selectedVenueObj, existingVenueLayout, seatingStrategy);
 
     const newMapping = {
@@ -282,7 +310,16 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       if (response.ok) {
         const savedMapping = await response.json(); 
         savedMapping.seatAllocation = seatLayout; 
-        setMappings([...mappings, savedMapping]);
+
+        // Update any other mappings that share this room at this time so their Maps stay synced!
+        const updatedMappings = mappings.map(m => {
+            if (m.timeSlot === selectedTime && m.venue === selectedVenue) {
+                return { ...m, seatAllocation: seatLayout }; 
+            }
+            return m;
+        });
+
+        setMappings([...updatedMappings, savedMapping]);
         setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); 
         setSelectedVenue(''); setVenueSearch(''); setSelectedTime(''); setRollFrom(''); setRollTo('');
       }
@@ -302,6 +339,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const handleDrop = async (e, targetTime) => {
     e.preventDefault();
     if (!draggedId) return;
+    const targetSession = mappings.find(m => m.timeSlot === targetTime);
     const draggedSession = mappings.find(m => m.id === draggedId);
     setMappings(prev => prev.map(m => m.id === draggedId ? { ...m, timeSlot: targetTime } : m));
   };
@@ -424,15 +462,14 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-end">
           <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Department</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition duration-150" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); }}><option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>{dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}</select></div>
           <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}><option value="">Select Subject...</option>{getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>) : <option disabled>No courses found in DB</option>}</select></div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 h-full flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Students {calculatedStudents > 0 && <span className="bg-[#2563EB] text-white px-2 py-0.5 rounded">{calculatedStudents} Total</span>}</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 h-full flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Students {calculatedStudents > 0 && <span className="bg-[#2563EB] text-white px-2 py-0.5 rounded">{calculatedStudents} Total</span>}</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From (Opt)" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
           
-          <div className="relative"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">4. Faculty</label><input type="text" placeholder="Search Name/ID..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={facultySearch} onChange={(e) => { setFacultySearch(e.target.value); setShowFacultyList(true); if (e.target.value === "") setSelectedStaffId(''); }} onFocus={() => setShowFacultyList(true)} onBlur={() => setTimeout(() => setShowFacultyList(false), 150)} />{showFacultyList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">{getFilteredFaculty().map((staff) => (<div key={staff.id} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none" onMouseDown={() => { setSelectedStaffId(staff.id); setFacultySearch(staff.name); setShowFacultyList(false); }}><div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700">{staff.name}</span><span className="text-[10px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">ID: {staff.id}</span></div><p className="text-[10px] text-blue-500 font-medium uppercase">{staff.department}</p></div>))}</div>)}</div>
+          <div className="relative"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">4. Faculty (Name/ID)</label><input type="text" placeholder="Search Faculty..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={facultySearch} onChange={(e) => { setFacultySearch(e.target.value); setShowFacultyList(true); if (e.target.value === "") setSelectedStaffId(''); }} onFocus={() => setShowFacultyList(true)} onBlur={() => setTimeout(() => setShowFacultyList(false), 150)} />{showFacultyList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">{getFilteredFaculty().map((staff) => (<div key={staff.id} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none" onMouseDown={() => { setSelectedStaffId(staff.id); setFacultySearch(staff.name); setShowFacultyList(false); }}><div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700">{staff.name}</span><span className="text-[10px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">ID: {staff.id}</span></div><p className="text-[10px] text-blue-500 font-medium uppercase">{staff.department}</p></div>))}</div>)}</div>
           
           <div className="relative"><label className="flex justify-between items-center block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">5. Venue {dbVenues.find(v=>v.name===selectedVenue) && <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Cap: {dbVenues.find(v=>v.name===selectedVenue).capacity}</span>}</label><input type="text" placeholder="Search Venue..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={venueSearch} onChange={(e) => { setVenueSearch(e.target.value); setShowVenueList(true); setSelectedVenue(''); }} onFocus={() => setShowVenueList(true)} onBlur={() => setTimeout(() => setShowVenueList(false), 150)} />{showVenueList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto">{getFilteredVenues().map((v, i) => (<div key={i} className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onMouseDown={() => { setSelectedVenue(v.name); setVenueSearch(v.name); setShowVenueList(false); }}><div><span className="text-sm font-bold text-slate-700">{v.name}</span><p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{v.building}</p></div><span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded">{v.capacity} Seats</span></div>))}</div>)}</div>
           
           <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">6. Time Slot</label><select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none transition duration-150" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}><option value="">Select Time...</option>{timeSlots.map((t, idx) => <option key={idx} value={t}>{t}</option>)}</select></div>
           
-          {/* NEW: SEATING STRATEGY DROPDOWN */}
           <div>
             <label className="block text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">7. Seating Strategy</label>
             <select className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-3 text-sm font-bold outline-none focus:border-emerald-500 transition duration-150" value={seatingStrategy} onChange={(e) => setSeatingStrategy(e.target.value)}>
@@ -443,7 +480,9 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
           </div>
 
           <div className="relative xl:col-span-4">
-            <button type="submit" className={`w-full py-4 rounded-xl font-bold text-white transition duration-150 shadow-md ${!selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`}>Confirm Mapping & Auto-Seat</button>
+            {hasStaffConflict && <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in duration-200"><span className="text-rose-500 text-sm">⚠️</span><p className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">Conflict: Faculty is already teaching at this time.</p></div>}
+            {isCapacityExceeded && <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in duration-200"><span className="text-rose-500 text-sm">⚠️</span><p className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">Capacity Alert: {calculatedStudents} students exceed the remaining {effectiveCapacity - venueOccupiedSeats} seats in {selectedVenue}.</p></div>}
+            <button type="submit" className={`w-full py-4 rounded-xl font-bold text-white transition duration-150 shadow-md ${hasConflict || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`} disabled={hasConflict || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime}>Confirm Mapping & Auto-Seat</button>
           </div>
         </form>
       </div>
@@ -515,7 +554,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </div>
       )}
 
-      {/* --- SEAT ALLOCATION MODAL (TABLE GRID UI) --- */}
+      {/* --- SEAT ALLOCATION MODAL --- */}
       {selectedSessionForSeats && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2rem] w-full max-w-[95vw] lg:max-w-7xl h-[90vh] flex flex-col shadow-2xl overflow-hidden transform scale-100 transition-transform duration-200">
