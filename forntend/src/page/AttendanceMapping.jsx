@@ -3,10 +3,10 @@ import React, { useState, useEffect } from 'react';
 export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [activeMenu, setActiveMenu] = useState('Attendance Mapping');
 
-  // --- DATABASE STATES ---
+  // --- STRICT DATABASE STATES ---
   const [dbStaff, setDbStaff] = useState([]);
   const [dbDepartments, setDbDepartments] = useState([]);
-  const [dbSubjects, setDbSubjects] = useState([]); // NEW: State for Subjects
+  const [dbSubjects, setDbSubjects] = useState([]); // ONLY DB Subjects
   const [isLoadingDB, setIsLoadingDB] = useState(true);
 
   // --- FORM STATES ---
@@ -14,40 +14,37 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedStaff, setSelectedStaff] = useState('');
   const [selectedVenue, setSelectedVenue] = useState('');
+  const [rollFrom, setRollFrom] = useState('');
+  const [rollTo, setRollTo] = useState('');
 
   // --- TIMETABLE STATES ---
-  const [mappings, setMappings] = useState([
-    { id: 1, time: "09:00 AM", code: "CS8391", name: "Data Structures", faculty: "Dr. Ramesh K", venue: "Room 204", type: "Theory" }
-  ]);
+  const [mappings, setMappings] = useState([]);
   const [draggedId, setDraggedId] = useState(null);
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  // --- FETCH ALL DATA FROM ADMIN BACKEND ---
+  // --- FETCH STRICTLY FROM ADMIN BACKEND ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
       try {
-        // Fetch Staff, Students AND Subjects concurrently!
         const [staffRes, studentRes, subjectRes] = await Promise.all([
           fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
           fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-subjects`).catch(() => null) // Fetching Subjects
+          fetch(`${apiUrl}/api/host/all-subjects`).catch(() => null) // Fetching Subjects from Admin
         ]);
 
-        if (staffRes && staffRes.ok) {
-          setDbStaff(await staffRes.json()); 
-        }
-
+        if (staffRes && staffRes.ok) setDbStaff(await staffRes.json()); 
+        
         if (studentRes && studentRes.ok) {
           const studentData = await studentRes.json();
-          // Extract unique departments from student records
           const uniqueDepts = [...new Set(studentData.map(s => s.department).filter(Boolean))];
           setDbDepartments(uniqueDepts);
         }
 
         if (subjectRes && subjectRes.ok) {
-          setDbSubjects(await subjectRes.json()); // Save Database Subjects
+          const subjectData = await subjectRes.json();
+          setDbSubjects(subjectData); // Save ONLY Admin Subjects
         }
 
       } catch (error) {
@@ -60,16 +57,20 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     if (apiUrl) fetchAdminData();
   }, [apiUrl]);
 
-  // --- DYNAMIC SUBJECT FILTER ---
-  // Only show subjects that belong to the department you just clicked
+  // --- STRICT DB SUBJECT FILTER ---
   const getSubjectsForDept = (dept) => {
-    if (dbSubjects.length > 0) {
-      const filtered = dbSubjects.filter(s => s.department === dept);
-      // If no department matches (or if your DB doesn't save dept in subjects), return all subjects
-      return filtered.length > 0 ? filtered : dbSubjects;
-    }
-    // Fallback just in case DB is completely empty
-    return [{ name: "Database Empty", code: "N/A" }];
+    if (!dbSubjects || dbSubjects.length === 0) return [];
+
+    // Try to match the exact department
+    const filtered = dbSubjects.filter(s => {
+      const subjDept = s.department || s.dept || s.departmentName || "";
+      if (!subjDept) return true; // If admin didn't assign a department to the subject, show it for all
+      return subjDept.toLowerCase() === dept.toLowerCase();
+    });
+
+    // If the department names don't match perfectly but we DO have subjects in the DB, 
+    // return all subjects so you aren't blocked from mapping.
+    return filtered.length > 0 ? filtered : dbSubjects;
   };
 
   const hasConflict = mappings.some(m => m.faculty === selectedStaff || m.venue === selectedVenue);
@@ -86,9 +87,9 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       return;
     }
 
-    // Try to find the real subject code from the DB
-    const subjectObj = dbSubjects.find(s => (s.name || s.subjectName) === selectedSubject);
-    const subjectCode = subjectObj && subjectObj.code ? subjectObj.code : selectedSubject.substring(0, 4).toUpperCase();
+    // Grab the exact code from the database subject
+    const subjectObj = dbSubjects.find(s => (s.subjectName || s.name || s.title) === selectedSubject);
+    const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code || "SUB") : "SUB";
 
     const newMapping = {
       id: Date.now(),
@@ -97,13 +98,17 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       name: selectedSubject,
       faculty: selectedStaff,
       venue: selectedVenue,
-      type: selectedVenue.includes('Lab') ? 'Laboratory' : 'Theory'
+      type: selectedVenue.includes('Lab') ? 'Laboratory' : 'Theory',
+      range: rollFrom && rollTo ? `${rollFrom} to ${rollTo}` : 'All Students'
     };
 
     setMappings([...mappings, newMapping]);
+    
     setSelectedSubject('');
     setSelectedStaff('');
     setSelectedVenue('');
+    setRollFrom('');
+    setRollTo('');
   };
 
   const handleRemove = (id) => setMappings(mappings.filter(m => m.id !== id));
@@ -125,9 +130,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     }));
   };
 
-  const freeRooms = 16 - new Set(mappings.map(m => m.venue)).size;
-  const occupiedRooms = new Set(mappings.map(m => m.venue)).size;
-
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
     { name: 'Attendance Mapping', icon: '📍' },
@@ -138,14 +140,14 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     { name: 'Reports', icon: '📈' },
   ];
 
-  // --- RENDERERS ---
-
   const renderMappingStudio = () => (
-    <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-6">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Mapping Studio</h1>
-          <p className="text-slate-500 font-medium mt-1">Configure classes, venues, and attendance rules.</p>
+          <p className="text-slate-500 font-medium mt-1">Configure classes, venues, and student bulk mapping.</p>
         </div>
         <div className="flex gap-3">
           <div className="bg-[#FFFFFF] px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
@@ -155,160 +157,158 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* QUICK MAPPING FORM */}
-        <div className="lg:col-span-1 bg-[#FFFFFF] rounded-[2rem] p-6 shadow-sm border border-slate-200 h-fit">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-black text-slate-800">Quick Mapping</h2>
-            <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Fast Assign</span>
+      {/* HORIZONTAL QUICK MAPPING FORM */}
+      <div className="bg-[#FFFFFF] rounded-[2rem] p-6 shadow-sm border border-slate-200">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-black text-slate-800">Quick Mapping</h2>
+          <span className="text-[10px] font-bold bg-[#2563EB]/10 text-[#2563EB] px-2 py-1 rounded uppercase tracking-widest">Strict DB Mode</span>
+        </div>
+
+        <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-end">
+          
+          {/* 1. DEPARTMENT */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">1. Department</label>
+            <select 
+              className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
+              value={selectedDept} 
+              onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }}
+              disabled={isLoadingDB}
+            >
+              <option value="">{isLoadingDB ? 'Loading DB...' : 'Select Department...'}</option>
+              {dbDepartments.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
           </div>
 
-          <form onSubmit={handleAddMapping} className="space-y-5">
-            {/* DEPARTMENT (FROM DB) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">1. Department</label>
-              <select 
-                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
-                value={selectedDept} 
-                onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }}
-                disabled={isLoadingDB || dbDepartments.length === 0}
-              >
-                <option value="">{isLoadingDB ? 'Loading Departments...' : 'Select Department...'}</option>
-                {dbDepartments.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+          {/* 2. STRICT DB SUBJECT */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">2. Subject (From Admin)</label>
+            <select 
+              className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
+              value={selectedSubject} 
+              onChange={(e) => setSelectedSubject(e.target.value)} 
+              disabled={!selectedDept || isLoadingDB}
+            >
+              <option value="">{selectedDept ? 'Select Subject...' : 'Pick Dept first'}</option>
+              {selectedDept && getSubjectsForDept(selectedDept).length === 0 && (
+                <option disabled>No subjects registered in Admin DB</option>
+              )}
+              {selectedDept && getSubjectsForDept(selectedDept).map((s, idx) => {
+                const name = s.subjectName || s.name || s.title || "Unnamed Subject";
+                const code = s.subjectCode || s.code || "";
+                return <option key={idx} value={name}>{name} {code ? `(${code})` : ''}</option>;
+              })}
+            </select>
+          </div>
+
+          {/* 3. STUDENT RANGE */}
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 h-full flex flex-col justify-end">
+            <label className="block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-1.5 px-1">3. Bulk Map</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" placeholder="Roll From" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value)} />
+              <input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value)} />
             </div>
+          </div>
 
-            {/* SUBJECTS (FROM DB) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">2. Subject</label>
-              <select 
-                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
-                value={selectedSubject} 
-                onChange={(e) => setSelectedSubject(e.target.value)} 
-                disabled={!selectedDept || isLoadingDB}
-              >
-                <option value="">{selectedDept ? 'Select Subject...' : 'Pick Dept first'}</option>
-                {selectedDept && getSubjectsForDept(selectedDept).map((s, idx) => (
-                  <option key={idx} value={s.name || s.subjectName || s}>
-                    {s.name || s.subjectName || s} {s.code ? `(${s.code})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* 4. FACULTY */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">4. Faculty</label>
+            <select 
+              className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none disabled:opacity-50" 
+              value={selectedStaff} 
+              onChange={(e) => setSelectedStaff(e.target.value)}
+              disabled={isLoadingDB}
+            >
+              <option value="">Select...</option>
+              {dbStaff.length > 0 ? (
+                dbStaff.map((staff, idx) => (
+                  <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>
+                ))
+              ) : (
+                <option disabled>No staff in DB</option>
+              )}
+            </select>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* FACULTY (FROM DB) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Faculty</label>
-                <select 
-                  className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none disabled:opacity-50" 
-                  value={selectedStaff} 
-                  onChange={(e) => setSelectedStaff(e.target.value)}
-                  disabled={isLoadingDB}
-                >
-                  <option value="">Select...</option>
-                  {dbStaff.length > 0 ? (
-                    dbStaff.map((staff, idx) => (
-                      <option key={idx} value={staff.name || staff.email}>{staff.name || staff.email}</option>
-                    ))
-                  ) : (
-                    <option disabled>No staff in DB</option>
-                  )}
-                </select>
-              </div>
+          {/* 5. VENUE */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">5. Venue</label>
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none" value={selectedVenue} onChange={(e) => setSelectedVenue(e.target.value)}>
+              <option value="">Select...</option>
+              <option value="Lab 1">Lab 1</option>
+              <option value="Room 101">Room 101</option>
+              <option value="Room 204">Room 204</option>
+              <option value="Seminar Hall">Seminar Hall</option>
+            </select>
+          </div>
 
-              {/* VENUE (Hardcoded for now) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Venue</label>
-                <select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none" value={selectedVenue} onChange={(e) => setSelectedVenue(e.target.value)}>
-                  <option value="">Select...</option>
-                  <option value="Lab 1">Lab 1</option>
-                  <option value="Room 101">Room 101</option>
-                  <option value="Room 204">Room 204</option>
-                  <option value="Seminar Hall">Seminar Hall</option>
-                </select>
-              </div>
-            </div>
-
-            {hasConflict && (
-              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
-                <span className="text-rose-500 text-lg">⚠️</span>
-                <div>
-                  <p className="text-xs font-black text-rose-700 uppercase tracking-widest">Schedule Conflict</p>
-                  <p className="text-xs font-medium text-rose-600 mt-0.5">This staff or venue is already assigned. Please select another.</p>
-                </div>
+          {/* 6. SUBMIT BUTTON & WARNING */}
+          <div className="relative">
+             {hasConflict && (
+              <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in">
+                <span className="text-rose-500 text-sm">⚠️</span>
+                <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">Conflict Detected</p>
               </div>
             )}
-
-            <button type="submit" className={`w-full py-3.5 rounded-xl font-bold text-white transition-all shadow-md ${hasConflict || !selectedSubject || !selectedStaff || !selectedVenue ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 hover:-translate-y-0.5 shadow-[#2563EB]/20'}`} disabled={hasConflict || !selectedSubject || !selectedStaff || !selectedVenue}>
+            <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-md h-[46px] ${hasConflict || !selectedSubject || !selectedStaff || !selectedVenue ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 hover:-translate-y-0.5 shadow-[#2563EB]/20'}`} disabled={hasConflict || !selectedSubject || !selectedStaff || !selectedVenue}>
               Confirm Mapping
             </button>
-          </form>
-        </div>
-
-        {/* TIMETABLE & DRAG DROP */}
-        <div className="lg:col-span-2 flex flex-col gap-8">
-          <div className="bg-[#FFFFFF] rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-slate-800 font-black">Room Availability Grid</h3>
-              <p className="text-xs text-slate-500 font-medium">Drag & Drop supported for active slots.</p>
-            </div>
-            <div className="flex gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-bold text-[#10B981] bg-[#10B981]/10 px-3 py-1.5 rounded-lg border border-[#10B981]/20 transition-all">
-                <span className="w-2 h-2 rounded-full bg-[#10B981]"></span> {freeRooms} Free
-              </span>
-              <span className="flex items-center gap-1.5 text-xs font-bold text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 transition-all">
-                <span className="w-2 h-2 rounded-full bg-rose-500"></span> {occupiedRooms} Occupied
-              </span>
-            </div>
           </div>
+        </form>
+      </div>
 
-          <div className="bg-[#FFFFFF] rounded-[2rem] p-1 shadow-sm border border-slate-200 overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-[#F8FAFC] text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
-                  <th className="py-4 px-6 rounded-tl-3xl">Time / Period</th>
-                  <th className="py-4 px-6">Assigned Class</th>
-                  <th className="py-4 px-6">Faculty & Venue</th>
-                  <th className="py-4 px-6 text-right rounded-tr-3xl">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {timeSlots.map(time => {
-                  const mappedSession = mappings.find(m => m.time === time);
-                  return (
-                    <tr key={time} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, time)} className={mappedSession ? "hover:bg-[#F8FAFC] transition-colors bg-white" : "bg-slate-50/50 border-dashed border-b-0"}>
-                      <td className="py-4 px-6 font-bold text-slate-800">{time}</td>
-                      {mappedSession ? (
-                        <>
-                          <td draggable onDragStart={(e) => handleDragStart(e, mappedSession.id)} onDragEnd={handleDragEnd} className="py-4 px-6 cursor-grab active:cursor-grabbing">
-                            <div className="flex items-center gap-3">
-                              <span className="cursor-move text-slate-300 hover:text-slate-500 transition-colors" title="Drag to move">⋮⋮</span>
-                              <span><span className="bg-[#2563EB]/10 text-[#2563EB] font-bold px-2.5 py-1 rounded mr-2">{mappedSession.code}</span>{mappedSession.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6 font-medium text-slate-600">
-                            <span className="text-[#2563EB] font-bold">{mappedSession.faculty}</span> <span className="text-slate-300 mx-1">|</span> <span className="font-bold text-slate-700">{mappedSession.venue}</span>
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <button onClick={() => handleRemove(mappedSession.id)} className="text-xs font-bold text-rose-500 hover:text-rose-700 hover:underline">Remove</button>
-                          </td>
-                        </>
-                      ) : (
-                        <td colSpan="3" className="py-5 px-6">
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl bg-white flex items-center justify-center h-10 text-slate-400 font-medium text-xs">
-                            Drag a class here, or add from quick mapping
+      {/* TIMETABLE */}
+      <div className="bg-[#FFFFFF] rounded-[2rem] p-1 shadow-sm border border-slate-200 overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-[#F8FAFC] text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+              <th className="py-4 px-6 rounded-tl-3xl">Time / Period</th>
+              <th className="py-4 px-6">Assigned Class & Batch</th>
+              <th className="py-4 px-6">Faculty & Venue</th>
+              <th className="py-4 px-6 text-right rounded-tr-3xl">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {timeSlots.map(time => {
+              const mappedSession = mappings.find(m => m.time === time);
+              return (
+                <tr key={time} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, time)} className={mappedSession ? "hover:bg-[#F8FAFC] transition-colors bg-white" : "bg-slate-50/50 border-dashed border-b-0"}>
+                  <td className="py-4 px-6 font-bold text-slate-800 w-36">{time}</td>
+                  {mappedSession ? (
+                    <>
+                      <td draggable onDragStart={(e) => handleDragStart(e, mappedSession.id)} onDragEnd={handleDragEnd} className="py-4 px-6 cursor-grab active:cursor-grabbing">
+                        <div className="flex items-center gap-3">
+                          <span className="cursor-move text-slate-300 hover:text-slate-500 transition-colors" title="Drag to move">⋮⋮</span>
+                          <div>
+                            <p className="font-bold text-slate-800 flex items-center gap-2">
+                              <span className="bg-[#2563EB]/10 text-[#2563EB] font-bold px-2 py-0.5 rounded text-xs">{mappedSession.code}</span>
+                              {mappedSession.name}
+                            </p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] mt-1">
+                              🧑‍🎓 BATCH: {mappedSession.range}
+                            </p>
                           </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 font-medium text-slate-600">
+                        <span className="text-[#2563EB] font-bold">{mappedSession.faculty}</span> <span className="text-slate-300 mx-2">|</span> <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{mappedSession.venue}</span>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <button onClick={() => handleRemove(mappedSession.id)} className="text-xs font-bold text-rose-500 hover:text-rose-700 hover:underline bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100">Remove</button>
+                      </td>
+                    </>
+                  ) : (
+                    <td colSpan="3" className="py-4 px-6">
+                      <div className="border-2 border-dashed border-slate-200 rounded-xl bg-white flex items-center justify-center h-12 text-slate-400 font-medium text-xs">
+                        Drag a class here, or add from quick mapping
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -323,8 +323,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
-      
-      {/* 1. SIDEBAR */}
       <aside className="w-64 bg-[#FFFFFF] border-r border-slate-200 hidden md:flex flex-col shadow-sm z-20">
         <div className="p-6 flex items-center gap-3 border-b border-slate-100 mb-4">
           <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center text-white font-black">{"</>"}</div>
@@ -342,7 +340,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </div>
       </aside>
 
-      {/* 2. MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         <header className="bg-[#FFFFFF] border-b border-slate-200 h-16 flex items-center justify-between px-8 shrink-0 z-10">
           <div className="relative w-96">
@@ -363,7 +360,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
           {activeMenu === 'Attendance Mapping' ? renderMappingStudio() : renderPlaceholder()}
         </div>
-
       </main>
     </div>
   );
