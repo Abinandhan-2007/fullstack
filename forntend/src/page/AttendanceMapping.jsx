@@ -71,23 +71,30 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   if (apiUrl) fetchAdminData();
 }, [apiUrl]);
 
-  const getDisplaySubjects = () => {
-    if (!dbSubjects || dbSubjects.length === 0) return [];
-    if (!selectedDept) return dbSubjects;
-    
-    const filterDeptStr = selectedDept.toLowerCase();
-    const filtered = dbSubjects.filter(s => {
-      if (!s.department || s.department === "Unassigned") return true;
-      const subjDeptStr = s.department.toLowerCase();
-      if (subjDeptStr === filterDeptStr) return true;
-      if (filterDeptStr.includes(subjDeptStr) || subjDeptStr.includes(filterDeptStr)) return true;
-      if (filterDeptStr.includes('computer') && subjDeptStr.includes('computer')) return true;
-      return false;
-    });
-    
-    return filtered.length > 0 ? filtered : dbSubjects;
-  };
+ const getDisplaySubjects = () => {
+  // 1. If no subjects are loaded, return empty
+  if (!dbSubjects || dbSubjects.length === 0) return [];
+  
+  // 2. If no department is selected yet, show nothing (or show all)
+  // Most users prefer seeing nothing until a department is picked
+  if (!selectedDept) return []; 
 
+  const filterDeptStr = selectedDept.toLowerCase().trim();
+
+  // 3. Filter subjects by department name
+  return dbSubjects.filter(s => {
+    if (!s.department) return false;
+    
+    const subjDeptStr = s.department.toLowerCase().trim();
+    return (
+      subjDeptStr === filterDeptStr || 
+      subjDeptStr.includes(filterDeptStr) || 
+      filterDeptStr.includes(subjDeptStr) ||
+      subjDeptStr === "all" || 
+      subjDeptStr === "general"
+    );
+  });
+};
   const hasConflict = mappings.some(m => m.timeSlot === timeSlots.find(t => !mappings.map(map => map.timeSlot).includes(t)) && (m.faculty === selectedStaff || m.venue === selectedVenue));
 
   const handleAddMapping = async (e) => {
