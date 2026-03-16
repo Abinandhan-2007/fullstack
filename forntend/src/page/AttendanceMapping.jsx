@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 export default function AttendanceMapping({ handleLogout, apiUrl }) {
-  const [activeMenu, setActiveMenu] = useState('Attendance Mapping');
+  // --- SET INITIAL STATE TO WORKSPACE ---
+  const [activeMenu, setActiveMenu] = useState('Workspace');
 
   const [dbStaff, setDbStaff] = useState([]);
   const [dbDepartments, setDbDepartments] = useState([]);
@@ -15,13 +16,11 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [rollFrom, setRollFrom] = useState('');
   const [rollTo, setRollTo] = useState('');
 
-  // --- SERVER-LEVEL TIMETABLE STATES ---
   const [mappings, setMappings] = useState([]);
   const [draggedId, setDraggedId] = useState(null);
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  // --- FETCH EVERYTHING FROM THE SERVER ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
@@ -29,7 +28,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         const [staffRes, studentRes, timetableRes] = await Promise.all([
           fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
           fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
-          fetch(`${apiUrl}/api/host/timetable`).catch(() => null) // Fetch live DB timetable
+          fetch(`${apiUrl}/api/host/timetable`).catch(() => null) 
         ]);
 
         let allDepts = new Set(["IT", "ECE", "EEE", "EIE", "Computer Science and Engineering"]);
@@ -45,7 +44,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
           studentData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         }
 
-        // Load the live timetable from the server
         if (timetableRes && timetableRes.ok) {
           const timetableData = await timetableRes.json();
           setMappings(timetableData);
@@ -58,10 +56,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             const res = await fetch(endpoint);
             if (res.ok) {
               const data = await res.json();
-              if (data && data.length > 0) {
-                fetchedSubjects = data;
-                break;
-              }
+              if (data && data.length > 0) { fetchedSubjects = data; break; }
             }
           } catch (e) {}
         }
@@ -70,11 +65,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         fetchedSubjects.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         setDbDepartments(Array.from(allDepts).sort());
 
-      } catch (error) {
-        console.error("Failed to fetch from Admin Portal DB:", error);
-      } finally {
-        setIsLoadingDB(false);
-      }
+      } catch (error) { console.error("Failed to fetch from Admin Portal DB", error); } 
+      finally { setIsLoadingDB(false); }
     };
 
     if (apiUrl) fetchAdminData();
@@ -99,7 +91,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   const hasConflict = mappings.some(m => m.timeSlot === timeSlots.find(t => !mappings.map(map => map.timeSlot).includes(t)) && (m.faculty === selectedStaff || m.venue === selectedVenue));
 
-  // --- SAVE TO SERVER ---
   const handleAddMapping = async (e) => {
     e.preventDefault();
     if (hasConflict || !selectedSubject || !selectedStaff || !selectedVenue) return;
@@ -107,15 +98,11 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     const usedSlots = mappings.map(m => m.timeSlot);
     const availableSlot = timeSlots.find(t => !usedSlots.includes(t));
 
-    if (!availableSlot) {
-      alert("Timetable is completely full for today!");
-      return;
-    }
+    if (!availableSlot) return alert("Timetable is completely full for today!");
 
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
 
-    // Format matches our new Spring Boot Entity
     const newMapping = {
       department: selectedDept,
       timeSlot: availableSlot,
@@ -128,33 +115,26 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     };
 
     try {
-      // POST to Spring Boot
       const response = await fetch(`${apiUrl}/api/host/timetable`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newMapping)
       });
       if (response.ok) {
-        const savedMapping = await response.json(); // Get the DB-generated ID!
+        const savedMapping = await response.json(); 
         setMappings([...mappings, savedMapping]);
         setSelectedSubject(''); setSelectedStaff(''); setSelectedVenue(''); setRollFrom(''); setRollTo('');
       }
-    } catch (err) {
-      console.error("Failed to save mapping to server", err);
-    }
+    } catch (err) { console.error("Failed to save mapping to server", err); }
   };
 
-  // --- DELETE FROM SERVER ---
   const handleRemove = async (id) => {
     try {
       await fetch(`${apiUrl}/api/host/timetable/${id}`, { method: 'DELETE' });
       setMappings(mappings.filter(m => m.id !== id));
-    } catch (err) {
-      console.error("Failed to delete mapping", err);
-    }
+    } catch (err) { console.error("Failed to delete mapping", err); }
   };
 
-  // --- UPDATE DRAG DROP ON SERVER ---
   const handleDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; e.target.style.opacity = '0.4'; };
   const handleDragEnd = (e) => { e.target.style.opacity = '1'; setDraggedId(null); };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
@@ -165,48 +145,81 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     const targetSession = mappings.find(m => m.timeSlot === targetTime);
     const draggedSession = mappings.find(m => m.id === draggedId);
 
-    // Update the UI instantly for a smooth experience
     setMappings(prev => prev.map(m => {
       if (m.id === draggedId) return { ...m, timeSlot: targetTime };
       if (targetSession && m.id === targetSession.id) return { ...m, timeSlot: draggedSession.timeSlot };
       return m;
     }));
 
-    // Send the updates to the server in the background
     try {
       await fetch(`${apiUrl}/api/host/timetable/${draggedId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draggedSession, timeSlot: targetTime })
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...draggedSession, timeSlot: targetTime })
       });
       if (targetSession) {
         await fetch(`${apiUrl}/api/host/timetable/${targetSession.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...targetSession, timeSlot: draggedSession.timeSlot })
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...targetSession, timeSlot: draggedSession.timeSlot })
         });
       }
-    } catch (err) {
-      console.error("Failed to update drag-and-drop on server", err);
-    }
+    } catch (err) { console.error("Failed to update drag-and-drop on server", err); }
   };
 
+  // --- WORKSPACE MENU ITEMS ---
   const menuItems = [
-    { name: 'Dashboard', icon: '📊' }, { name: 'Attendance Mapping', icon: '📍' }, { name: 'Active Sessions', icon: '🔴' }, { name: 'Students', icon: '🎓' }, { name: 'Staff', icon: '👥' }, { name: 'Venues', icon: '🏢' }, { name: 'Reports', icon: '📈' },
+    { name: 'Dashboard', icon: '📈', bg: 'bg-indigo-500', desc: 'Main administrative overview and campus statistics.' },
+    { name: 'Mapping Studio', icon: '📍', bg: 'bg-emerald-500', desc: 'Configure global class schedules and venue mappings.' },
+    { name: 'Active Sessions', icon: '🔴', bg: 'bg-rose-500', desc: 'Monitor ongoing lectures and live attendance feeds.' },
+    { name: 'Student Records', icon: '🎓', bg: 'bg-blue-500', desc: 'Manage database of enrolled students and batches.' },
+    { name: 'Staff Records', icon: '👥', bg: 'bg-violet-500', desc: 'Manage faculty credentials and department assignments.' },
+    { name: 'Venue Manager', icon: '🏢', bg: 'bg-amber-500', desc: 'Oversee campus locations, labs, and room availability.' },
   ];
 
+  // ==========================================
+  // THE NEW WORKSPACE GRID
+  // ==========================================
+  const renderWorkspace = () => (
+    <div className="animate-in fade-in duration-500 max-w-6xl mx-auto py-8">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl md:text-5xl font-black text-[#1e293b] mb-3 tracking-tight">
+          Welcome to your Workspace, Admin
+        </h2>
+        <p className="text-slate-500 text-lg">Select an administrative module below to manage campus systems.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {menuItems.map((item) => (
+          <div 
+            key={item.name} 
+            onClick={() => setActiveMenu(item.name)}
+            className="bg-white p-8 rounded-[2rem] shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 hover:shadow-lg hover:border-blue-100 cursor-pointer transition-all duration-300 group"
+          >
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-6 ${item.bg} text-white shadow-inner group-hover:scale-110 transition-transform duration-300`}>
+              {item.icon}
+            </div>
+            <h3 className="text-xl font-bold text-[#1e293b] mb-2">{item.name}</h3>
+            <p className="text-slate-500 leading-relaxed text-sm font-medium">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // --- THE MAPPING STUDIO TOOL ---
   const renderMappingStudio = () => (
     <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-6">
       
+      <button onClick={() => setActiveMenu('Workspace')} className="mb-2 flex items-center gap-2 text-slate-500 hover:text-[#2563EB] font-bold transition-colors">
+        <span>←</span> Back to Workspace
+      </button>
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Mapping Studio</h1>
-          <p className="text-slate-500 font-medium mt-1">Configure classes, venues, and student bulk mapping.</p>
+          <p className="text-slate-500 font-medium mt-1">Configure global class schedules and venues.</p>
         </div>
         <div className="flex gap-3">
           <div className="bg-[#FFFFFF] px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${isLoadingDB ? 'bg-amber-400' : 'bg-[#10B981] animate-pulse'}`}></span>
-            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Fetching DB...' : 'Live (Server Mode)'}</span></span>
+            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Fetching DB...' : 'Live Server Sync'}</span></span>
           </div>
         </div>
       </div>
@@ -335,52 +348,49 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   );
 
   const renderPlaceholder = () => (
-    <div className="flex flex-col items-center justify-center h-full text-center animate-in fade-in duration-500">
-      <div className="text-6xl mb-6 opacity-80">{menuItems.find(m => m.name === activeMenu)?.icon}</div>
-      <h2 className="text-3xl font-black text-slate-800 tracking-tight mb-3">{activeMenu} Overview</h2>
-      <p className="text-slate-500 font-medium max-w-md">This administration module is currently under development. Analytics and tools for {activeMenu} will appear here soon.</p>
+    <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
+      <button onClick={() => setActiveMenu('Workspace')} className="mb-8 flex items-center gap-2 text-slate-500 hover:text-[#2563EB] font-bold transition-colors">
+        <span>←</span> Back to Workspace
+      </button>
+      <div className="text-6xl mb-4 opacity-80">{menuItems.find(m => m.name === activeMenu)?.icon || '🚧'}</div>
+      <h2 className="text-3xl font-black text-slate-800 mb-2">{activeMenu}</h2>
+      <p className="text-slate-500 font-medium max-w-md">This administrative module is currently under development. Tools for {activeMenu} will appear here soon.</p>
     </div>
   );
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
-      <aside className="w-64 bg-[#FFFFFF] border-r border-slate-200 hidden md:flex flex-col shadow-sm z-20">
-        <div className="p-6 flex items-center gap-3 border-b border-slate-100 mb-4">
-          <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center text-white font-black">{"</>"}</div>
-          <span className="text-xl font-black tracking-tight text-slate-900">Admin<span className="text-[#2563EB] font-normal">HQ</span></span>
-        </div>
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <button key={item.name} onClick={() => setActiveMenu(item.name)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeMenu === item.name ? 'bg-[#2563EB]/10 text-[#2563EB] border-r-4 border-[#2563EB]' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
-              <span className="text-lg">{item.icon}</span>{item.name}
-            </button>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-slate-100">
-          <button onClick={handleLogout} className="w-full py-2.5 text-rose-500 font-bold hover:bg-rose-50 rounded-xl transition-colors">Sign Out</button>
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header className="bg-[#FFFFFF] border-b border-slate-200 h-16 flex items-center justify-between px-8 shrink-0 z-10">
-          <div className="relative w-96">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-            <input type="text" placeholder={`Search ${activeMenu.toLowerCase()}...`} className="w-full pl-10 pr-4 py-2 bg-[#F8FAFC] border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-all" />
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-800 flex flex-col">
+      {/* PERSISTENT TOP NAVBAR */}
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveMenu('Workspace')}>
+          <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">
+            C
           </div>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 pl-6 border-l border-slate-200 cursor-pointer">
-              <div className="text-right hidden md:block">
-                <p className="text-sm font-black text-slate-800">1234 Admin</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">System Host</p>
-              </div>
-              <div className="w-9 h-9 bg-[#10B981] text-white rounded-full flex items-center justify-center font-bold shadow-sm">AD</div>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-          {activeMenu === 'Attendance Mapping' ? renderMappingStudio() : renderPlaceholder()}
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 hidden sm:block">
+            Central<span className="text-[#2563EB] font-normal">Portal</span>
+          </h1>
         </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden md:block">
+            <p className="text-sm font-bold text-slate-900">System Admin</p>
+            <p className="text-xs text-slate-500 font-medium">admin@system.local</p>
+          </div>
+          <div className="w-10 h-10 bg-[#10B981] text-white rounded-full flex items-center justify-center font-bold shadow-sm border border-slate-200">
+            AD
+          </div>
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+          <button onClick={handleLogout} className="text-rose-500 font-bold text-sm hover:text-rose-700 transition-colors">
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar relative">
+        {activeMenu === 'Workspace' && renderWorkspace()}
+        {activeMenu === 'Mapping Studio' && renderMappingStudio()}
+        {activeMenu !== 'Workspace' && activeMenu !== 'Mapping Studio' && renderPlaceholder()}
       </main>
     </div>
   );

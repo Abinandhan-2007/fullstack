@@ -6,14 +6,7 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.example.demo.model.Announcement;
 import com.example.demo.model.Attendance;
@@ -21,23 +14,28 @@ import com.example.demo.model.Complaint;
 import com.example.demo.model.Course;
 import com.example.demo.model.Department;
 import com.example.demo.model.Mark;
-import com.example.demo.model.StaffMember; // Make sure you have this model!
+import com.example.demo.model.Session; // Ensure you have this model!
+import com.example.demo.model.StaffMember; 
 import com.example.demo.model.Student;
+
 import com.example.demo.repository.AnnouncementRepository;
 import com.example.demo.repository.AttendanceRepository;
 import com.example.demo.repository.ComplaintRepository;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.DepartmentRepository;
 import com.example.demo.repository.MarkRepository;
-import com.example.demo.repository.StaffRepository; // Make sure you have this repository!
+import com.example.demo.repository.StaffRepository; // Make sure this matches your repo name
 import com.example.demo.repository.StudentRepository;
+import com.example.demo.repository.SessionRepository; // Added this!
 
-// THESE TWO LINES WERE MISSING!
 @RestController
 @RequestMapping("/api/host") 
 @CrossOrigin(origins = {"https://fullstack-five-sage.vercel.app", "http://localhost:5173"}, allowCredentials = "true")
 public class AdminController {
     
+    // ==========================================
+    // DEPENDENCY INJECTIONS
+    // ==========================================
     @Autowired
     private StaffRepository staffRepository;
 
@@ -54,9 +52,20 @@ public class AdminController {
     private MarkRepository markRepository;
 
     @Autowired
-    private CourseRepository courseRepository; // Added for Courses
+    private CourseRepository courseRepository;
 
-    // --- STATS ENDPOINT ---
+    @Autowired
+    private ComplaintRepository complaintRepository;
+
+    @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @Autowired
+    private SessionRepository timetableRepository; // Missing in your code, added here!
+
+    // ==========================================
+    // STATS ENDPOINTS
+    // ==========================================
     @GetMapping("/stats")
     public Map<String, Long> getStats() {
         Map<String, Long> stats = new HashMap<>();
@@ -64,12 +73,10 @@ public class AdminController {
         stats.put("totalStaff", staffRepository.count());
         return stats;
     }
-    @PostMapping("/upload-mark")
-    public Mark uploadMark(@RequestBody Mark mark) {
-        return markRepository.save(mark);
-    }
 
-    // --- STAFF ENDPOINTS ---
+    // ==========================================
+    // STAFF ENDPOINTS
+    // ==========================================
     @GetMapping("/all-staff")
     public List<StaffMember> getAllStaff() {
         return staffRepository.findAll();
@@ -86,7 +93,9 @@ public class AdminController {
         return "Staff member deleted successfully";
     }
 
-    // --- STUDENT ENDPOINTS ---
+    // ==========================================
+    // STUDENT ENDPOINTS
+    // ==========================================
     @GetMapping("/all-students")
     public List<Student> getAllStudents() {
         return studentRepository.findAll();
@@ -102,15 +111,15 @@ public class AdminController {
         studentRepository.deleteById(id);
         return "Student deleted successfully";
     }
-    @Autowired
-    private ComplaintRepository complaintRepository;
 
+    // ==========================================
+    // COMPLAINT ENDPOINTS
+    // ==========================================
     @GetMapping("/all-complaints")
     public List<Complaint> getAllComplaints() {
         return complaintRepository.findAllByOrderBySubmittedAtDesc();
     }
 
-    // Host uses this to change status to RESOLVED
     @PostMapping("/update-complaint/{id}")
     public Complaint updateComplaintStatus(@PathVariable Long id, @RequestBody java.util.Map<String, String> payload) {
         Complaint complaint = complaintRepository.findById(id).orElseThrow();
@@ -123,9 +132,10 @@ public class AdminController {
         complaintRepository.deleteById(id);
         return "Complaint removed";
     }
-    @Autowired
-    private DepartmentRepository departmentRepository;
 
+    // ==========================================
+    // DEPARTMENT ENDPOINTS
+    // ==========================================
     @GetMapping("/all-departments")
     public List<Department> getAllDepartments() {
         return departmentRepository.findAll();
@@ -142,8 +152,11 @@ public class AdminController {
         return "Department deleted";
     }
 
-    // --- COURSE ENDPOINTS (ADDED) ---
-    @GetMapping("/all-courses")
+    // ==========================================
+    // COURSE / SUBJECT ENDPOINTS
+    // ==========================================
+    // Added alias so React doesn't get a 404 error if it calls /all-subjects
+    @GetMapping({"/all-courses", "/all-subjects"})
     public List<Course> getAllCourses() {
         return courseRepository.findAll();
     }
@@ -159,7 +172,37 @@ public class AdminController {
         return "Course deleted successfully";
     }
 
-    // --- ATTENDANCE ENDPOINTS ---
+    // ==========================================
+    // TIMETABLE ENDPOINTS
+    // ==========================================
+    @GetMapping("/timetable")
+    public ResponseEntity<List<Session>> getTimetable() {
+        return ResponseEntity.ok(timetableRepository.findAll());
+    }
+
+    @PostMapping("/timetable")
+    public ResponseEntity<Session> addTimetableSession(@RequestBody Session session) {
+        return ResponseEntity.ok(timetableRepository.save(session));
+    }
+
+    @DeleteMapping("/timetable/{id}")
+    public ResponseEntity<?> deleteTimetableSession(@PathVariable Long id) {
+        timetableRepository.deleteById(id);
+        return ResponseEntity.ok().build();
+    }
+
+    // Fixed the "Session" vs "TimetableSession" mixup here
+    @PutMapping("/timetable/{id}")
+    public ResponseEntity<Session> updateTimetableSession(@PathVariable Long id, @RequestBody Session updatedSession) {
+        return timetableRepository.findById(id).map(session -> {
+            session.setTimeSlot(updatedSession.getTimeSlot());
+            return ResponseEntity.ok(timetableRepository.save(session));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================
+    // ATTENDANCE ENDPOINTS
+    // ==========================================
     @PostMapping("/save-attendance")
     public ResponseEntity<?> saveAttendance(@RequestBody List<Attendance> attendanceRecords) {
         attendanceRepository.saveAll(attendanceRecords);
@@ -168,7 +211,9 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
-    // --- ANNOUNCEMENT ENDPOINTS ---
+    // ==========================================
+    // ANNOUNCEMENT ENDPOINTS
+    // ==========================================
     @GetMapping("/all-announcements")
     public List<Announcement> getAllAnnouncements() {
         return announcementRepository.findAllByOrderByPostedAtDesc();
@@ -185,9 +230,16 @@ public class AdminController {
         return "Announcement removed";
     }
 
-    // --- MARKS ENDPOINTS ---
+    // ==========================================
+    // MARKS ENDPOINTS
+    // ==========================================
     @GetMapping("/student-marks/{registerNumber}")
     public List<Mark> getStudentMarks(@PathVariable String registerNumber) {
         return markRepository.findByRegisterNumber(registerNumber);
+    }
+
+    @PostMapping("/upload-mark")
+    public Mark uploadMark(@RequestBody Mark mark) {
+        return markRepository.save(mark);
     }
 }
