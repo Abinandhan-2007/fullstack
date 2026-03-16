@@ -122,7 +122,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     return maxCount;
   };
 
-  // --- SMART STUDENT EXTRACTOR ---
   let rollListToMap = [];
   if (rollFrom && rollTo) {
     const fromStr = rollFrom.trim();
@@ -147,10 +146,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const selectedVenueObj = dbVenues.find(v => v.name === selectedVenue);
   const mappingsAtSelectedTime = mappings.filter(m => m.timeSlot === selectedTime);
   
-  // 1. Staff Conflict Check
   const hasStaffConflict = selectedTime && mappingsAtSelectedTime.some(m => String(m.faculty) === String(selectedStaffId));
   
-  // 2. Shared Venue Capacity Check
   let venueOccupiedSeats = 0;
   let existingVenueLayout = null;
 
@@ -168,10 +165,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const effectiveCapacity = seatingStrategy === 'exam' ? Math.ceil((selectedVenueObj?.capacity || 0) / 2) : (selectedVenueObj?.capacity || 0);
   const isCapacityExceeded = selectedVenueObj && (venueOccupiedSeats + calculatedStudents) > effectiveCapacity;
   
-  // Disable button if either is true
   const hasConflict = hasStaffConflict || isCapacityExceeded;
 
-  // --- SHARED SEATING ALGORITHM ---
   const generateSeats = (rollList, deptName, venueObj, existingLayout, strategy) => {
     const allCols = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
     const activeCols = allCols.slice(0, venueObj.cols); 
@@ -179,7 +174,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     let layout = [];
     if (existingLayout && existingLayout.length > 0) {
         layout = JSON.parse(JSON.stringify(existingLayout)); 
-        // Ensure legacy layouts have row/col indexes for Exam mode math
         layout.forEach(cell => {
             if (cell.r === undefined) {
                 const matchC = cell.seat.match(/[A-Z]+/);
@@ -206,14 +200,11 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     if (shortDept.toLowerCase().includes("com")) shortDept = "CSE";
 
     let rollIndex = 0;
-
-    // Isolate only the EMPTY seats in the grid
     let emptySeats = layout.filter(s => s.roll === null);
 
     if (strategy === 'exam') {
         emptySeats.forEach(cell => {
             if (rollIndex < processedRolls.length) {
-                // Checkerboard Logic (Row + Col must be Even)
                 if ((cell.r + cell.c) % 2 === 0) {
                     cell.roll = processedRolls[rollIndex];
                     cell.dept = shortDept;
@@ -230,8 +221,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             }
         });
     }
-
-    // Keep r and c in the object, they are safe and useful!
     return layout; 
   };
 
@@ -258,7 +247,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
        return setConflictPopup({ title: "Batch Conflict", message: `Time slot ${selectedTime} is already mapped for ${selectedDept}!`});
     }
 
-    // Check Student Overlaps globally at this time
     let mappedRollsAtTime = new Set();
     mappingsAtSelectedTime.forEach(m => {
       let seatData = [];
@@ -273,10 +261,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
        return setConflictPopup({ title: "Student Double Booking", message: `Conflict: ${overlappingStudents.length} student(s) (e.g. ${overlappingStudents[0]}) are already scheduled for a class at ${selectedTime}.` });
     }
 
-    if (hasStaffConflict) {
-        return setConflictPopup({ title: "Staff Double Booking", message: "This faculty member is already assigned to a different venue at this time." });
-    }
-
+    if (hasStaffConflict) return setConflictPopup({ title: "Staff Double Booking", message: "This faculty member is already assigned to a different venue at this time." });
     if (!selectedVenueObj) return setConflictPopup({ title: "Venue Not Found", message: "Please select a valid Venue."});
 
     if (isCapacityExceeded) {
@@ -285,10 +270,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
        return setConflictPopup({ title: "Capacity Exceeded", message: errorMsg });
     }
 
-    // --- GENERATE & SAVE ---
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
-    
     const seatLayout = generateSeats(rollListToMap, selectedDept, selectedVenueObj, existingVenueLayout, seatingStrategy);
 
     const newMapping = {
@@ -311,11 +294,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         const savedMapping = await response.json(); 
         savedMapping.seatAllocation = seatLayout; 
 
-        // Update any other mappings that share this room at this time so their Maps stay synced!
         const updatedMappings = mappings.map(m => {
-            if (m.timeSlot === selectedTime && m.venue === selectedVenue) {
-                return { ...m, seatAllocation: seatLayout }; 
-            }
+            if (m.timeSlot === selectedTime && m.venue === selectedVenue) return { ...m, seatAllocation: seatLayout }; 
             return m;
         });
 
@@ -479,10 +459,8 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          <div className="relative xl:col-span-4">
-            {hasStaffConflict && <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in duration-200"><span className="text-rose-500 text-sm">⚠️</span><p className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">Conflict: Faculty is already teaching at this time.</p></div>}
-            {isCapacityExceeded && <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in duration-200"><span className="text-rose-500 text-sm">⚠️</span><p className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">Capacity Alert: {calculatedStudents} students exceed the remaining {effectiveCapacity - venueOccupiedSeats} seats in {selectedVenue}.</p></div>}
-            <button type="submit" className={`w-full py-4 rounded-xl font-bold text-white transition duration-150 shadow-md ${hasConflict || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`} disabled={hasConflict || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime}>Confirm Mapping & Auto-Seat</button>
+          <div className="flex flex-col justify-end md:col-span-1 lg:col-span-2 xl:col-span-1">
+            <button type="submit" className={`w-full py-4 rounded-xl font-bold text-white transition duration-150 shadow-md ${!selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`}>Confirm Mapping & Auto-Seat</button>
           </div>
         </form>
       </div>
