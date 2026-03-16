@@ -17,8 +17,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const [rollFrom, setRollFrom] = useState('');
   const [rollTo, setRollTo] = useState('');
 
-  // --- TIMETABLE STATES (UPDATED FOR GLOBAL SYNC) ---
-  // Automatically loads saved mappings when you open the page
+  // --- TIMETABLE STATES (SYNCED GLOBALLY) ---
   const [mappings, setMappings] = useState(() => {
     const saved = localStorage.getItem('globalTimetable');
     return saved ? JSON.parse(saved) : [];
@@ -27,61 +26,67 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  // --- AUTOMATICALLY SAVE TO LOCALSTORAGE ---
-  // Every time 'mappings' changes, it saves to the browser so StudentPortal can read it
   useEffect(() => {
     localStorage.setItem('globalTimetable', JSON.stringify(mappings));
   }, [mappings]);
 
-  // --- 100% BULLETPROOF DATABASE FETCHING ---
+  // --- AUTO-DETECT DATABASE FETCHING ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
       try {
-        const [staffRes, studentRes, subjectRes] = await Promise.all([
+        // 1. Fetch Staff & Students
+        const [staffRes, studentRes] = await Promise.all([
           fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-students`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-subjects`).catch(() => null)
+          fetch(`${apiUrl}/api/host/all-students`).catch(() => null)
         ]);
 
-        let allDepts = new Set();
-        let fetchedSubjects = [];
+        let allDepts = new Set([
+          "IT", "ECE", "EEE", "EIE", "Computer Science and Engineering"
+        ]);
 
-        // 1. Fetch Staff & Extract Departments
         if (staffRes && staffRes.ok) {
           const staffData = await staffRes.json();
           setDbStaff(staffData);
-          staffData.forEach(s => {
-            if (s.department && s.department.trim() !== "" && s.department !== "Unassigned") {
-              allDepts.add(s.department.trim());
-            }
-          });
+          staffData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         }
 
-        // 2. Fetch Students & Extract Departments
         if (studentRes && studentRes.ok) {
           const studentData = await studentRes.json();
-          studentData.forEach(s => {
-            if (s.department && s.department.trim() !== "" && s.department !== "Unassigned") {
-              allDepts.add(s.department.trim());
-            }
-          });
+          studentData.forEach(s => { if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); });
         }
 
-        // 3. Fetch Subjects (Courses) & Extract Departments
-        if (subjectRes && subjectRes.ok) {
-          fetchedSubjects = await subjectRes.json();
-          setDbSubjects(fetchedSubjects);
-          fetchedSubjects.forEach(s => {
-            if (s.department && s.department.trim() !== "" && s.department !== "Unassigned") {
-              allDepts.add(s.department.trim());
+        // 2. HUNT FOR THE SUBJECTS (Tries multiple endpoints)
+        let fetchedSubjects = [];
+        const possibleEndpoints = [
+          `${apiUrl}/api/host/all-subjects`,
+          `${apiUrl}/api/host/all-courses`,
+          `${apiUrl}/api/courses`,
+          `${apiUrl}/api/subjects`
+        ];
+
+        for (let endpoint of possibleEndpoints) {
+          try {
+            const res = await fetch(endpoint);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.length > 0) {
+                fetchedSubjects = data;
+                console.log(`✅ Success! Found courses at: ${endpoint}`, data);
+                break; // Stop hunting, we found the data!
+              }
             }
-          });
+          } catch (e) {
+            // Ignore and try the next URL
+          }
         }
 
-        // Save the MASTER list of departments from all 3 tables
-        const masterDeptList = Array.from(allDepts).sort();
-        setDbDepartments(masterDeptList);
+        setDbSubjects(fetchedSubjects);
+        fetchedSubjects.forEach(s => { 
+          if (s.department && s.department !== "Unassigned") allDepts.add(s.department.trim()); 
+        });
+
+        setDbDepartments(Array.from(allDepts).sort());
 
       } catch (error) {
         console.error("Failed to fetch from Admin Portal DB:", error);
@@ -93,21 +98,31 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
     if (apiUrl) fetchAdminData();
   }, [apiUrl]);
 
-  // --- SMART SUBJECT FILTER ---
+  // --- FUZZY SUBJECT FILTER (Matches "COMPUTER" to "Computer Science") ---
   const getDisplaySubjects = () => {
     if (!dbSubjects || dbSubjects.length === 0) return [];
+    if (!selectedDept) return dbSubjects;
     
-    // If a department is selected, try to filter by it
-    if (selectedDept) {
-      const filtered = dbSubjects.filter(s => 
-        s.department && s.department.trim().toLowerCase() === selectedDept.trim().toLowerCase()
-      );
-      // If we found matches, return them. Otherwise, return ALL subjects to prevent blocking the user.
-      if (filtered.length > 0) return filtered;
-    }
+    const filterDeptStr = selectedDept.toLowerCase();
+
+    const filtered = dbSubjects.filter(s => {
+      if (!s.department || s.department === "Unassigned") return true;
+      
+      const subjDeptStr = s.department.toLowerCase();
+      
+      // 1. Exact Match
+      if (subjDeptStr === filterDeptStr) return true;
+      // 2. Contains Match (e.g. "COMPUTER" is inside "Computer Science")
+      if (filterDeptStr.includes(subjDeptStr) || subjDeptStr.includes(filterDeptStr)) return true;
+      // 3. Keyword Match
+      if (filterDeptStr.includes('computer') && subjDeptStr.includes('computer')) return true;
+      if (filterDeptStr.includes('it') && subjDeptStr === 'it') return true;
+
+      return false;
+    });
     
-    // If no department is selected, or if the filter found zero results, show ALL subjects.
-    return dbSubjects;
+    // Always fall back to showing ALL subjects so you are never blocked
+    return filtered.length > 0 ? filtered : dbSubjects;
   };
 
   const hasConflict = mappings.some(m => m.faculty === selectedStaff || m.venue === selectedVenue);
@@ -124,13 +139,12 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
       return;
     }
 
-    // Safely extract the subject code based on your Course.java entity
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
 
     const newMapping = {
       id: Date.now(),
-      department: selectedDept, // <--- CRITICAL FOR STUDENT PORTAL: Save the mapped department
+      department: selectedDept, // Critical for Student Portal!
       time: availableSlot,
       code: subjectCode,
       name: selectedSubject,
@@ -142,7 +156,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
     setMappings([...mappings, newMapping]);
     
-    // Reset Form
     setSelectedSubject('');
     setSelectedStaff('');
     setSelectedVenue('');
@@ -152,7 +165,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
   const handleRemove = (id) => setMappings(mappings.filter(m => m.id !== id));
 
-  // Drag Drop Logic
   const handleDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; e.target.style.opacity = '0.4'; };
   const handleDragEnd = (e) => { e.target.style.opacity = '1'; setDraggedId(null); };
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
@@ -182,7 +194,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
   const renderMappingStudio = () => (
     <div className="animate-in fade-in duration-500 max-w-7xl mx-auto space-y-6">
       
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Mapping Studio</h1>
@@ -191,12 +202,11 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         <div className="flex gap-3">
           <div className="bg-[#FFFFFF] px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${isLoadingDB ? 'bg-amber-400' : 'bg-[#10B981] animate-pulse'}`}></span>
-            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Fetching Data...' : 'Active'}</span></span>
+            <span className="text-xs font-bold text-slate-600">DB Sync: <span className={isLoadingDB ? "text-amber-500" : "text-[#10B981]"}>{isLoadingDB ? 'Hunting...' : 'Active'}</span></span>
           </div>
         </div>
       </div>
 
-      {/* HORIZONTAL QUICK MAPPING FORM */}
       <div className="bg-[#FFFFFF] rounded-[2rem] p-6 shadow-sm border border-slate-200">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-slate-800">Quick Mapping</h2>
@@ -205,7 +215,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
         <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-end">
           
-          {/* 1. MASTER DEPARTMENT */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">1. Department</label>
             <select 
@@ -214,23 +223,18 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
               onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); }}
               disabled={isLoadingDB}
             >
-              <option value="">{isLoadingDB ? 'Loading...' : 'All Departments...'}</option>
-              {dbDepartments.length > 0 ? (
-                dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)
-              ) : (
-                <option disabled>No departments found in DB</option>
-              )}
+              <option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>
+              {dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}
             </select>
           </div>
 
-          {/* 2. ALL SUBJECTS */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">2. Subject / Course</label>
             <select 
               className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50" 
               value={selectedSubject} 
               onChange={(e) => setSelectedSubject(e.target.value)} 
-              disabled={isLoadingDB}
+              disabled={!selectedDept || isLoadingDB}
             >
               <option value="">Select Subject...</option>
               {getDisplaySubjects().length > 0 ? (
@@ -245,7 +249,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          {/* 3. STUDENT RANGE */}
           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 h-full flex flex-col justify-end">
             <label className="block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-1.5 px-1">3. Bulk Map (Optional)</label>
             <div className="grid grid-cols-2 gap-2">
@@ -254,7 +257,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </div>
           </div>
 
-          {/* 4. FACULTY */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">4. Faculty</label>
             <select 
@@ -274,7 +276,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          {/* 5. VENUE */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">5. Venue</label>
             <select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none" value={selectedVenue} onChange={(e) => setSelectedVenue(e.target.value)}>
@@ -286,7 +287,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          {/* 6. SUBMIT BUTTON & WARNING */}
           <div className="relative">
              {hasConflict && (
               <div className="absolute -top-12 left-0 w-full bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-2 animate-in fade-in">
@@ -301,7 +301,6 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </form>
       </div>
 
-      {/* TIMETABLE */}
       <div className="bg-[#FFFFFF] rounded-[2rem] p-1 shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left">
           <thead>
