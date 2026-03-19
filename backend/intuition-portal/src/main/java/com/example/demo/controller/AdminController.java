@@ -6,7 +6,15 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping; // Ensure you have this model!
+import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.model.Announcement;
 import com.example.demo.model.Attendance;
@@ -14,23 +22,22 @@ import com.example.demo.model.Complaint;
 import com.example.demo.model.Course;
 import com.example.demo.model.Department;
 import com.example.demo.model.Mark;
-import com.example.demo.model.Session; // Ensure you have this model!
-import com.example.demo.model.StaffMember; 
+import com.example.demo.model.Session;
+import com.example.demo.model.StaffMember; // Make sure this matches your repo name
 import com.example.demo.model.Student;
-
-import com.example.demo.repository.AnnouncementRepository;
+import com.example.demo.repository.AnnouncementRepository; // Added this!
 import com.example.demo.repository.AttendanceRepository;
 import com.example.demo.repository.ComplaintRepository;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.DepartmentRepository;
 import com.example.demo.repository.MarkRepository;
-import com.example.demo.repository.StaffRepository; // Make sure this matches your repo name
+import com.example.demo.repository.SessionRepository;
+import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
-import com.example.demo.repository.SessionRepository; // Added this!
 
 @RestController
 @RequestMapping("/api/host") 
-@CrossOrigin(origins = {"https://fullstack-five-sage.vercel.app", "http://localhost:5173"}, allowCredentials = "true")
+@CrossOrigin(origins = {"https://ominicampus.vercel.app/", "http://localhost:5173"}, allowCredentials = "true")
 public class AdminController {
     
     // ==========================================
@@ -199,6 +206,7 @@ public class AdminController {
             return ResponseEntity.ok(timetableRepository.save(session));
         }).orElse(ResponseEntity.notFound().build());
     }
+    
 
     // ==========================================
     // ATTENDANCE ENDPOINTS
