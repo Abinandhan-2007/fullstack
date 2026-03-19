@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Notice: We accept a loggedInEmail prop. If you pass this from your login page, 
-// the portal will automatically find their exact schedule!
 export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const [activeMenu, setActiveMenu] = useState('Workspace');
   
@@ -32,13 +30,8 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
         if (staffRes?.ok) {
           const staffData = await staffRes.json();
           setDbStaff(staffData);
-          
-          // Auto-detect logged in staff member
           let matchedStaff = null;
-          if (loggedInEmail) {
-            matchedStaff = staffData.find(s => s.email === loggedInEmail);
-          }
-          // Fallback to first staff member for testing if email doesn't match
+          if (loggedInEmail) matchedStaff = staffData.find(s => s.email === loggedInEmail);
           setCurrentStaff(matchedStaff || staffData[0]); 
         }
         
@@ -54,13 +47,34 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const mySessions = allMappings.filter(m => String(m.faculty) === String(currentStaff?.id));
   const todayDateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  // --- MENU CONFIGURATION ---
   const menuItems = [
     { name: 'Dashboard', icon: '📊', bg: 'bg-indigo-500', desc: 'View your daily schedule and teaching statistics.' },
-    { name: 'Mark Attendance', icon: '📝', bg: 'bg-emerald-500', desc: 'Take live attendance for your assigned classes.' },
+    { name: 'Mark Attendance', icon: '📝', bg: 'bg-emerald-500', desc: 'Take live attendance using the interactive seating grid.' },
     { name: 'My Subjects', icon: '📚', bg: 'bg-blue-500', desc: 'View the syllabus and materials for your courses.' },
     { name: 'Leave Requests', icon: '🏖️', bg: 'bg-amber-500', desc: 'Apply for leave or view upcoming holidays.' },
   ];
+
+  // --- GRID HELPERS ---
+  const getDeptColorClasses = (dept, isOccupied) => {
+    if (!isOccupied) return 'bg-[#F8FAFC] border-slate-200 text-slate-400';
+    if (!dept) return 'bg-slate-200 border-slate-300 text-slate-700';
+    const d = dept.toLowerCase();
+    if (d.includes('cs')) return 'bg-[#E1EAF9] border-[#C8D9F4] text-slate-800'; 
+    if (d.includes('ec')) return 'bg-[#FEF4C1] border-[#FDEB9E] text-slate-800'; 
+    if (d.includes('ee')) return 'bg-[#FBE1EC] border-[#F7CDE0] text-slate-800'; 
+    if (d.includes('it')) return 'bg-[#DBF6E4] border-[#C3EED3] text-slate-800'; 
+    if (d.includes('ei') || d.includes('e&i')) return 'bg-[#FDF0D5] border-[#FCE1B6] text-slate-800'; 
+    return 'bg-blue-50 border-blue-100 text-slate-800'; 
+  };
+
+  const getGridMatrix = (seatData) => {
+    if (!Array.isArray(seatData) || seatData.length === 0) return { rows: [], cols: [] };
+    try {
+      const usedCols = [...new Set(seatData.map(s => { const m = s?.seat?.match(/[A-Z]+/); return m ? m[0] : 'A'; }))].sort();
+      const usedRows = [...new Set(seatData.map(s => { const m = s?.seat?.match(/\d+/); return m ? parseInt(m[0], 10) : 1; }))].sort((a,b)=>a-b);
+      return { rows: usedRows, cols: usedCols };
+    } catch (e) { return { rows: [], cols: [] }; }
+  };
 
   // --- ATTENDANCE LOGIC ---
   const startAttendance = (session) => {
@@ -98,7 +112,7 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
     try {
       setTimeout(() => {
         setSubmitStatus("Success");
-        setTimeout(() => { setActiveSession(null); setSubmitStatus(null); }, 1500);
+        setTimeout(() => { setActiveSession(null); setSubmitStatus(null); setActiveMenu('Dashboard'); }, 1500);
       }, 1000);
     } catch (err) { setSubmitStatus("Error"); }
   };
@@ -114,12 +128,6 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
     const student = dbStudents.find(s => String(s.registerNumber) === String(roll));
     return student ? student.name : "Unknown Student";
   };
-
-  const filteredRolls = studentRolls.filter(roll => {
-    const name = getStudentName(roll).toLowerCase();
-    const query = searchQuery.toLowerCase();
-    return roll.toLowerCase().includes(query) || name.includes(query);
-  });
 
   // --- UI SCREENS ---
   const renderWorkspace = () => (
@@ -145,25 +153,11 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const renderDashboard = () => (
     <div className="animate-in fade-in duration-200 max-w-7xl mx-auto space-y-8">
       <button onClick={() => setActiveMenu('Workspace')} className="mb-2 flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors"><span>←</span> Back to Workspace</button>
-      
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Dashboard</h1>
-        <p className="text-slate-500 font-medium mt-1">Overview of your teaching schedule for {todayDateStr}.</p>
-      </div>
-
+      <div><h1 className="text-3xl font-black text-slate-900 tracking-tight">My Dashboard</h1><p className="text-slate-500 font-medium mt-1">Overview of your teaching schedule for {todayDateStr}.</p></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
-          <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">📅</div>
-          <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Classes Today</p><h3 className="text-3xl font-black text-slate-800">{mySessions.length}</h3></div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
-          <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">✅</div>
-          <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Attendance Marked</p><h3 className="text-3xl font-black text-slate-800">0</h3></div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
-          <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">⏳</div>
-          <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Pending Classes</p><h3 className="text-3xl font-black text-slate-800">{mySessions.length}</h3></div>
-        </div>
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5"><div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">📅</div><div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Classes Today</p><h3 className="text-3xl font-black text-slate-800">{mySessions.length}</h3></div></div>
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5"><div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">✅</div><div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Attendance Marked</p><h3 className="text-3xl font-black text-slate-800">0</h3></div></div>
+        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5"><div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">⏳</div><div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Pending Classes</p><h3 className="text-3xl font-black text-slate-800">{mySessions.length}</h3></div></div>
       </div>
     </div>
   );
@@ -171,11 +165,7 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const renderAttendanceModule = () => (
     <div className="animate-in fade-in duration-300">
       <button onClick={() => setActiveMenu('Workspace')} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-emerald-600 font-bold transition-colors"><span>←</span> Back to Workspace</button>
-      
-      <div className="mb-10">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Today's Classes</h2>
-        <p className="text-slate-500 font-medium mt-1">Select a class below to mark attendance.</p>
-      </div>
+      <div className="mb-10"><h2 className="text-3xl font-black text-slate-900 tracking-tight">Today's Classes</h2><p className="text-slate-500 font-medium mt-1">Select a class below to mark attendance via the interactive grid.</p></div>
 
       {isLoading ? ( <div className="text-center py-20 text-slate-400 font-bold animate-pulse">Loading Schedule...</div> ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -199,7 +189,6 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-800">
       
-      {/* HEADER WITHOUT DROPDOWN */}
       <header className="bg-white border-b border-slate-200 px-6 md:px-10 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveMenu('Workspace')}>
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner">FP</div>
@@ -220,8 +209,6 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
       </header>
 
       <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full relative">
-        
-        {/* ROUTING FOR STAFF PORTAL PAGES */}
         {!activeSession ? (
           <>
              {activeMenu === 'Workspace' ? renderWorkspace() : 
@@ -232,7 +219,7 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
         ) : (
 
           /* =========================================================
-             ATTENDANCE MARKING MODAL / VIEW
+             ATTENDANCE MARKING (INTERACTIVE GRID)
              ========================================================= */
           <div className="animate-in fade-in duration-300 space-y-6 pb-24">
             
@@ -240,24 +227,19 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
               <span>←</span> Back to Classes
             </button>
 
-            {/* 1. SESSION DETAILS (Top Section) */}
+            {/* 1. SESSION DETAILS */}
             <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2 md:gap-3 text-sm md:text-base font-bold text-slate-700">
-                <span className="text-indigo-600">{activeSession.department}</span>
-                <span className="text-slate-300">|</span>
-                <span>{activeSession.subjectName}</span>
-                <span className="text-slate-300">|</span>
-                <span>Prof. {currentStaff?.name?.split(' ')[0] || 'Staff'}</span>
-                <span className="text-slate-300">|</span>
-                <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">📍 {activeSession.venue}</span>
-                <span className="text-slate-300">|</span>
-                <span>{activeSession.timeSlot}</span>
-                <span className="text-slate-300">|</span>
+                <span className="text-indigo-600">{activeSession.department}</span><span className="text-slate-300">|</span>
+                <span>{activeSession.subjectName}</span><span className="text-slate-300">|</span>
+                <span>Prof. {currentStaff?.name?.split(' ')[0] || 'Staff'}</span><span className="text-slate-300">|</span>
+                <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">📍 {activeSession.venue}</span><span className="text-slate-300">|</span>
+                <span>{activeSession.timeSlot}</span><span className="text-slate-300">|</span>
                 <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{todayDateStr}</span>
               </div>
             </div>
 
-            {/* 4. ATTENDANCE SUMMARY & 5. SEARCH */}
+            {/* 2. SUMMARY & SEARCH */}
             <div className="flex flex-col lg:flex-row justify-between gap-4 items-end">
               <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                 <div className="px-5 py-3 border-r border-slate-100 text-center"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p><p className="text-xl font-black text-slate-700">{totalStudents}</p></div>
@@ -272,48 +254,77 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
               </div>
             </div>
 
-            {/* 3. QUICK ACTIONS (Top) */}
-            <div className="flex flex-wrap gap-3">
-              <button onClick={() => markAll("Present")} className="bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">✅ Mark All Present</button>
-              <button onClick={() => markAll("Absent")} className="bg-white border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-rose-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">❌ Mark All Absent</button>
-              <button onClick={() => startAttendance(activeSession)} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">🔄 Reset Form</button>
+            {/* 3. QUICK ACTIONS */}
+            <div className="flex flex-wrap gap-3 items-center justify-between">
+              <div className="flex flex-wrap gap-3">
+                <button onClick={() => markAll("Present")} className="bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">✅ Mark All Present</button>
+                <button onClick={() => markAll("Absent")} className="bg-white border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-rose-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">❌ Mark All Absent</button>
+                <button onClick={() => startAttendance(activeSession)} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">🔄 Reset Grid</button>
+              </div>
+              <p className="text-sm font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">💡 <strong>Tap a seat</strong> to toggle Present/Absent.</p>
             </div>
 
-            {/* 2. STUDENT ATTENDANCE TABLE (Main Section) */}
-            <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
-              <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="py-4 px-6 w-1/4">Reg No</th>
-                    <th className="py-4 px-6 w-1/2">Student Name</th>
-                    <th className="py-4 px-6 text-center w-1/4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {filteredRolls.length > 0 ? filteredRolls.map((roll) => {
-                    const status = attendanceRecord[roll];
-                    const isPresent = status === "Present";
+            {/* 4. VISUAL INTERACTIVE GRID */}
+            <div className="p-6 overflow-auto bg-[#F8FAFC] rounded-[2rem] border border-slate-200 shadow-inner custom-scrollbar">
+               {(() => {
+                 let seatAllocationData = [];
+                 try { seatAllocationData = typeof activeSession.seatAllocation === 'string' ? JSON.parse(activeSession.seatAllocation) : activeSession.seatAllocation; } catch(e) { seatAllocationData = []; }
+                 const gridMatrix = getGridMatrix(seatAllocationData);
+                 
+                 if (seatAllocationData && seatAllocationData.length > 0) {
+                   return (
+                     <div className="bg-white border border-slate-200 rounded-3xl p-4 min-w-max shadow-sm">
+                       <table className="border-separate border-spacing-2 mx-auto">
+                         <thead><tr><th className="w-10"></th>{gridMatrix.cols.map(c => (<th key={c} className="text-slate-400 font-bold pb-2 text-center w-24 text-sm">{c}</th>))}</tr></thead>
+                         <tbody>
+                           {gridMatrix.rows.map(r => (
+                             <tr key={r}><td className="text-slate-400 font-bold text-center pr-4 text-sm">{r}</td>
+                               {gridMatrix.cols.map(c => {
+                                 const seatId = `${c}${r}`;
+                                 const seatInfo = seatAllocationData.find(s => s.seat === seatId);
+                                 const hasStudent = seatInfo && seatInfo.roll;
+                                 const status = hasStudent ? attendanceRecord[seatInfo.roll] : null;
+                                 
+                                 // Highlight if searched
+                                 const isMatch = searchQuery && hasStudent && (seatInfo.roll.toLowerCase().includes(searchQuery.toLowerCase()) || getStudentName(seatInfo.roll).toLowerCase().includes(searchQuery.toLowerCase()));
 
-                    return (
-                      <tr key={roll} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-6 font-bold text-slate-700">{roll}</td>
-                        <td className="py-3 px-6 font-bold text-slate-900">{getStudentName(roll)}</td>
-                        <td className="py-3 px-6">
-                          
-                          {/* TOGGLE BUTTONS (P / A) */}
-                          <div className="flex items-center justify-center gap-2">
-                            <button onClick={() => toggleStatus(roll)} className={`w-10 h-10 rounded-xl font-black text-lg transition-all flex items-center justify-center ${isPresent ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200 scale-105' : 'bg-slate-100 text-slate-400 hover:bg-emerald-100 hover:text-emerald-500'}`}>P</button>
-                            <button onClick={() => toggleStatus(roll)} className={`w-10 h-10 rounded-xl font-black text-lg transition-all flex items-center justify-center ${!isPresent ? 'bg-rose-500 text-white shadow-md shadow-rose-200 scale-105' : 'bg-slate-100 text-slate-400 hover:bg-rose-100 hover:text-rose-500'}`}>A</button>
-                          </div>
+                                 // Styling logic based on Attendance Status!
+                                 let colorClasses = 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'; 
+                                 if (hasStudent) {
+                                     if (status === 'Absent') {
+                                         colorClasses = 'bg-rose-500 text-white border-rose-600 shadow-md transform scale-[0.96]';
+                                     } else {
+                                         colorClasses = getDeptColorClasses(seatInfo.dept, true) + ' cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all';
+                                     }
+                                     if (isMatch) colorClasses += ' ring-4 ring-indigo-500 ring-offset-2';
+                                 }
 
-                        </td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr><td colSpan="3" className="py-12 text-center text-slate-400 font-medium">No students match your search.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                                 return (
+                                   <td key={c} className="p-0 align-top relative">
+                                     <div onClick={() => hasStudent && toggleStatus(seatInfo.roll)} className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border h-full min-h-[85px] transition-all duration-150 select-none ${colorClasses}`}>
+                                       {hasStudent ? (
+                                          <>
+                                            <span className={`text-[10px] font-black mb-1 ${status === 'Absent' ? 'text-rose-200' : 'text-slate-500'}`}>{seatInfo.seat}</span>
+                                            <span className={`text-xs font-black uppercase tracking-wider mb-1.5 ${status === 'Absent' ? 'text-white' : ''}`}>{seatInfo.dept}</span>
+                                            <span className={`text-[9px] font-medium tracking-tight break-all text-center ${status === 'Absent' ? 'text-white' : 'text-slate-600'}`}>{seatInfo.roll}</span>
+                                          </>
+                                       ) : (
+                                          <><span className="text-[10px] font-black text-slate-400 mb-1">{seatId}</span><span className="text-[10px] font-bold text-slate-300 italic mt-1">Empty</span></>
+                                       )}
+                                     </div>
+                                   </td>
+                                 )
+                               })}
+                             </tr>
+                           ))}
+                         </tbody>
+                       </table>
+                     </div>
+                   );
+                 } else {
+                   return <div className="text-center py-20 flex flex-col items-center"><div className="text-4xl mb-4">🪑</div><p className="text-slate-600 font-bold text-lg mb-2">No Seats Allocated</p><p className="text-slate-400 font-medium text-sm">Please ask your Admin to generate an Automated Seating map for this class.</p></div>;
+                 }
+               })()}
             </div>
 
             {/* ACTION BUTTONS (Sticky Bottom) */}
