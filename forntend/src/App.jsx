@@ -5,15 +5,9 @@ import AdminPortal from './page/AdminPortal.jsx';
 import StudentPortal from './page/StudentPortal';
 import LoginPage from './page/LoginPage'; 
 import AttendancePortal from './page/AttendanceMapping.jsx';
+import StaffPortal from './page/StaffPortal.jsx';
 
-// 1. STAFF PORTAL PLACEHOLDER
-const StaffPortal = ({ user, handleLogout }) => (
-  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-    <h1 className="text-3xl font-black text-slate-800 tracking-tighter">STAFF<span className="text-indigo-600">PORTAL</span></h1>
-    <p className="text-slate-500 mt-2 mb-8 font-medium italic">Welcome, {user.name}. Accessing faculty records...</p>
-    <button onClick={handleLogout} className="px-8 py-3 bg-rose-500 text-white font-bold rounded-2xl shadow-lg">Sign Out</button>
-  </div>
-);
+
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -183,8 +177,8 @@ export default function App() {
   return (
     <>
       {role === 'host' && <AdminPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
-      {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} />}
-      {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} />}
+      {role === 'staff' && <StaffPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
+      {role === 'student' && <StudentPortal user={user} handleLogout={handleLogout} apiUrl={apiUrl} />}
       {role === 'attendance_portal' && <AttendancePortal handleLogout={handleLogout} apiUrl={apiUrl} />}
     </>
   );
