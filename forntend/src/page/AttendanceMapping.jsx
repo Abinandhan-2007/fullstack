@@ -426,6 +426,7 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
         </div>
       </div>
     </div>
+    
   );
 
   const renderMappingStudio = () => (
@@ -439,18 +440,64 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
 
       <div className="bg-[#FFFFFF] rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
         <h2 className="text-xl font-black text-slate-800 mb-6 border-b border-slate-100 pb-4">Create Automated Mapping</h2>
-        <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-end">
-          <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Department</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition duration-150" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); }}><option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>{dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}</select></div>
-          <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}><option value="">Select Subject...</option>{getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>) : <option disabled>No courses found in DB</option>}</select></div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 h-full flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Students {calculatedStudents > 0 && <span className="bg-[#2563EB] text-white px-2 py-0.5 rounded">{calculatedStudents} Total</span>}</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From (Opt)" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
+      <form onSubmit={handleAddMapping} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-6 items-end">
           
-          <div className="relative"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">4. Faculty (Name/ID)</label><input type="text" placeholder="Search Faculty..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={facultySearch} onChange={(e) => { setFacultySearch(e.target.value); setShowFacultyList(true); if (e.target.value === "") setSelectedStaffId(''); }} onFocus={() => setShowFacultyList(true)} onBlur={() => setTimeout(() => setShowFacultyList(false), 150)} />{showFacultyList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">{getFilteredFaculty().map((staff) => (<div key={staff.id} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none" onMouseDown={() => { setSelectedStaffId(staff.id); setFacultySearch(staff.name); setShowFacultyList(false); }}><div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700">{staff.name}</span><span className="text-[10px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">ID: {staff.id}</span></div><p className="text-[10px] text-blue-500 font-medium uppercase">{staff.department}</p></div>))}</div>)}</div>
+          {/* 1. Department */}
+          <div className="w-full">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Department</label>
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition duration-150" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); }}>
+              <option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>
+              {dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}
+            </select>
+          </div>
+
+          {/* 2. Subject */}
+          <div className="w-full">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label>
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}>
+              <option value="">Select Subject...</option>
+              {getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>) : <option disabled>No courses found in DB</option>}
+            </select>
+          </div>
+
+          {/* 3. Bulk Map */}
+          <div className="w-full bg-slate-50 p-3 rounded-xl border border-slate-100 h-full flex flex-col justify-end relative">
+            <label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">
+              3. Bulk Map Students {calculatedStudents > 0 && <span className="bg-[#2563EB] text-white px-2 py-0.5 rounded">{calculatedStudents} Total</span>}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" placeholder="Roll From" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} />
+              <input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} />
+            </div>
+          </div>
           
-          <div className="relative"><label className="flex justify-between items-center block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">5. Venue {dbVenues.find(v=>v.name===selectedVenue) && <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Cap: {dbVenues.find(v=>v.name===selectedVenue).capacity}</span>}</label><input type="text" placeholder="Search Venue..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={venueSearch} onChange={(e) => { setVenueSearch(e.target.value); setShowVenueList(true); setSelectedVenue(''); }} onFocus={() => setShowVenueList(true)} onBlur={() => setTimeout(() => setShowVenueList(false), 150)} />{showVenueList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto">{getFilteredVenues().map((v, i) => (<div key={i} className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onMouseDown={() => { setSelectedVenue(v.name); setVenueSearch(v.name); setShowVenueList(false); }}><div><span className="text-sm font-bold text-slate-700">{v.name}</span><p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{v.building}</p></div><span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded">{v.capacity} Seats</span></div>))}</div>)}</div>
+          {/* 4. Faculty */}
+          <div className="w-full relative">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">4. Faculty (Name/ID)</label>
+            <input type="text" placeholder="Search Faculty..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={facultySearch} onChange={(e) => { setFacultySearch(e.target.value); setShowFacultyList(true); if (e.target.value === "") setSelectedStaffId(''); }} onFocus={() => setShowFacultyList(true)} onBlur={() => setTimeout(() => setShowFacultyList(false), 150)} />
+            {showFacultyList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">{getFilteredFaculty().map((staff) => (<div key={staff.id} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none" onMouseDown={() => { setSelectedStaffId(staff.id); setFacultySearch(staff.name); setShowFacultyList(false); }}><div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700">{staff.name}</span><span className="text-[10px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">ID: {staff.id}</span></div><p className="text-[10px] text-blue-500 font-medium uppercase">{staff.department}</p></div>))}</div>)}
+          </div>
           
-          <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">6. Time Slot</label><select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none transition duration-150" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}><option value="">Select Time...</option>{timeSlots.map((t, idx) => <option key={idx} value={t}>{t}</option>)}</select></div>
+          {/* 5. Venue */}
+          <div className="w-full relative">
+            <label className="flex justify-between items-center block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+              5. Venue {dbVenues.find(v=>v.name===selectedVenue) && <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">Cap: {dbVenues.find(v=>v.name===selectedVenue).capacity}</span>}
+            </label>
+            <input type="text" placeholder="Search Venue..." className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#2563EB]" value={venueSearch} onChange={(e) => { setVenueSearch(e.target.value); setShowVenueList(true); setSelectedVenue(''); }} onFocus={() => setShowVenueList(true)} onBlur={() => setTimeout(() => setShowVenueList(false), 150)} />
+            {showVenueList && (<div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto">{getFilteredVenues().map((v, i) => (<div key={i} className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onMouseDown={() => { setSelectedVenue(v.name); setVenueSearch(v.name); setShowVenueList(false); }}><div><span className="text-sm font-bold text-slate-700">{v.name}</span><p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{v.building}</p></div><span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded">{v.capacity} Seats</span></div>))}</div>)}
+          </div>
           
-          <div>
+          {/* 6. Time Slot */}
+          <div className="w-full">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">6. Time Slot</label>
+            <select className="w-full bg-[#F8FAFC] border border-slate-200 rounded-xl px-3 py-3 text-sm font-medium outline-none transition duration-150" value={selectedTime} onChange={(e) => setSelectedTime(e.target.value)}>
+              <option value="">Select Time...</option>
+              {timeSlots.map((t, idx) => <option key={idx} value={t}>{t}</option>)}
+            </select>
+          </div>
+          
+          {/* 7. Seating Strategy */}
+          <div className="w-full">
             <label className="block text-xs font-bold text-emerald-600 uppercase tracking-widest mb-2">7. Seating Strategy</label>
             <select className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-3 py-3 text-sm font-bold outline-none focus:border-emerald-500 transition duration-150" value={seatingStrategy} onChange={(e) => setSeatingStrategy(e.target.value)}>
               <option value="sequential">Sequential (Roll No. Order)</option>
@@ -459,11 +506,14 @@ export default function AttendanceMapping({ handleLogout, apiUrl }) {
             </select>
           </div>
 
-          <div className="flex flex-col justify-end md:col-span-1 lg:col-span-2 xl:col-span-1">
-            <button type="submit" className={`w-full py-4 rounded-xl font-bold text-white transition duration-150 shadow-md ${!selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`}>Confirm Mapping & Auto-Seat</button>
+          {/* 8. Submit Button */}
+          <div className="w-full flex flex-col justify-end">
+            <button type="submit" className={`w-full py-3.5 rounded-xl font-bold text-white transition duration-150 shadow-md ${!selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime ? 'bg-slate-300 cursor-not-allowed' : 'bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] shadow-[#2563EB]/20'}`}>
+              Confirm Mapping
+            </button>
           </div>
         </form>
-      </div>
+        </div>
 
       <div className="bg-[#FFFFFF] rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left"><thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200"><tr><th className="py-4 px-6 rounded-tl-3xl">S.No</th><th className="py-4 px-6">Assigned Class & Batch</th><th className="py-4 px-6">Faculty, Venue & Time</th><th className="py-4 px-6 text-right rounded-tr-3xl">Action</th></tr></thead>
