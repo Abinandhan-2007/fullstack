@@ -91,7 +91,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
 
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
-  // --- 1. UNIVERSAL DATA EXTRACTOR (Fixes 0 calculation bugs) ---
+  // ============================================================================
+  // 1. DATA EXTRACTORS & FETCHING
+  // ============================================================================
   const extractArray = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
@@ -99,17 +101,21 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     if (data.data && Array.isArray(data.data)) return data.data;
     if (data._embedded) {
        const keys = Object.keys(data._embedded);
-       if (keys.length > 0 && Array.isArray(data._embedded[keys[0]])) {
-           return data._embedded[keys[0]];
-       }
+       if (keys.length > 0 && Array.isArray(data._embedded[keys[0]])) return data._embedded[keys[0]];
     }
     return [];
   };
 
   const getStudentId = (s) => s ? String(s.registerNumber || s.regNo || s.rollNo || s.email || s.id || '') : '';
-  const getStaffId = (s) => s ? String(s.staffId || s.employeeId || s.facultyId || s.id || '') : '';
+  
+  const getStaffId = (s) => {
+    if (!s) return '';
+    const strId = s.staffId || s.employeeId || s.facultyId || s.id;
+    if (strId) return String(strId);
+    if (s.email) return String(s.email).split('@')[0];
+    return 'N/A';
+  };
 
-  // --- 2. DATA FETCHING ---
   useEffect(() => {
     const fetchAdminData = async () => {
       setIsLoadingDB(true);
@@ -126,7 +132,6 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
            const depts = extractArray(await deptRes.json());
            setDbDepartments(depts.map(d => d.name || d.departmentName || d).sort());
         }
-
         if (staffRes?.ok) {
           const fetchedStaff = extractArray(await staffRes.json());
           setDbStaff(fetchedStaff);
@@ -134,14 +139,11 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
           fetchedStaff.forEach(s => { const id = getStaffId(s); if(id) initialStaffAtt[id] = 'Present'; });
           setStaffAttendance(initialStaffAtt);
         }
-        
         if (timetableRes?.ok) setMappings(extractArray(await timetableRes.json()));
         if (subRes?.ok) setDbSubjects(extractArray(await subRes.json()));
-        
         if (studentRes?.ok) {
           const fetchedStudents = extractArray(await studentRes.json());
           setDbStudents(fetchedStudents);
-          
           const simulatedStatus = {};
           fetchedStudents.forEach(s => {
             const id = getStudentId(s);
@@ -159,7 +161,10 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     if (apiUrl) fetchAdminData();
   }, [apiUrl]);
 
-  // --- 3. HELPER FUNCTIONS ---
+  // ============================================================================
+  // 2. HELPER FUNCTIONS & CALCULATIONS (Crucial for preventing ReferenceErrors)
+  // ============================================================================
+  
   const getDisplaySubjects = () => {
     if (!Array.isArray(dbSubjects) || dbSubjects.length === 0 || !selectedDept) return [];
     const filterDeptStr = selectedDept.toLowerCase().trim();
@@ -196,65 +201,65 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     setDbVenues([...dbVenues, { id: Date.now(), building: newVenueBuilding, name: newVenueName, rows, cols, capacity: rows * cols }]);
     setNewVenueBuilding(''); setNewVenueName(''); setNewVenueRows(''); setNewVenueCols('');
   };
+  
   const handleRemoveVenue = (id) => setDbVenues(dbVenues.filter(v => v.id !== id));
 
-  // --- 4. SMART SEATING ENGINE WITH PARITY & FORMAT VALIDATOR ---
+  // --- DYNAMIC ROLL CALCULATION (Must happen before handleAddMapping) ---
+  let rollListToMap = [];
+  if (rollFrom && rollTo) {
+    const formatRegex = /^(\d+[A-Za-z]+)(\d+)$/i;
+    const matchFrom = rollFrom.trim().match(formatRegex);
+    const matchTo = rollTo.trim().match(formatRegex);
+
+    if (matchFrom && matchTo && matchFrom[1].toUpperCase() === matchTo[1].toUpperCase()) {
+      const prefix = matchFrom[1].toUpperCase();
+      const startNum = parseInt(matchFrom[2], 10);
+      const endNum = parseInt(matchTo[2], 10);
+      const padding = matchFrom[2].length;
+      for(let i = Math.min(startNum, endNum); i <= Math.max(startNum, endNum); i++) {
+        rollListToMap.push(prefix + i.toString().padStart(padding, '0'));
+      }
+    }
+  } else if (selectedDept && Array.isArray(dbStudents)) {
+    rollListToMap = dbStudents.filter(s => {
+       if (!s || !s.department) return false;
+       const sDept = s.department.toLowerCase().trim();
+       const selDept = selectedDept.toLowerCase().trim();
+       return sDept === selDept || sDept.includes(selDept) || selDept.includes(sDept);
+    }).map(s => getStudentId(s)).filter(Boolean);
+  }
+  
+  const calculatedStudents = rollListToMap.length;
+
+  // ============================================================================
+  // 3. SMART CONFLICT ENGINE
+  // ============================================================================
   const handleAddMapping = async (e) => {
     e.preventDefault();
     if (!selectedDept || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime) {
       return setConflictPopup({ title: "Missing Fields", message: "Please fill out all mapping fields."});
     }
 
-    let newRollList = [];
-
-    // STRICT FORMAT VALIDATOR: e.g. 241cs123 (Digits + Letters + Digits)
-    if (rollFrom && rollTo) {
-      const formatRegex = /^(\d{2,3}[A-Za-z]{2,3})(\d+)$/i;
+    if (rollFrom || rollTo) {
+      const formatRegex = /^(\d+[A-Za-z]+)(\d+)$/i;
       const matchFrom = rollFrom.trim().match(formatRegex);
       const matchTo = rollTo.trim().match(formatRegex);
 
       if (!matchFrom || !matchTo) {
-        return setConflictPopup({ 
-          title: "Invalid Roll Number Format", 
-          message: "Roll numbers must be in a format like '241CS123' (Digits + Letters + Digits)."
-        });
+        return setConflictPopup({ title: "Invalid Roll Format", message: "Roll numbers must be in a format like '241CS123' (Numbers + Letters + Numbers)." });
       }
-
       if (matchFrom[1].toUpperCase() !== matchTo[1].toUpperCase()) {
-        return setConflictPopup({ 
-          title: "Prefix Mismatch", 
-          message: `The prefixes do not match. 'From' is ${matchFrom[1]} but 'To' is ${matchTo[1]}.`
-        });
+        return setConflictPopup({ title: "Prefix Mismatch", message: `The prefixes do not match. 'From' is ${matchFrom[1].toUpperCase()} but 'To' is ${matchTo[1].toUpperCase()}.` });
       }
-
-      const prefix = matchFrom[1].toUpperCase();
-      const startNum = parseInt(matchFrom[2], 10);
-      const endNum = parseInt(matchTo[2], 10);
-      const padding = matchFrom[2].length;
-
-      for(let i = Math.min(startNum, endNum); i <= Math.max(startNum, endNum); i++) {
-        newRollList.push(prefix + i.toString().padStart(padding, '0'));
-      }
-    } else if (selectedDept && Array.isArray(dbStudents)) {
-      newRollList = dbStudents.filter(s => {
-         if (!s || !s.department) return false;
-         const sDept = s.department.toLowerCase().trim();
-         const selDept = selectedDept.toLowerCase().trim();
-         return sDept === selDept || sDept.includes(selDept) || selDept.includes(sDept);
-      }).map(s => getStudentId(s)).filter(Boolean);
     }
-    
-    if (newRollList.length === 0) return setConflictPopup({ title: "No Students Found", message: `No matching students found in the database. Please enter manual Roll Numbers.`});
+
+    if (calculatedStudents === 0) return setConflictPopup({ title: "No Students Found", message: `No matching students found in the database. Please check your roll number range.`});
 
     const activeSessionsAtTime = Array.isArray(mappings) ? mappings.filter(m => m && m.timeSlot === selectedTime) : [];
 
-    // STAFF LOCK
     const staffConflict = activeSessionsAtTime.find(m => String(m.faculty) === String(selectedStaffId));
-    if (staffConflict) {
-      return setConflictPopup({ title: "Faculty Conflict", message: "This faculty member is already teaching another class at this time." });
-    }
+    if (staffConflict) return setConflictPopup({ title: "Faculty Conflict", message: "This faculty member is already teaching another class at this time." });
 
-    // STUDENT LOCK & EXISTING GRID CAPTURE
     let existingVenueLayout = null;
     for (const session of activeSessionsAtTime) {
       let seatData = [];
@@ -267,15 +272,14 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       
       if (session.venue === selectedVenue && seatData.length > 0) existingVenueLayout = seatData;
 
-      const occupiedRolls = new Set(seatData.filter(s => s && s.roll).map(s => String(s.roll)));
-      const doubleBookedStudent = newRollList.find(roll => occupiedRolls.has(String(roll)));
+      const occupiedRolls = new Set(seatData.filter(s => s && s.roll).map(s => String(s.roll).toUpperCase().trim()));
+      const doubleBookedStudent = rollListToMap.find(roll => occupiedRolls.has(String(roll).toUpperCase().trim()));
 
       if (doubleBookedStudent) {
-        return setConflictPopup({ title: "Student Double Booking", message: `Student ${doubleBookedStudent} is already mapped to ${session.venue} for the ${selectedTime} slot.` });
+        return setConflictPopup({ title: "Student Double Booking", message: `Student ${doubleBookedStudent.toUpperCase()} is already mapped to ${session.venue} for the ${selectedTime} slot. They cannot be in two places at once.` });
       }
     }
 
-    // CAPACITY CHECKER
     const selectedVenueObj = dbVenues.find(v => v && v.name === selectedVenue);
     if (!selectedVenueObj) return setConflictPopup({ title: "Venue Not Found", message: "Please select a valid Venue."});
 
@@ -298,24 +302,23 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
 
     if (seatingStrategy === 'exam') {
         const maxExamAvailable = Math.max(emptyParity0, emptyParity1);
-        if (newRollList.length > maxExamAvailable) {
-            return setConflictPopup({ title: "Exam Capacity Exceeded", message: `To maintain alternate seating, there are only ${maxExamAvailable} valid gaps left in this venue. You are trying to map ${newRollList.length} students.` });
+        if (calculatedStudents > maxExamAvailable) {
+            return setConflictPopup({ title: "Exam Capacity Exceeded", message: `To maintain alternate seating, there are only ${maxExamAvailable} valid gaps left in this venue. You are trying to map ${calculatedStudents} students.` });
         }
     } else {
-        if (newRollList.length > emptyTotal) {
-            return setConflictPopup({ title: "Capacity Exceeded", message: `Venue only has ${emptyTotal} empty seats left. You are trying to map ${newRollList.length} students.` });
+        if (calculatedStudents > emptyTotal) {
+            return setConflictPopup({ title: "Capacity Exceeded", message: `Venue only has ${emptyTotal} empty seats left. You are trying to map ${calculatedStudents} students.` });
         }
     }
 
-    // GENERATION & API CALL
     const subjectObj = dbSubjects.find(s => (s.subjectName || s.name) === selectedSubject);
     const subjectCode = subjectObj ? (subjectObj.subjectCode || subjectObj.code) : "SUB";
-    const seatLayout = generateSeats(newRollList, selectedDept, selectedVenueObj, existingVenueLayout, seatingStrategy);
+    const seatLayout = generateSeats(rollListToMap, selectedDept, selectedVenueObj, existingVenueLayout, seatingStrategy);
 
     const newMapping = {
       department: selectedDept, timeSlot: selectedTime, subjectCode: subjectCode, subjectName: selectedSubject,
       faculty: selectedStaffId, venue: selectedVenue, sessionType: selectedVenue.toLowerCase().includes('lab') ? 'Laboratory' : 'Theory',
-      batchRange: (rollFrom && rollTo) ? `${rollFrom} to ${rollTo}` : 'All Students', 
+      batchRange: (rollFrom && rollTo) ? `${rollFrom.toUpperCase()} to ${rollTo.toUpperCase()}` : 'All Students', 
       seatAllocation: JSON.stringify(seatLayout) 
     };
 
@@ -401,7 +404,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     if(targetSession) setMappings(prev => prev.map(m => m.id === draggedId ? { ...m, timeSlot: targetTime } : m));
   };
 
-  // --- 5. RENDER HELPERS ---
+  // ============================================================================
+  // 4. UI RENDER HELPERS
+  // ============================================================================
   const menuItems = [
     { name: 'Dashboard', icon: '📈', bg: 'bg-indigo-500', desc: 'Main administrative overview and campus statistics.' },
     { name: 'Mapping Studio', icon: '📍', bg: 'bg-emerald-500', desc: 'Configure global class schedules and venue mappings.' },
@@ -430,7 +435,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     } catch (e) { return { rows: [], cols: [] }; }
   };
 
-  // --- 6. UI SCREENS ---
+  // ============================================================================
+  // 5. SCREENS
+  // ============================================================================
   const renderWorkspace = () => (
     <div className="animate-in fade-in duration-200 max-w-6xl mx-auto py-8">
       <div className="text-center mb-12">
@@ -450,11 +457,11 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   );
 
   const renderDashboard = () => {
-    // Generate combined total of DB Students + Ghost Mapped Students
-    const allStudentRolls = new Set();
-    dbStudents.forEach(s => { if(getStudentId(s)) allStudentRolls.add(String(getStudentId(s)).toLowerCase()); });
-    
-    mappings.forEach(m => {
+    const mappedStaffIds = new Set((Array.isArray(mappings) ? mappings : []).map(m => String(m.faculty)));
+    const unmappedStaffCount = (Array.isArray(dbStaff) ? dbStaff : []).filter(s => s && getStaffId(s) && !mappedStaffIds.has(getStaffId(s))).length;
+
+    const mappedStudentRolls = new Set();
+    (Array.isArray(mappings) ? mappings : []).forEach(m => {
       let seatData = [];
       try {
         let parsed = m.seatAllocation;
@@ -463,9 +470,10 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
         seatData = parsed;
       } catch (e) {}
       if (Array.isArray(seatData)) {
-        seatData.forEach(seat => { if (seat && seat.roll) allStudentRolls.add(String(seat.roll).toLowerCase()); });
+        seatData.forEach(seat => { if (seat && seat.roll) mappedStudentRolls.add(String(seat.roll).toUpperCase()); });
       }
     });
+    const unmappedStudentCount = (Array.isArray(dbStudents) ? dbStudents : []).filter(s => s && getStudentId(s) && !mappedStudentRolls.has(getStudentId(s).toUpperCase())).length;
 
     return (
       <div className="animate-in fade-in duration-200 max-w-7xl mx-auto space-y-8">
@@ -477,11 +485,23 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
             <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🎓</div>
-            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Found Students</p><h3 className="text-3xl font-black text-slate-800">{allStudentRolls.size}</h3></div>
+            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Found Students</p><h3 className="text-3xl font-black text-slate-800">{dbStudents.length}</h3></div>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-amber-100 flex items-center gap-5">
+            <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">⚠️</div>
+            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Unmapped Students</p><h3 className={`text-3xl font-black ${unmappedStudentCount > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{unmappedStudentCount}</h3></div>
           </div>
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
             <div className="w-14 h-14 bg-violet-100 text-violet-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">👥</div>
             <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Faculty</p><h3 className="text-3xl font-black text-slate-800">{dbStaff.length}</h3></div>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-rose-100 flex items-center gap-5">
+            <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🚨</div>
+            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Unmapped Faculty</p><h3 className={`text-3xl font-black ${unmappedStaffCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{unmappedStaffCount}</h3></div>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🏢</div>
+            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Active Venues</p><h3 className="text-3xl font-black text-slate-800">{dbVenues.length}</h3></div>
           </div>
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
             <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">📅</div>
@@ -493,16 +513,12 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   };
 
   const renderStudentRecords = () => {
-    // MERGE LOGIC: Combine dbStudents with any "Ghost" students mapped manually
     const allStudentMap = new Map();
-    
-    // Add all students from Database
     (Array.isArray(dbStudents) ? dbStudents : []).forEach(s => {
       const id = getStudentId(s);
       if (id) allStudentMap.set(id.toLowerCase(), { ...s, registerNumber: id.toUpperCase() });
     });
 
-    // Add Ghost students from active mappings
     mappings.forEach(m => {
       let seatData = [];
       try {
@@ -598,11 +614,25 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     const uniqueDepts = ['All', ...new Set((Array.isArray(dbStaff) ? dbStaff : []).map(s => s?.department).filter(Boolean))];
     const filteredStaff = (Array.isArray(dbStaff) ? dbStaff : []).filter(s => {
       if (!s) return false;
-      const displayId = String(getStaffDisplayId(s)).toLowerCase();
+      const displayId = String(getStaffId(s)).toLowerCase();
       const matchesSearch = (s.name && s.name.toLowerCase().includes(staffSearch.toLowerCase())) || displayId.includes(staffSearch.toLowerCase());
       const matchesDept = staffFilterDept === 'All' || s.department === staffFilterDept;
       return matchesSearch && matchesDept;
     });
+
+    const markAllStaff = (status) => {
+      const updated = {};
+      filteredStaff.forEach(s => { const id = getStaffId(s); if(id) updated[id] = status; });
+      setStaffAttendance(prev => ({ ...prev, ...updated }));
+    };
+
+    const saveStaffAttendance = () => {
+      setStaffSaveStatus("Saving...");
+      setTimeout(() => {
+        setStaffSaveStatus("✅ Saved Successfully");
+        setTimeout(() => setStaffSaveStatus(null), 2500);
+      }, 800);
+    };
 
     return (
       <div className="animate-in fade-in duration-200 max-w-7xl mx-auto space-y-6">
@@ -622,15 +652,24 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
           
           <div className="overflow-y-auto custom-scrollbar flex-1">
             <table className="w-full text-left">
-              <thead className="bg-white sticky top-0 shadow-sm z-10"><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="py-4 px-6 w-1/4">Staff ID</th><th className="py-4 px-6 w-1/2">Faculty Name</th><th className="py-4 px-6 w-1/4">Department</th></tr></thead>
+              <thead className="bg-white sticky top-0 shadow-sm z-10"><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="py-4 px-6 w-1/4">Staff ID</th><th className="py-4 px-6 w-1/2">Faculty Name</th><th className="py-4 px-6 w-1/4">Department</th><th className="py-4 px-6 text-right w-1/4">Attendance</th></tr></thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredStaff.map((staff, idx) => (
+                {filteredStaff.map((staff, idx) => {
+                  const sId = getStaffId(staff);
+                  const status = staffAttendance[sId] || 'Present';
+                  return (
                   <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                    <td className="py-3 px-6 font-bold text-violet-600">{getStaffDisplayId(staff)}</td>
+                    <td className="py-3 px-6 font-bold text-violet-600">{sId}</td>
                     <td className="py-3 px-6 font-bold text-slate-800">{staff.name || 'Unknown Faculty'}</td>
                     <td className="py-3 px-6"><span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest">{staff.department || 'N/A'}</span></td>
+                    <td className="py-3 px-6 text-right">
+                       <div className="flex items-center justify-end gap-1.5">
+                          <button onClick={() => setStaffAttendance(prev => ({...prev, [sId]: 'Present'}))} className={`w-8 h-8 rounded-lg font-black text-sm transition-all flex items-center justify-center ${status === 'Present' ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>P</button>
+                          <button onClick={() => setStaffAttendance(prev => ({...prev, [sId]: 'Absent'}))} className={`w-8 h-8 rounded-lg font-black text-sm transition-all flex items-center justify-center ${status === 'Absent' ? 'bg-rose-500 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>A</button>
+                       </div>
+                    </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -653,7 +692,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
         <form onSubmit={handleAddMapping} className="flex flex-wrap gap-6 items-end">
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)]"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Department</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition duration-150" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); }}><option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>{dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}</select></div>
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)]"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}><option value="">Select Subject...</option>{getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>) : <option disabled>No courses found in DB</option>}</select></div>
-          <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] bg-slate-50 p-3 rounded-xl border border-slate-100 h-[74px] flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Format: 241CS123</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From (Opt)" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
+          <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] bg-slate-50 p-3 rounded-xl border border-slate-100 h-[74px] flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Students {calculatedStudents > 0 && <span className="bg-[#2563EB] text-white px-2 py-0.5 rounded">{calculatedStudents} Total</span>}</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From (Opt)" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
           
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] relative">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">4. Faculty (Name/ID)</label>
@@ -661,7 +700,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
             {showFacultyList && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                 {getFilteredFaculty().map((staff) => {
-                  const displayId = getStaffDisplayId(staff);
+                  const displayId = getStaffId(staff);
                   return (
                   <div key={staff.id} className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50" onMouseDown={() => { setSelectedStaffId(displayId); setFacultySearch(`${staff.name} (${displayId})`); setShowFacultyList(false); }}>
                     <div className="flex justify-between items-center"><span className="text-sm font-bold text-slate-700">{staff.name}</span><span className="text-[10px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">ID: {displayId}</span></div>
@@ -708,7 +747,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
                           const displayId = staffObj ? getStaffId(staffObj) : session.faculty;
 
                           return (
-                          <div key={session.id} draggable onDragStart={(e) => handleDragStart(e, session.id)} onDragEnd={handleDragEnd} className="flex flex-col md:flex-row items-start md:items-center border-b border-slate-100 last:border-0 hover:bg-[#F8FAFC] p-4 group transition-colors duration-150 cursor-grab active:cursor-grabbing">
+                          <div key={session.id || Math.random()} draggable onDragStart={(e) => handleDragStart(e, session.id)} onDragEnd={handleDragEnd} className="flex flex-col md:flex-row items-start md:items-center border-b border-slate-100 last:border-0 hover:bg-[#F8FAFC] p-4 group transition-colors duration-150 cursor-grab active:cursor-grabbing">
                             <div className="flex-1 flex items-center gap-3 w-full md:w-auto mb-2 md:mb-0"><span className="text-slate-300 hover:text-slate-500 transition-colors duration-150" title="Drag to move">⋮⋮</span><div><p className="font-bold text-slate-800 flex items-center gap-2"><span className="bg-[#2563EB]/10 text-[#2563EB] font-bold px-2 py-0.5 rounded text-xs">{session.subjectCode}</span>{session.subjectName}</p><p className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] mt-1">🧑‍🎓 BATCH: {session.batchRange} | {session.department}</p></div></div>
                             <div className="flex-1 font-medium text-slate-600 flex items-center flex-wrap gap-2 w-full md:w-auto pl-7 md:pl-0"><span className="text-[#2563EB] font-bold">{staffObj?.name || "Unknown"} (ID: {displayId})</span> <span className="text-slate-300">|</span> <button onClick={() => setSelectedSessionForSeats(session)} className="font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1 rounded-md transition-colors duration-150 cursor-pointer flex items-center gap-1 shadow-sm">📍 {session.venue} <span className="text-[10px] font-normal text-slate-500 ml-1">(View Map)</span></button><span className="text-slate-300">|</span> <span className="font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md">{session.timeSlot}</span></div>
                             <div className="w-full md:w-24 text-right mt-2 md:mt-0 pr-2"><button onClick={() => handleRemove(session.id)} className="text-xs font-bold text-rose-500 hover:text-rose-700 hover:underline bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150">Remove</button></div>
