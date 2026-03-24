@@ -206,6 +206,14 @@ const StudentPortal = ({ user, handleLogout }) => {
   };
 
   const renderAttendance = () => {
+    // 🔥 SMART MATCHER: Solves the "7376" prefix issue in the student portal
+    const doRollsMatch = (roll1, roll2) => {
+      if (!roll1 || !roll2) return false;
+      const r1 = String(roll1).toUpperCase().trim();
+      const r2 = String(roll2).toUpperCase().trim();
+      return r1 === r2 || r1.endsWith(r2) || r2.endsWith(r1);
+    };
+
     // 🔥 STRICT STUDENT FILTER: Only show classes where this exact student has a seat!
     const myClasses = globalTimetable.filter(m => {
       if (!studentProfile?.registerNumber) return false;
@@ -221,7 +229,7 @@ const StudentPortal = ({ user, handleLogout }) => {
 
       // Check if my roll number exists anywhere in this specific venue's seating grid
       const isMySeatHere = seatData.some(seat => 
-        seat && seat.roll && String(seat.roll).toUpperCase().trim() === myRoll
+        seat && seat.roll && doRollsMatch(seat.roll, myRoll)
       );
 
       return isMySeatHere;
@@ -298,7 +306,6 @@ const StudentPortal = ({ user, handleLogout }) => {
       </div>
     );
   };
-  
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <button onClick={() => setActiveMenu('Workspace')} className="mb-8 flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors">

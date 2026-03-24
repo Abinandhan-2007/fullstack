@@ -92,8 +92,17 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
 
   // ============================================================================
-  // 1. UNIVERSAL DATA EXTRACTOR & FETCHING
+  // 1. DATA EXTRACTORS & FETCHING
   // ============================================================================
+  
+  // 🔥 SMART MATCHER: Solves the "7376" prefix issue!
+  const doRollsMatch = (roll1, roll2) => {
+    if (!roll1 || !roll2) return false;
+    const r1 = String(roll1).toUpperCase().trim();
+    const r2 = String(roll2).toUpperCase().trim();
+    return r1 === r2 || r1.endsWith(r2) || r2.endsWith(r1);
+  };
+
   const extractArray = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
@@ -164,7 +173,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
 
 
   // ============================================================================
-  // 2. GLOBALLY SCOPED DERIVED VARIABLES (Fixes the ReferenceErrors!)
+  // 2. HELPER FUNCTIONS
   // ============================================================================
   
   const getDisplaySubjects = () => {
@@ -195,7 +204,17 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
      return dbVenues.filter(v => v && (v.name.toLowerCase().includes(venueSearch.toLowerCase()) || v.building.toLowerCase().includes(venueSearch.toLowerCase())));
   };
 
-  // Dynamically calculate students in scope
+  const handleAddVenue = (e) => {
+    e.preventDefault();
+    if (!newVenueName || !newVenueRows || !newVenueCols || !newVenueBuilding) return;
+    const rows = parseInt(newVenueRows, 10);
+    const cols = parseInt(newVenueCols, 10);
+    setDbVenues([...dbVenues, { id: Date.now(), building: newVenueBuilding, name: newVenueName, rows, cols, capacity: rows * cols }]);
+    setNewVenueBuilding(''); setNewVenueName(''); setNewVenueRows(''); setNewVenueCols('');
+  };
+  
+  const handleRemoveVenue = (id) => setDbVenues(dbVenues.filter(v => v.id !== id));
+
   let rollListToMap = [];
   if (rollFrom && rollTo) {
     const formatRegex = /^(\d+[A-Za-z]+)(\d+)$/i;
@@ -222,20 +241,8 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   const calculatedStudents = rollListToMap.length;
 
   // ============================================================================
-  // 3. ACTION HANDLERS
+  // 3. SMART CONFLICT ENGINE
   // ============================================================================
-
-  const handleAddVenue = (e) => {
-    e.preventDefault();
-    if (!newVenueName || !newVenueRows || !newVenueCols || !newVenueBuilding) return;
-    const rows = parseInt(newVenueRows, 10);
-    const cols = parseInt(newVenueCols, 10);
-    setDbVenues([...dbVenues, { id: Date.now(), building: newVenueBuilding, name: newVenueName, rows, cols, capacity: rows * cols }]);
-    setNewVenueBuilding(''); setNewVenueName(''); setNewVenueRows(''); setNewVenueCols('');
-  };
-  
-  const handleRemoveVenue = (id) => setDbVenues(dbVenues.filter(v => v.id !== id));
-
   const handleAddMapping = async (e) => {
     e.preventDefault();
     if (!selectedDept || !selectedSubject || !selectedStaffId || !selectedVenue || !selectedTime) {
@@ -247,15 +254,11 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       const matchFrom = rollFrom.trim().match(formatRegex);
       const matchTo = rollTo.trim().match(formatRegex);
 
-      if (!matchFrom || !matchTo) {
-        return setConflictPopup({ title: "Invalid Roll Format", message: "Roll numbers must be in a format like '241CS123' (Numbers + Letters + Numbers)." });
-      }
-      if (matchFrom[1].toUpperCase() !== matchTo[1].toUpperCase()) {
-        return setConflictPopup({ title: "Prefix Mismatch", message: `The prefixes do not match. 'From' is ${matchFrom[1].toUpperCase()} but 'To' is ${matchTo[1].toUpperCase()}.` });
-      }
+      if (!matchFrom || !matchTo) return setConflictPopup({ title: "Invalid Roll Format", message: "Roll numbers must be in a format like '241CS123' (Numbers + Letters + Numbers)." });
+      if (matchFrom[1].toUpperCase() !== matchTo[1].toUpperCase()) return setConflictPopup({ title: "Prefix Mismatch", message: `The prefixes do not match.` });
     }
 
-    if (calculatedStudents === 0) return setConflictPopup({ title: "No Students Found", message: `No matching students found in the database. Please check your roll number range.`});
+    if (calculatedStudents === 0) return setConflictPopup({ title: "No Students Found", message: `No matching students found. Please check your roll number range.`});
 
     const activeSessionsAtTime = Array.isArray(mappings) ? mappings.filter(m => m && m.timeSlot === selectedTime) : [];
 
@@ -274,8 +277,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       
       if (session.venue === selectedVenue && seatData.length > 0) existingVenueLayout = seatData;
 
-      const occupiedRolls = new Set(seatData.filter(s => s && s.roll).map(s => String(s.roll).toUpperCase().trim()));
-      const doubleBookedStudent = rollListToMap.find(roll => occupiedRolls.has(String(roll).toUpperCase().trim()));
+      const doubleBookedStudent = rollListToMap.find(newRoll => 
+         seatData.some(seat => seat && seat.roll && doRollsMatch(newRoll, seat.roll))
+      );
 
       if (doubleBookedStudent) {
         return setConflictPopup({ title: "Student Double Booking", message: `Student ${doubleBookedStudent.toUpperCase()} is already mapped to ${session.venue} for the ${selectedTime} slot. They cannot be in two places at once.` });
@@ -290,7 +294,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
 
     if (existingVenueLayout) {
         existingVenueLayout.forEach(cell => {
-            if (!cell.roll) {
+            if (!cell.roll || String(cell.roll).trim() === "") {
                 emptyTotal++;
                 if ((cell.r + cell.c) % 2 === 0) emptyParity0++;
                 else emptyParity1++;
@@ -406,9 +410,8 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     if(targetSession) setMappings(prev => prev.map(m => m.id === draggedId ? { ...m, timeSlot: targetTime } : m));
   };
 
-
   // ============================================================================
-  // 4. UI RENDER COMPONENTS
+  // 4. UI RENDER HELPERS
   // ============================================================================
   const menuItems = [
     { name: 'Dashboard', icon: '📈', bg: 'bg-indigo-500', desc: 'Main administrative overview and campus statistics.' },
@@ -438,6 +441,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     } catch (e) { return { rows: [], cols: [] }; }
   };
 
+  // ============================================================================
+  // 5. SCREENS
+  // ============================================================================
   const renderWorkspace = () => (
     <div className="animate-in fade-in duration-200 max-w-6xl mx-auto py-8">
       <div className="text-center mb-12">
@@ -461,22 +467,25 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     const unmappedStaffCount = (Array.isArray(dbStaff) ? dbStaff : []).filter(s => s && getStaffId(s) && !mappedStaffIds.has(getStaffId(s))).length;
 
     const mappedStudentRolls = new Set();
-    (Array.isArray(mappings) ? mappings : []).forEach(m => {
+    mappings.forEach(m => {
       let seatData = [];
       try {
         let parsed = m.seatAllocation;
         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        seatData = parsed;
+        seatData = Array.isArray(parsed) ? parsed : [];
       } catch (e) {}
-      if (Array.isArray(seatData)) {
-        seatData.forEach(seat => { if (seat && seat.roll && String(seat.roll).trim() !== "") mappedStudentRolls.add(String(seat.roll).toUpperCase().trim()); });
-      }
+      seatData.forEach(seat => { if (seat && seat.roll && String(seat.roll).trim() !== "") mappedStudentRolls.add(String(seat.roll).toUpperCase().trim()); });
     });
-    const dbStudentIds = new Set((Array.isArray(dbStudents) ? dbStudents : []).map(s => getStudentId(s).toUpperCase().trim()).filter(Boolean));
     
     let unmappedStudentCount = 0;
-    dbStudentIds.forEach(id => { if (!mappedStudentRolls.has(id)) unmappedStudentCount++; });
+    (Array.isArray(dbStudents) ? dbStudents : []).forEach(dbS => {
+       const id = getStudentId(dbS);
+       if (id) {
+           const isMapped = Array.from(mappedStudentRolls).some(mRoll => doRollsMatch(id, mRoll));
+           if (!isMapped) unmappedStudentCount++;
+       }
+    });
 
     return (
       <div className="animate-in fade-in duration-200 max-w-7xl mx-auto space-y-8">
@@ -488,7 +497,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 flex items-center gap-5">
             <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">🎓</div>
-            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Found Students</p><h3 className="text-3xl font-black text-slate-800">{dbStudents.length}</h3></div>
+            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total DB Students</p><h3 className="text-3xl font-black text-slate-800">{dbStudents.length}</h3></div>
           </div>
           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-amber-100 flex items-center gap-5">
             <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">⚠️</div>
@@ -516,44 +525,60 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   };
 
   const renderStudentRecords = () => {
-    const allStudentMap = new Map();
-    (Array.isArray(dbStudents) ? dbStudents : []).forEach(s => {
-      const id = getStudentId(s);
-      if (id) allStudentMap.set(id.toUpperCase().trim(), { ...s, registerNumber: id.toUpperCase().trim() });
-    });
+    // Generate combined array of DB Students + Ghost Students
+    const combinedStudentsArray = [...(Array.isArray(dbStudents) ? dbStudents : [])].map(s => ({
+        ...s,
+        registerNumber: getStudentId(s).toUpperCase().trim(),
+        isFromDB: true,
+        isMapped: false
+    }));
 
     mappings.forEach(m => {
-      let seatData = [];
-      try {
-        let parsed = m.seatAllocation;
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        seatData = Array.isArray(parsed) ? parsed : [];
-      } catch(e) {}
+        let seatData = [];
+        try {
+            let parsed = m.seatAllocation;
+            if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+            if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+            seatData = Array.isArray(parsed) ? parsed : [];
+        } catch(e) {}
 
-      seatData.forEach(seat => {
-        if (seat && seat.roll && String(seat.roll).trim() !== "") {
-          const rollUpper = String(seat.roll).toUpperCase().trim();
-          if (!allStudentMap.has(rollUpper)) {
-            allStudentMap.set(rollUpper, {
-              registerNumber: rollUpper,
-              name: "Mapped (Not in DB)",
-              department: seat.dept || m.department || 'Unknown'
-            });
-          }
-        }
-      });
+        seatData.forEach(seat => {
+            if (seat && seat.roll && String(seat.roll).trim() !== "") {
+                const mappedRoll = String(seat.roll).toUpperCase().trim();
+                
+                // Try to find if this student exists in DB array via the flexible Matcher
+                let dbMatch = combinedStudentsArray.find(s => s.isFromDB && doRollsMatch(s.registerNumber, mappedRoll));
+                
+                if (dbMatch) {
+                    dbMatch.isMapped = true;
+                    dbMatch.currentVenue = m.venue;
+                } else {
+                    // Check if already added as a ghost
+                    const existingGhost = combinedStudentsArray.find(s => !s.isFromDB && doRollsMatch(s.registerNumber, mappedRoll));
+                    if (!existingGhost) {
+                        combinedStudentsArray.push({
+                            registerNumber: mappedRoll,
+                            name: "Mapped (Not in DB)",
+                            department: seat.dept || m.department || 'Unknown',
+                            currentVenue: m.venue,
+                            isMapped: true,
+                            isFromDB: false
+                        });
+                    }
+                }
+            }
+        });
     });
 
-    const combinedStudentsArray = Array.from(allStudentMap.values());
-    const uniqueDepts = ['All', ...new Set(combinedStudentsArray.map(s => s.department).filter(Boolean))];
+    const activeMappedStudents = combinedStudentsArray.filter(s => s.isMapped);
+    const uniqueDepts = ['All', ...new Set(activeMappedStudents.map(s => s.department).filter(Boolean))];
 
-    const filteredStudents = combinedStudentsArray.filter(s => {
+    const filteredStudents = activeMappedStudents.filter(s => {
       if (!s) return false;
-      const stuId = getStudentId(s).toLowerCase();
+      const stuId = s.registerNumber.toLowerCase();
       const matchesSearch = (s.name && s.name.toLowerCase().includes(studentSearch.toLowerCase())) || stuId.includes(studentSearch.toLowerCase());
       const matchesDept = studentFilterDept === 'All' || s.department === studentFilterDept;
-      const sStatus = liveStudentStatus[getStudentId(s).toUpperCase().trim()] || 'Not Marked';
+      const sStatus = liveStudentStatus[s.registerNumber] || 'Present';
       const matchesStatus = studentFilterStatus === 'All' || sStatus === studentFilterStatus;
       return matchesSearch && matchesDept && matchesStatus;
     });
@@ -562,7 +587,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       <div className="animate-in fade-in duration-200 max-w-7xl mx-auto space-y-6">
         <button onClick={() => setActiveMenu('Workspace')} className="mb-2 flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors"><span>←</span> Back to Workspace</button>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
-          <div><h1 className="text-3xl font-black text-slate-900 tracking-tight">Student Live Records</h1><p className="text-slate-500 font-medium mt-1">Live campus tracking derived from faculty attendance.</p></div>
+          <div><h1 className="text-3xl font-black text-slate-900 tracking-tight">Active Mapped Students</h1><p className="text-slate-500 font-medium mt-1">Live campus tracking derived from faculty attendance.</p></div>
         </div>
 
         <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
@@ -584,11 +609,10 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
           
           <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
             <table className="w-full text-left">
-              <thead className="bg-white sticky top-0 shadow-sm z-10"><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="py-4 px-6">Roll Number</th><th className="py-4 px-6">Student Name</th><th className="py-4 px-6">Department</th><th className="py-4 px-6 text-right">Live Status</th></tr></thead>
+              <thead className="bg-white sticky top-0 shadow-sm z-10"><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="py-4 px-6">Roll Number</th><th className="py-4 px-6">Student Name</th><th className="py-4 px-6">Department</th><th className="py-4 px-6">Current Location</th><th className="py-4 px-6 text-right">Live Status</th></tr></thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredStudents.map((student, idx) => {
-                  const id = getStudentId(student);
-                  const status = liveStudentStatus[id] || 'Not Marked';
+                  const status = liveStudentStatus[student.registerNumber] || 'Present';
 
                   let statusBadge = <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">Unknown</span>;
                   if (status === 'Present') statusBadge = <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">Present</span>;
@@ -597,14 +621,15 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
 
                   return (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                      <td className="py-4 px-6 font-bold text-[#2563EB]">{id || 'N/A'}</td>
-                      <td className={`py-4 px-6 font-bold ${student.name === "Mapped (Not in DB)" ? "text-amber-500 italic" : "text-slate-800"}`}>{student.name || 'Unknown Student'}</td>
-                      <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest">{student.department || 'N/A'}</span></td>
+                      <td className="py-4 px-6 font-bold text-[#2563EB]">{student.registerNumber}</td>
+                      <td className={`py-4 px-6 font-bold ${!student.isFromDB ? "text-amber-500 italic" : "text-slate-800"}`}>{student.name}</td>
+                      <td className="py-4 px-6"><span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest">{student.department}</span></td>
+                      <td className="py-4 px-6 text-slate-500 font-medium flex items-center gap-1"><span className="text-blue-500">📍</span> {student.currentVenue}</td>
                       <td className="py-4 px-6 text-right">{statusBadge}</td>
                     </tr>
                   )
                 })}
-                {filteredStudents.length === 0 && <tr><td colSpan="4" className="py-10 text-center text-slate-400 font-medium">No students match your criteria.</td></tr>}
+                {filteredStudents.length === 0 && <tr><td colSpan="5" className="py-10 text-center text-slate-400 font-medium">No students match your criteria. Note: Unmapped students are hidden.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -627,14 +652,6 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       const updated = {};
       filteredStaff.forEach(s => { const id = getStaffId(s); if(id) updated[id] = status; });
       setStaffAttendance(prev => ({ ...prev, ...updated }));
-    };
-
-    const saveStaffAttendance = () => {
-      setStaffSaveStatus("Saving...");
-      setTimeout(() => {
-        setStaffSaveStatus("✅ Saved Successfully");
-        setTimeout(() => setStaffSaveStatus(null), 2500);
-      }, 800);
     };
 
     return (
@@ -685,7 +702,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
         <h2 className="text-xl font-black text-slate-800 mb-6 border-b border-slate-100 pb-4">Create Automated Mapping</h2>
         <form onSubmit={handleAddMapping} className="flex flex-wrap gap-6 items-end">
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)]"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">1. Department</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition duration-150" value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedSubject(''); setSelectedStaffId(''); setFacultySearch(''); }}><option value="">{isLoadingDB ? 'Loading...' : 'Select Department...'}</option>{dbDepartments.map((d, idx) => <option key={idx} value={d}>{d}</option>)}</select></div>
-          <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)]"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}><option value="">Select Subject...</option>{getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>)}</select></div>
+          <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)]"><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">2. Subject / Course</label><select className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:border-[#2563EB] outline-none disabled:opacity-50 transition duration-150" value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedDept || isLoadingDB}><option value="">Select Subject...</option>{getDisplaySubjects().length > 0 ? getDisplaySubjects().map((s, idx) => <option key={idx} value={s.subjectName || s.name}>{s.subjectName || s.name} {s.subjectCode || s.code ? `(${s.subjectCode || s.code})` : ''}</option>) : <option disabled>No courses found in DB</option>}</select></div>
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] bg-slate-50 p-3 rounded-xl border border-slate-100 h-[74px] flex flex-col justify-end relative"><label className="flex justify-between items-center block text-[10px] font-black text-[#2563EB] uppercase tracking-widest mb-2 px-1">3. Bulk Map Format: 241CS123</label><div className="grid grid-cols-2 gap-2"><input type="text" placeholder="Roll From (Opt)" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollFrom} onChange={(e) => setRollFrom(e.target.value.toUpperCase())} /><input type="text" placeholder="Roll To" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#2563EB]" value={rollTo} onChange={(e) => setRollTo(e.target.value.toUpperCase())} /></div></div>
           
           <div className="w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] relative">
@@ -853,13 +870,16 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
                                {gridMatrix.cols.map(c => {
                                  const seatId = `${c}${r}`;
                                  const seatInfo = seatAllocationData.find(s => s.seat === seatId);
-                                 const isMatch = seatSearchTerm && seatInfo?.roll && seatInfo.roll.toLowerCase().includes(seatSearchTerm.toLowerCase());
+                                 
+                                 // Check for search match using doRollsMatch
+                                 const isMatch = seatSearchTerm && seatInfo?.roll && doRollsMatch(seatInfo.roll, seatSearchTerm);
+                                 
                                  const colorClasses = isMatch ? 'bg-blue-600 text-white border-blue-700 shadow-md transform scale-105 z-10' : getDeptColorClasses(seatInfo?.dept, !!seatInfo?.roll);
 
                                  return (
                                    <td key={c} className="p-0 align-top relative">
                                      <div className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border shadow-sm h-full min-h-[85px] transition-all duration-200 ${colorClasses}`}>
-                                       {seatInfo && seatInfo.roll ? (
+                                       {seatInfo && seatInfo.roll && String(seatInfo.roll).trim() !== "" ? (
                                           <><span className={`text-[10px] font-black mb-1 ${isMatch ? 'text-blue-200' : 'text-slate-500'}`}>{seatInfo.seat}</span><span className="text-xs font-black uppercase tracking-wider mb-1.5">{seatInfo.dept}</span><span className={`text-[9px] font-medium tracking-tight break-all text-center ${isMatch ? 'text-white' : 'text-slate-600'}`}>{seatInfo.roll}</span></>
                                        ) : (<><span className="text-[10px] font-black text-slate-400 mb-1">{seatId}</span><span className="text-[10px] font-bold text-slate-300 italic mt-1">Empty</span></>)}
                                      </div>
