@@ -206,11 +206,25 @@ const StudentPortal = ({ user, handleLogout }) => {
   };
 
   const renderAttendance = () => {
+    // 🔥 STRICT STUDENT FILTER: Only show classes where this exact student has a seat!
     const myClasses = globalTimetable.filter(m => {
-      if (!studentProfile?.department) return false;
-      const adminDept = (m.department || "").toLowerCase().trim();
-      const studentDept = (studentProfile.department || "").toLowerCase().trim();
-      return adminDept === studentDept || adminDept === 'all departments';
+      if (!studentProfile?.registerNumber) return false;
+      const myRoll = String(studentProfile.registerNumber).toUpperCase().trim();
+
+      let seatData = [];
+      try {
+        let parsed = m.seatAllocation;
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        seatData = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {}
+
+      // Check if my roll number exists anywhere in this specific venue's seating grid
+      const isMySeatHere = seatData.some(seat => 
+        seat && seat.roll && String(seat.roll).toUpperCase().trim() === myRoll
+      );
+
+      return isMySeatHere;
     });
 
     const timeSlots = ["09:00 AM", "09:50 AM", "10:40 AM", "11:30 AM", "01:10 PM", "02:00 PM", "02:50 PM", "03:40 PM"];
@@ -234,7 +248,7 @@ const StudentPortal = ({ user, handleLogout }) => {
 
         <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Today's Classes for {studentProfile?.department || '...'}</h3>
+             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Today's Classes for {studentProfile?.registerNumber || '...'}</h3>
              {isLoadingTimetable && <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded animate-pulse">SYNCING WITH DB...</span>}
           </div>
           
@@ -243,7 +257,7 @@ const StudentPortal = ({ user, handleLogout }) => {
 
             {myClasses.length === 0 && !isLoadingTimetable ? (
               <div className="text-center py-10 text-slate-400 font-medium border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                <p className="mb-2">No classes scheduled by Admin for your department today.</p>
+                <p className="mb-2">No classes scheduled for you today.</p>
               </div>
             ) : (
               timeSlots.map((time, index) => {
@@ -284,7 +298,7 @@ const StudentPortal = ({ user, handleLogout }) => {
       </div>
     );
   };
-
+  
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
       <button onClick={() => setActiveMenu('Workspace')} className="mb-8 flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-colors">
