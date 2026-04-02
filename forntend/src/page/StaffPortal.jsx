@@ -1,6 +1,42 @@
 import React, { useState, useEffect } from 'react';
 
+// ============================================================================
+// 🚨 ERROR BOUNDARY (Crash Protection)
+// ============================================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { this.setState({ errorInfo }); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-rose-50 p-10 font-mono flex flex-col items-center justify-center">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-4xl w-full border-2 border-rose-300">
+            <h1 className="text-3xl font-black mb-2 text-rose-600">🚨 Application Crashed!</h1>
+            <div className="bg-rose-100 p-4 rounded-xl mb-4 overflow-auto">
+              <p className="font-black text-rose-800">{this.state.error && this.state.error.toString()}</p>
+            </div>
+            <button onClick={() => window.location.reload()} className="px-6 py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700">Reload Portal</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
+  return (
+    <ErrorBoundary>
+      <StaffPortalContent handleLogout={handleLogout} apiUrl={apiUrl} loggedInEmail={loggedInEmail} />
+    </ErrorBoundary>
+  );
+}
+
+function StaffPortalContent({ handleLogout, apiUrl, loggedInEmail }) {
   const [activeMenu, setActiveMenu] = useState('Workspace');
   
   const [dbStaff, setDbStaff] = useState([]);
@@ -16,6 +52,40 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const [attendanceRecord, setAttendanceRecord] = useState({}); 
   const [searchQuery, setSearchQuery] = useState('');
   const [submitStatus, setSubmitStatus] = useState(null);
+  
+  // 🔥 POPUP STATES
+  const [attendancePopup, setAttendancePopup] = useState(null);
+  const [popupAction, setPopupAction] = useState(null); 
+
+  // ============================================================================
+  // 1. UNIVERSAL EXTRACTORS & MATCHERS
+  // ============================================================================
+  const doRollsMatch = (roll1, roll2) => {
+    if (!roll1 || !roll2) return false;
+    const r1 = String(roll1).toUpperCase().trim();
+    const r2 = String(roll2).toUpperCase().trim();
+    return r1 === r2 || r1.endsWith(r2) || r2.endsWith(r1);
+  };
+
+  const extractArray = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.content && Array.isArray(data.content)) return data.content;
+    if (data.data && Array.isArray(data.data)) return data.data;
+    if (data._embedded) {
+       const keys = Object.keys(data._embedded);
+       if (keys.length > 0 && Array.isArray(data._embedded[keys[0]])) return data._embedded[keys[0]];
+    }
+    return [];
+  };
+
+  const getStaffId = (s) => {
+    if (!s) return '';
+    const strId = s.staffId || s.employeeId || s.facultyId || s.id;
+    if (strId) return String(strId);
+    if (s.email) return String(s.email).split('@')[0];
+    return 'N/A';
+  };
 
   useEffect(() => {
     const fetchStaffData = async () => {
@@ -28,15 +98,15 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
         ]);
 
         if (staffRes?.ok) {
-          const staffData = await staffRes.json();
+          const staffData = extractArray(await staffRes.json());
           setDbStaff(staffData);
           let matchedStaff = null;
           if (loggedInEmail) matchedStaff = staffData.find(s => s.email === loggedInEmail);
           setCurrentStaff(matchedStaff || staffData[0]); 
         }
         
-        if (timetableRes?.ok) setAllMappings(await timetableRes.json());
-        if (studentRes?.ok) setDbStudents(await studentRes.json());
+        if (timetableRes?.ok) setAllMappings(extractArray(await timetableRes.json()));
+        if (studentRes?.ok) setDbStudents(extractArray(await studentRes.json()));
         
       } catch (error) { console.error("Data fetch error", error); } 
       finally { setIsLoading(false); }
@@ -44,7 +114,7 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
     if (apiUrl) fetchStaffData();
   }, [apiUrl, loggedInEmail]);
 
-  const mySessions = allMappings.filter(m => String(m.faculty) === String(currentStaff?.id));
+  const mySessions = allMappings.filter(m => String(m.faculty) === getStaffId(currentStaff));
   const todayDateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
   const menuItems = [
@@ -92,8 +162,18 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
     setSubmitStatus(null);
   };
 
-  const toggleStatus = (roll) => {
-    setAttendanceRecord(prev => ({ ...prev, [roll]: prev[roll] === "Present" ? "Absent" : "Present" }));
+  // 🔥 THE NEW ANIMATED CLICK HANDLER FOR THE POPUP
+  const handlePopupAction = (status) => {
+    setPopupAction(status); // 1. Instantly changes the button color to Green/Red/Purple
+    
+    // 2. Wait 400ms so the user can see the color change, then save & close
+    setTimeout(() => {
+      if (attendancePopup) {
+        setAttendanceRecord(prev => ({ ...prev, [attendancePopup.roll]: status }));
+      }
+      setAttendancePopup(null);
+      setPopupAction(null); // Reset animation state
+    }, 400); 
   };
 
   const markAll = (status) => {
@@ -122,10 +202,12 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
   const totalStudents = studentRolls.length;
   const presentCount = Object.values(attendanceRecord).filter(s => s === "Present").length;
   const absentCount = Object.values(attendanceRecord).filter(s => s === "Absent").length;
-  const attendancePercentage = totalStudents === 0 ? 0 : Math.round((presentCount / totalStudents) * 100);
+  const psCount = Object.values(attendanceRecord).filter(s => s === "PS").length; 
+  
+  const attendancePercentage = totalStudents === 0 ? 0 : Math.round(((presentCount + psCount) / totalStudents) * 100);
 
   const getStudentName = (roll) => {
-    const student = dbStudents.find(s => String(s.registerNumber) === String(roll));
+    const student = dbStudents.find(s => doRollsMatch(s.registerNumber || s.regNo || s.email, roll));
     return student ? student.name : "Unknown Student";
   };
 
@@ -241,11 +323,12 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
 
             {/* 2. SUMMARY & SEARCH */}
             <div className="flex flex-col lg:flex-row justify-between gap-4 items-end">
-              <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-r border-slate-100 text-center"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p><p className="text-xl font-black text-slate-700">{totalStudents}</p></div>
-                <div className="px-5 py-3 border-r border-slate-100 text-center bg-emerald-50/30"><p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Present</p><p className="text-xl font-black text-emerald-600">{presentCount}</p></div>
-                <div className="px-5 py-3 border-r border-slate-100 text-center bg-rose-50/30"><p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Absent</p><p className="text-xl font-black text-rose-600">{absentCount}</p></div>
-                <div className="px-5 py-3 text-center bg-slate-50"><p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Percent</p><p className="text-xl font-black text-indigo-600">{attendancePercentage}%</p></div>
+              <div className="flex bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden w-full lg:w-auto">
+                <div className="px-3 py-3 border-r border-slate-100 text-center flex-1"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total</p><p className="text-lg font-black text-slate-700">{totalStudents}</p></div>
+                <div className="px-3 py-3 border-r border-slate-100 text-center bg-emerald-50/30 flex-1"><p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Pre</p><p className="text-lg font-black text-emerald-600">{presentCount}</p></div>
+                <div className="px-3 py-3 border-r border-slate-100 text-center bg-rose-50/30 flex-1"><p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Abs</p><p className="text-lg font-black text-rose-600">{absentCount}</p></div>
+                <div className="px-3 py-3 border-r border-slate-100 text-center bg-violet-50/30 flex-1"><p className="text-[9px] font-black text-violet-500 uppercase tracking-widest">PS</p><p className="text-lg font-black text-violet-600">{psCount}</p></div>
+                <div className="px-3 py-3 text-center bg-slate-50 flex-1"><p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Score</p><p className="text-lg font-black text-indigo-600">{attendancePercentage}%</p></div>
               </div>
 
               <div className="relative w-full lg:w-72">
@@ -259,9 +342,10 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
               <div className="flex flex-wrap gap-3">
                 <button onClick={() => markAll("Present")} className="bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 text-emerald-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">✅ Mark All Present</button>
                 <button onClick={() => markAll("Absent")} className="bg-white border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-rose-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">❌ Mark All Absent</button>
+                <button onClick={() => markAll("PS")} className="bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-violet-700 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">⚠️ Mark All PS</button>
                 <button onClick={() => startAttendance(activeSession)} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm">🔄 Reset Grid</button>
               </div>
-              <p className="text-sm font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">💡 <strong>Tap a seat</strong> to toggle Present/Absent.</p>
+              <p className="text-sm font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">💡 <strong>Tap a seat</strong> to open options.</p>
             </div>
 
             {/* 4. VISUAL INTERACTIVE GRID */}
@@ -288,11 +372,13 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
                                  // Highlight if searched
                                  const isMatch = searchQuery && hasStudent && (seatInfo.roll.toLowerCase().includes(searchQuery.toLowerCase()) || getStudentName(seatInfo.roll).toLowerCase().includes(searchQuery.toLowerCase()));
 
-                                 // Styling logic based on Attendance Status!
+                                 // Styling logic based on 3 Statuses
                                  let colorClasses = 'bg-slate-50 border-slate-200 opacity-40 cursor-not-allowed'; 
                                  if (hasStudent) {
                                      if (status === 'Absent') {
                                          colorClasses = 'bg-rose-500 text-white border-rose-600 shadow-md transform scale-[0.96]';
+                                     } else if (status === 'PS') {
+                                         colorClasses = 'bg-violet-500 text-white border-violet-600 shadow-md transform scale-[0.96]';
                                      } else {
                                          colorClasses = getDeptColorClasses(seatInfo.dept, true) + ' cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all';
                                      }
@@ -301,12 +387,15 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
 
                                  return (
                                    <td key={c} className="p-0 align-top relative">
-                                     <div onClick={() => hasStudent && toggleStatus(seatInfo.roll)} className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border h-full min-h-[85px] transition-all duration-150 select-none ${colorClasses}`}>
+                                     <div 
+                                        onClick={() => hasStudent && setAttendancePopup({ ...seatInfo, currentStatus: status })} 
+                                        className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border h-full min-h-[85px] transition-all duration-150 select-none cursor-pointer ${colorClasses}`}
+                                     >
                                        {hasStudent ? (
                                           <>
-                                            <span className={`text-[10px] font-black mb-1 ${status === 'Absent' ? 'text-rose-200' : 'text-slate-500'}`}>{seatInfo.seat}</span>
-                                            <span className={`text-xs font-black uppercase tracking-wider mb-1.5 ${status === 'Absent' ? 'text-white' : ''}`}>{seatInfo.dept}</span>
-                                            <span className={`text-[9px] font-medium tracking-tight break-all text-center ${status === 'Absent' ? 'text-white' : 'text-slate-600'}`}>{seatInfo.roll}</span>
+                                            <span className={`text-[10px] font-black mb-1 ${status === 'Absent' || status === 'PS' ? 'text-white/70' : 'text-slate-500'}`}>{seatInfo.seat}</span>
+                                            <span className={`text-xs font-black uppercase tracking-wider mb-1.5 ${status === 'Absent' || status === 'PS' ? 'text-white' : ''}`}>{seatInfo.dept}</span>
+                                            <span className={`text-[9px] font-medium tracking-tight break-all text-center ${status === 'Absent' || status === 'PS' ? 'text-white' : 'text-slate-600'}`}>{seatInfo.roll}</span>
                                           </>
                                        ) : (
                                           <><span className="text-[10px] font-black text-slate-400 mb-1">{seatId}</span><span className="text-[10px] font-bold text-slate-300 italic mt-1">Empty</span></>
@@ -328,10 +417,10 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
             </div>
 
             {/* ACTION BUTTONS (Sticky Bottom) */}
-            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgb(0,0,0,0.05)] z-50 flex justify-center gap-4">
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgb(0,0,0,0.05)] z-40 flex justify-center gap-4">
               <div className="w-full max-w-5xl flex justify-between items-center px-4">
                 <span className="text-sm font-bold text-slate-500 hidden md:block">
-                  {presentCount} Present • {absentCount} Absent
+                  {presentCount} Present • {absentCount} Absent • {psCount} PS
                 </span>
                 <div className="flex gap-3 w-full md:w-auto">
                   <button onClick={saveDraft} className="w-full md:w-auto px-6 py-3.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
@@ -347,6 +436,64 @@ export default function StaffPortal({ handleLogout, apiUrl, loggedInEmail }) {
           </div>
         )}
       </main>
+
+      {/* 🔥 THE REDESIGNED ACTION MENU POPUP */}
+      {attendancePopup && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
+           
+           <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl flex flex-col items-center transform scale-100 border border-slate-100 animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0">
+               
+               {/* Header Area */}
+               <div className="w-full flex justify-between items-start mb-4">
+                  <div className="bg-slate-100 text-slate-500 font-black text-xs uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-200 shadow-inner">
+                     Seat {attendancePopup.seat}
+                  </div>
+                  <button onClick={() => setAttendancePopup(null)} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold transition-colors">✕</button>
+               </div>
+
+               {/* Student Info */}
+               <div className="text-center mb-6">
+                   <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-1">{attendancePopup.roll}</h3>
+                   <p className="text-sm font-bold text-slate-500">{getStudentName(attendancePopup.roll)}</p>
+               </div>
+
+               {/* Modern Interactive Buttons */}
+               <div className="flex flex-col gap-3 w-full">
+                   <button 
+                      onClick={() => handlePopupAction('Present')} 
+                      className={`relative overflow-hidden w-full py-4 rounded-2xl font-black text-lg transition-all duration-200 shadow-sm border-2 flex items-center justify-center gap-3 ${
+                          (popupAction === 'Present' || (!popupAction && attendancePopup.currentStatus === 'Present'))
+                          ? 'bg-[#10B981] border-[#10B981] text-white scale-[1.02] shadow-lg shadow-emerald-200' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-[#10B981] hover:bg-emerald-50'
+                      }`}>
+                      <span className="text-2xl">✅</span> Present
+                   </button>
+
+                   <button 
+                      onClick={() => handlePopupAction('Absent')} 
+                      className={`relative overflow-hidden w-full py-4 rounded-2xl font-black text-lg transition-all duration-200 shadow-sm border-2 flex items-center justify-center gap-3 ${
+                          (popupAction === 'Absent' || (!popupAction && attendancePopup.currentStatus === 'Absent'))
+                          ? 'bg-[#EF4444] border-[#EF4444] text-white scale-[1.02] shadow-lg shadow-rose-200' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-[#EF4444] hover:bg-rose-50'
+                      }`}>
+                      <span className="text-2xl">❌</span> Absent
+                   </button>
+
+                   <button 
+                      onClick={() => handlePopupAction('PS')} 
+                      className={`relative overflow-hidden w-full py-4 rounded-2xl font-black text-lg transition-all duration-200 shadow-sm border-2 flex items-center justify-center gap-3 ${
+                          (popupAction === 'PS' || (!popupAction && attendancePopup.currentStatus === 'PS'))
+                          ? 'bg-[#8B5CF6] border-[#8B5CF6] text-white scale-[1.02] shadow-lg shadow-violet-200' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-[#8B5CF6] hover:bg-violet-50'
+                      }`}>
+                      <span className="text-2xl">⚠️</span> PS / OD
+                   </button>
+               </div>
+
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }
