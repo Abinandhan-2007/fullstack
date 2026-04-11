@@ -38,6 +38,11 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   // Marks & Performance States
   const [studentMarks, setStudentMarks] = useState([]);
   const [isFetchingMarks, setIsFetchingMarks] = useState(false);
+  const [examType, setExamType] = useState("Internal 1");
+  const [markSubjectCode, setMarkSubjectCode] = useState("");
+  const [markScore, setMarkScore] = useState("");
+  const [markMaxScore, setMarkMaxScore] = useState("100");
+  const [isUploadingMark, setIsUploadingMark] = useState(false);
   
   // Announcements States
   const [announcementTitle, setAnnouncementTitle] = useState("");
@@ -70,7 +75,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [placementList, setPlacementList] = useState([]);
   const [isSavingPlacement, setIsSavingPlacement] = useState(false);
   const [filterBatch, setFilterBatch] = useState("ALL");
-  
   // System Settings States
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(true);
@@ -78,25 +82,13 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   const [currentSemester, setCurrentSemester] = useState("ODD");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-  // Bulk Import States (NEW 🔥)
-  const [importFile, setImportFile] = useState(null);
-  const [importType, setImportType] = useState("STUDENTS");
-  const [isImporting, setIsImporting] = useState(false);
-  const [importMessage, setImportMessage] = useState("");
-
-  // Security Logs (Using mock data for the UI since audit trails are complex backend features)
-  const [securityLogs] = useState([
-    { id: 1, action: "Admin Portal Login", user: "Administrator", time: new Date().toISOString(), status: "SUCCESS", ip: "192.168.1.105" },
-    { id: 2, action: "Deleted Department Record", user: "Administrator", time: new Date(Date.now() - 3600000).toISOString(), status: "WARNING", ip: "192.168.1.105" },
-    { id: 3, action: "Automated Database Backup", user: "System", time: new Date(Date.now() - 86400000).toISOString(), status: "SUCCESS", ip: "localhost" },
-    { id: 4, action: "Failed Login Attempt", user: "Unknown", time: new Date(Date.now() - 90000000).toISOString(), status: "DANGER", ip: "103.45.67.89" }
-  ]);
+  // Security Logs
+  const [securityLogs, setSecurityLogs] = useState([]);
 
   const menuItems = [
     { name: 'Dashboard', icon: '📊' },
     { name: 'Departments', icon: '🏢' },
     { name: 'User Management', icon: '👥' },
-    { name: 'Bulk Data Import', icon: '📁' }, // 🔥 NEW MENU ITEM
     { name: 'Courses & Subjects', icon: '📚' },
     { name: 'Attendance Monitoring', icon: '✅' },
     { name: 'Marks & Performance', icon: '📈' },
@@ -110,13 +102,16 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   // Fetch all data
   const fetchData = async () => {
     try {
-      const [staffRes, studentRes, statsRes, courseRes, announceRes, deptRes] = await Promise.all([
+      const [staffRes, studentRes, statsRes, courseRes, announceRes, deptRes, placeRes, settingsRes, logsRes] = await Promise.all([
         fetch(`${apiUrl}/api/host/all-staff`),
         fetch(`${apiUrl}/api/host/all-students`),
         fetch(`${apiUrl}/api/host/stats`),
         fetch(`${apiUrl}/api/host/all-courses`),
         fetch(`${apiUrl}/api/host/all-announcements`),
-        fetch(`${apiUrl}/api/host/all-departments`) 
+        fetch(`${apiUrl}/api/host/all-departments`),
+        fetch(`${apiUrl}/api/host/all-placements`),
+        fetch(`${apiUrl}/api/host/system-settings`),
+        fetch(`${apiUrl}/api/host/security-logs`)
       ]);
 
       if (staffRes.ok) setStaffList(await staffRes.json());
@@ -125,7 +120,15 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       if (announceRes.ok) setAnnouncementList(await announceRes.json());
       if (studentRes.ok) setStudentList(await studentRes.json());
       if (deptRes.ok) setDepartmentList(await deptRes.json()); 
-
+      if (placeRes.ok) setPlacementList(await placeRes.json());
+      if (logsRes.ok) setSecurityLogs(await logsRes.json());
+      if (settingsRes.ok) {
+        const set = await settingsRes.json();
+        setMaintenanceMode(set.maintenanceMode);
+        setRegistrationOpen(set.registrationOpen);
+        setAcademicYear(set.academicYear);
+        setCurrentSemester(set.currentSemester);
+      }
     } catch (err) { console.error("Database sync failed:", err); }
   };
 
@@ -195,6 +198,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
     const totalCourses = (courseList || []).length;
     const totalDepts = (departmentList || []).length;
 
+    // Use complaints and placements for real live metrics
     const pendingComplaints = (complaintList || []).filter(c => c.status === 'PENDING').length;
     const totalOffers = (placementList || []).reduce((sum, p) => sum + (p.placedStudents || 0), 0);
 
@@ -270,6 +274,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
                   </tr>
                 ) : (
                   (departmentList || []).map((dept) => {
+                    // Calculate real-time stats for this specific row
                     const studentCount = (studentList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
                     const subjectCount = (courseList || []).filter(c => c.department === dept.name).length;
 
@@ -304,7 +309,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     );
   };
-
   const renderUserManagement = () => {
     const currentList = activeSubTab === 'staff' ? (staffList || []) : (studentList || []);
     
@@ -404,164 +408,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
               )}
             </div>
           </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ==========================================
-  // 🔥 NEW: BULK DATA IMPORT SECTION
-  // ==========================================
-  const renderBulkImport = () => {
-    const handleFileChange = (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        setImportFile(e.target.files[0]);
-        setImportMessage("");
-      }
-    };
-
-    const handleUpload = async (e) => {
-      e.preventDefault();
-      if (!importFile) {
-        setImportMessage("⚠️ Please select an Excel or CSV file first.");
-        return;
-      }
-
-      setIsImporting(true);
-      setImportMessage("⏳ Uploading and processing data...");
-
-      // Prepare FormData for the backend multipart request
-      const formData = new FormData();
-      formData.append("file", importFile);
-      formData.append("type", importType); // e.g., "STUDENTS", "STAFF"
-
-      try {
-        // Attempting to post to your Spring Boot Backend
-        const res = await fetch(`${apiUrl}/api/host/bulk-import`, {
-          method: "POST",
-          body: formData, // Browser automatically sets headers for FormData
-        });
-
-        if (res.ok) {
-          setImportMessage(`✅ Successfully imported ${importType.toLowerCase()} data!`);
-          setImportFile(null);
-          // Refresh the data globally
-          fetchData();
-        } else {
-          setImportMessage("❌ Failed to import. Ensure the headers in your spreadsheet are correct.");
-        }
-      } catch (err) {
-        console.error("Bulk import failed:", err);
-        // Simulated success fallback if the endpoint doesn't exist yet
-        setTimeout(() => {
-          setImportMessage(`✅ (Simulated) Successfully uploaded ${importFile.name} for ${importType}. Setup backend endpoint to save to DB.`);
-          setImportFile(null);
-          setIsImporting(false);
-        }, 2000);
-      } finally {
-        if (!importMessage.includes("Simulated")) setIsImporting(false);
-      }
-    };
-
-    return (
-      <div className="animate-in fade-in duration-500">
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">Bulk Data Import</h2>
-        <p className="text-sm text-slate-500 mb-8">Upload a spreadsheet (Excel/CSV) to instantly create multiple records in the database.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
-          {/* UPLOAD FORM */}
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-            <form onSubmit={handleUpload}>
-              
-              {/* Type Selector */}
-              <div className="mb-6">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Select Data Type</label>
-                <select 
-                  value={importType} 
-                  onChange={(e) => setImportType(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="STUDENTS">🎓 Students Registry</option>
-                  <option value="STAFF">👥 Staff / Faculty Registry</option>
-                  <option value="DEPARTMENTS">🏢 Departments List</option>
-                  <option value="COURSES">📚 Courses & Subjects</option>
-                </select>
-              </div>
-
-              {/* File Input Zone */}
-              <div className="mb-6">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Upload Spreadsheet</label>
-                <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 hover:border-blue-400 transition-all cursor-pointer relative">
-                  <input 
-                    type="file" 
-                    accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
-                    onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl mb-3 shadow-inner">
-                    📁
-                  </div>
-                  <p className="text-sm font-bold text-slate-700 mb-1">
-                    {importFile ? importFile.name : "Click or drag file here"}
-                  </p>
-                  <p className="text-xs text-slate-500">Supports .xlsx, .xls, .csv</p>
-                </div>
-              </div>
-
-              {/* Status Message */}
-              {importMessage && (
-                <div className={`p-3 rounded-lg mb-6 text-sm font-bold text-center ${
-                  importMessage.includes("✅") ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                  importMessage.includes("⚠️") ? "bg-amber-50 text-amber-600 border border-amber-100" :
-                  importMessage.includes("⏳") ? "bg-blue-50 text-blue-600 border border-blue-100 animate-pulse" :
-                  "bg-rose-50 text-rose-600 border border-rose-100"
-                }`}>
-                  {importMessage}
-                </div>
-              )}
-
-              <button 
-                type="submit" 
-                disabled={isImporting || !importFile} 
-                className="w-full py-3.5 rounded-xl font-black text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all disabled:bg-slate-400 disabled:active:scale-100 shadow-md"
-              >
-                {isImporting ? "Processing Data..." : `Import ${importType.toLowerCase()}`}
-              </button>
-
-            </form>
-          </div>
-
-          {/* INSTRUCTIONS / TEMPLATES */}
-          <div className="bg-slate-900 rounded-2xl p-8 text-white shadow-md flex flex-col justify-between">
-            <div>
-              <h3 className="text-lg font-black mb-4 flex items-center gap-2"><span>📝</span> Formatting Instructions</h3>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                To ensure data maps correctly to the database, your spreadsheet must contain specific column headers. You can download the starter templates below.
-              </p>
-              
-              <div className="space-y-4">
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                  <h4 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Required Columns: Students</h4>
-                  <p className="text-xs font-mono text-slate-300 bg-slate-900 p-2 rounded">name, registerNumber, email, department, batch</p>
-                </div>
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-2">Required Columns: Staff</h4>
-                  <p className="text-xs font-mono text-slate-300 bg-slate-900 p-2 rounded">name, employeeId, email, department</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-slate-800 flex gap-3">
-              <button className="flex-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 py-3 rounded-xl transition-colors border border-slate-700">
-                📥 Student Template
-              </button>
-              <button className="flex-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 py-3 rounded-xl transition-colors border border-slate-700">
-                📥 Staff Template
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
     );
@@ -701,17 +547,44 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   };
 
   const renderPlacements = () => {
+    const handleAddPlacement = async (e) => {
+      e.preventDefault();
+      setIsSavingPlacement(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/add-placement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyName, jobRole, ctc: parseFloat(ctc) || 0,
+            placedStudents: parseInt(placedStudentsCount) || 0,
+            status: "Ongoing",
+            batch: filterBatch === "ALL" ? "" : filterBatch,
+            department: filterCourseDept === "ALL" ? "" : filterCourseDept
+          })
+        });
+        if (res.ok) {
+          setCompanyName(""); setJobRole(""); setCtc(""); setPlacedStudentsCount("");
+          fetchData();
+        } else alert("Failed to add placement drive");
+      } catch (err) { alert("Server Error"); }
+      finally { setIsSavingPlacement(false); }
+    };
+
+    // 1. Array Safety Checks
     const safePlacements = Array.isArray(placementList) ? placementList : [];
     const safeStudents = Array.isArray(studentList) ? studentList : [];
 
+    // 2. Auto-extract unique batches from your student database for the dropdown
     const availableBatches = [...new Set(safeStudents.map(s => s?.batch).filter(Boolean))].sort();
 
+    // 3. Double Filter: Filter Placements by Dept AND Batch
     const filteredPlacements = safePlacements.filter(p => {
       const matchDept = filterCourseDept === "ALL" || p.department === filterCourseDept;
       const matchBatch = filterBatch === "ALL" || p.batch === filterBatch;
       return matchDept && matchBatch;
     });
 
+    // 4. Dynamic Analytics Calculations
     const totalOffers = filteredPlacements.reduce((sum, p) => sum + (p.placedStudents || 0), 0);
     
     const highestCTC = filteredPlacements.length > 0 
@@ -722,8 +595,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       ? (filteredPlacements.reduce((sum, p) => sum + (parseFloat(p.ctc) || 0), 0) / filteredPlacements.length).toFixed(2) 
       : 0;
 
+    // Assuming your backend sends a 'status' field. If not, it defaults safely.
     const ongoingProcesses = filteredPlacements.filter(p => p.status === 'Ongoing' || p.status === 'IN_PROGRESS').length;
 
+    // Calculate Registered Students dynamically based on current filters
     const registeredStudentsCount = safeStudents.filter(s => {
       const matchDept = filterCourseDept === "ALL" || s.department === filterCourseDept;
       const matchBatch = filterBatch === "ALL" || s.batch === filterBatch;
@@ -732,6 +607,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
 
     return (
       <div className="animate-in fade-in duration-500 relative">
+        {/* HEADER & FILTERS */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Placement Analytics</h2>
@@ -765,6 +641,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           </div>
         </div>
 
+        {/* 6-GRID KPI DASHBOARD */}
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between">
             <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-2">Total Offers</p>
@@ -792,6 +669,33 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           </div>
         </div>
 
+        {/* ADD PLACEMENT FORM */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+          <h3 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 uppercase tracking-wider">Register New Drive</h3>
+          <form onSubmit={handleAddPlacement} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Company</label>
+              <input type="text" required value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="e.g. Google" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Role</label>
+              <input type="text" required value={jobRole} onChange={e => setJobRole(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="e.g. SDE" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">CTC (in LPA)</label>
+              <input type="number" step="0.1" required value={ctc} onChange={e => setCtc(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="0.0" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Placed Students</label>
+              <input type="number" value={placedStudentsCount} onChange={e => setPlacedStudentsCount(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="0" />
+            </div>
+            <button disabled={isSavingPlacement} className="w-full py-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:bg-slate-400">
+              {isSavingPlacement ? "Saving..." : "Add Drive"}
+            </button>
+          </form>
+        </div>
+
+        {/* PLACEMENT RECORDS LIST */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Recruitment Drives</h3>
@@ -811,6 +715,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
                     <div key={record.id || index} className="p-5 rounded-xl border border-slate-200 group hover:border-blue-300 hover:bg-blue-50/20 transition-all relative flex flex-col h-full bg-white">
                       <button onClick={() => handleDelete(record.id, 'placement')} className="absolute top-3 right-3 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                       
+                      {/* Status & Batch Badges */}
                       <div className="flex gap-2 mb-3">
                         <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
                           isOngoing ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
@@ -856,7 +761,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     );
   };
-
   const renderCoursesAndSubjects = () => {
     const filteredCourses = filterCourseDept === "ALL" 
       ? (courseList || []) 
@@ -883,7 +787,9 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       <div className="animate-in fade-in duration-500 relative">
         <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Curriculum Master</h2>
         
+        {/* TOP SECTION: Form & List */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Add Subject Form */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
             <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Register Subject</h3>
             <form onSubmit={handleAddCourse} className="space-y-3.5">
@@ -918,6 +824,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
             </form>
           </div>
 
+          {/* Subject List & Filter */}
           <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-2">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Official Subject List</h3>
@@ -961,6 +868,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           </div>
         </div>
 
+        {/* BOTTOM SECTION: Department Summary Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Department Course Map</h3>
@@ -998,10 +906,12 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           </div>
         </div>
 
+        {/* MODAL POP-UP FOR SUBJECTS */}
         {selectedDeptForModal && (
           <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
               
+              {/* Modal Header */}
               <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                 <div>
                   <h3 className="font-bold text-slate-800 text-lg">{selectedDeptForModal}</h3>
@@ -1010,6 +920,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
                 <button onClick={() => setSelectedDeptForModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shadow-sm">✕</button>
               </div>
 
+              {/* Modal Body */}
               <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar bg-slate-50/30">
                 {(courseList || []).filter(c => c.department === selectedDeptForModal).length === 0 ? (
                   <div className="text-center py-12 text-slate-400 text-sm font-medium">No subjects assigned to this department yet.</div>
@@ -1038,34 +949,846 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
   };
 
   const renderAttendance = () => {
-    // Basic table render missing logic ... simplified for space since AdminPortal focus is structure
+    const safeStudents = studentList || [];
+    const safeStaff = staffList || [];
+    const safeDepartments = departmentList || [];
+    
+    const activeList = attendanceView === "STUDENTS" ? safeStudents : safeStaff;
+    
+    const filteredPeople = filterCourseDept === "ALL" 
+      ? activeList 
+      : activeList.filter(person => person?.department === filterCourseDept);
+
+    const handleSaveAttendance = async () => {
+      if (Object.keys(attendanceData).length === 0) return alert("Please mark attendance first.");
+      setIsSavingAttendance(true);
+      const records = Object.entries(attendanceData).map(([id, isPresent]) => ({
+        registerNumber: id,
+        subjectCode: "GENERAL",
+        date: attendanceDate,
+        isPresent
+      }));
+      
+      try {
+        const res = await fetch(`${apiUrl}/api/host/save-attendance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(records)
+        });
+        if (res.ok) {
+          alert("Attendance locked successfully");
+          setAttendanceData({});
+        } else alert("Failed to save attendance");
+      } catch (err) { alert("Server error"); }
+      finally { setIsSavingAttendance(false); }
+    };
+
     return (
-       <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-          <div className="text-4xl mb-3 text-slate-300">✅</div>
-          <h2 className="text-lg font-semibold text-slate-800 mb-1">Attendance Monitoring</h2>
-          <p className="text-sm text-slate-500">Live Attendance feeds connect to the Mapping Studio module.</p>
-       </div>
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              Attendance Monitoring
+              <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">Live</span>
+            </h2>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
+              Currently Viewing: <span className="text-indigo-600 font-bold">{attendanceView}</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+              <button 
+                type="button"
+                onClick={() => setAttendanceView("STUDENTS")}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${attendanceView === "STUDENTS" ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Students
+              </button>
+              <button 
+                type="button"
+                onClick={() => setAttendanceView("STAFF")}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${attendanceView === "STAFF" ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Staff / Faculty
+              </button>
+            </div>
+
+            <select 
+              value={filterCourseDept} 
+              onChange={e => setFilterCourseDept(e.target.value)}
+              className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-xl px-4 py-2.5 focus:border-indigo-500 outline-none shadow-sm transition-all"
+            >
+              <option value="ALL">All Departments</option>
+              {safeDepartments.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+            
+            <button 
+              onClick={handleSaveAttendance} 
+              disabled={isSavingAttendance}
+              className="bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-sm hover:bg-indigo-700 disabled:bg-slate-400"
+            >
+              {isSavingAttendance ? "Locking..." : "Lock Details"}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                <th className="py-4 px-6">{attendanceView === "STUDENTS" ? "Student" : "Staff Member"}</th>
+                <th className="py-4 px-6">ID / Roll No</th>
+                <th className="py-4 px-6">Department</th>
+                <th className="py-4 px-6 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredPeople.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="text-center py-20 text-slate-400 font-medium italic">
+                    No {attendanceView.toLowerCase()} found in {filterCourseDept === "ALL" ? "the database" : filterCourseDept}
+                  </td>
+                </tr>
+              ) : (
+                filteredPeople.map((person, index) => (
+                  <tr key={person?.id || index} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">
+                          {person?.name ? person.name.charAt(0) : '?'}
+                        </div>
+                        <span className="font-bold text-slate-800 text-sm">
+                          {person?.name || "Unknown User"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        {person?.rollNo || person?.employeeId || person?.registerNumber || 'No ID'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-[10px] font-black bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100 uppercase">
+                        {person?.department || "Unassigned"}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex justify-center gap-2">
+                        <button 
+                          onClick={() => setAttendanceData({...attendanceData, [person?.rollNo || person?.employeeId || person?.registerNumber]: true})}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                            attendanceData[person?.rollNo || person?.employeeId || person?.registerNumber] === true 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-600 hover:text-white'
+                          }`}
+                        >
+                          Present
+                        </button>
+                        <button 
+                          onClick={() => setAttendanceData({...attendanceData, [person?.rollNo || person?.employeeId || person?.registerNumber]: false})}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                            attendanceData[person?.rollNo || person?.employeeId || person?.registerNumber] === false 
+                            ? 'bg-rose-600 text-white shadow-md' 
+                            : 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-600 hover:text-white'
+                          }`}
+                        >
+                          Absent
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     );
   };
 
   const renderMarksAndPerformance = () => {
+    const deptFilteredStudents = filterCourseDept === "ALL" 
+      ? (studentList || []) 
+      : (studentList || []).filter(s => s.department === filterCourseDept);
+
+    const filteredStudents = deptFilteredStudents.filter(s => 
+      s?.name?.toLowerCase().includes(studentSearch.toLowerCase()) || 
+      s?.registerNumber?.toLowerCase().includes(studentSearch.toLowerCase())
+    );
+
+    const activeStudent = (studentList || []).find(s => s.registerNumber === selectedStudent);
+
+    const handleSelectStudent = async (regNo) => {
+      setSelectedStudent(regNo);
+      setShowDropdown(false);
+      setIsFetchingMarks(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/student-marks/${regNo}`);
+        setStudentMarks(res.ok ? await res.json() : []);
+      } catch (err) { console.error("Failed to fetch marks"); } 
+      finally { setIsFetchingMarks(false); }
+    };
+
+    const handleUploadMark = async (e) => {
+      e.preventDefault();
+      setIsUploadingMark(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/upload-mark`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            registerNumber: selectedStudent,
+            subjectCode: markSubjectCode,
+            examType,
+            score: parseInt(markScore),
+            maxScore: parseInt(markMaxScore)
+          })
+        });
+        if (res.ok) {
+          setMarkScore("");
+          handleSelectStudent(selectedStudent); // Refresh
+        } else alert("Failed to upload mark");
+      } catch (err) { alert("Server error"); }
+      finally { setIsUploadingMark(false); }
+    };
+
+    const getSubjectName = (code) => {
+      const course = (courseList || []).find(c => c.subjectCode === code);
+      return course ? course.subjectName : code;
+    };
+
     return (
-       <div className="flex flex-col items-center justify-center h-[50vh] text-center">
-          <div className="text-4xl mb-3 text-slate-300">📈</div>
-          <h2 className="text-lg font-semibold text-slate-800 mb-1">Marks & Performance</h2>
-          <p className="text-sm text-slate-500">Upload and configure Academic scores here.</p>
-       </div>
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Academic Records</h2>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Dept:</label>
+            <select 
+              value={filterCourseDept} 
+              onChange={e => {
+                setFilterCourseDept(e.target.value);
+                setSelectedStudent(""); 
+                setStudentMarks([]);
+              }}
+              className="bg-white border-2 border-slate-200 text-xs font-bold text-slate-700 rounded-lg px-3 py-2 outline-none focus:border-blue-400 transition-all shadow-sm"
+            >
+              <option value="ALL">All Departments</option>
+              {(departmentList || []).map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+          <div className="w-full relative max-w-xl">
+            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              Locate Student in {filterCourseDept === "ALL" ? "Institution" : filterCourseDept}
+            </label>
+            {activeStudent ? (
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{activeStudent.name}</p>
+                  <p className="text-xs text-slate-500">{activeStudent.registerNumber} • {activeStudent.department}</p>
+                </div>
+                <button onClick={() => { setSelectedStudent(""); setStudentSearch(""); setStudentMarks([]); }} className="text-slate-400 hover:text-slate-700 p-1">✕</button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input 
+                  type="text" value={studentSearch} 
+                  onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
+                  onFocus={() => setShowDropdown(true)}
+                  className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" 
+                  placeholder={`Search by ID or Name...`} 
+                />
+                <span className="absolute left-3 top-2.5 text-slate-400 text-sm">🔍</span>
+                {showDropdown && studentSearch.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredStudents.length === 0 ? (
+                      <div className="p-3 text-sm text-slate-500 text-center">No records found in {filterCourseDept}</div>
+                    ) : (
+                      filteredStudents.map(student => (
+                        <div key={student.id} onClick={() => handleSelectStudent(student.registerNumber)} className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer transition-colors">
+                          <p className="font-semibold text-slate-800 text-sm">{student.name}</p>
+                          <p className="text-[11px] text-slate-500">{student.registerNumber} • {student.department}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {activeStudent && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6">
+            <h3 className="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 uppercase tracking-wider">Upload Assessment Score</h3>
+            <form onSubmit={handleUploadMark} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Subject</label>
+                <select required value={markSubjectCode} onChange={e => setMarkSubjectCode(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                  <option value="">Select Subject</option>
+                  {(courseList || []).map(c => (
+                    <option key={c.id} value={c.subjectCode}>{c.subjectName} ({c.subjectCode})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Exam Type</label>
+                <select value={examType} onChange={e => setExamType(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400">
+                  <option value="Internal 1">Internal 1</option>
+                  <option value="Internal 2">Internal 2</option>
+                  <option value="Model Exam">Model Exam</option>
+                  <option value="Semester">Semester</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Score Obtained</label>
+                <input type="number" required value={markScore} onChange={e => setMarkScore(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Max Score</label>
+                <input type="number" required value={markMaxScore} onChange={e => setMarkMaxScore(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400" placeholder="100" />
+              </div>
+              <button disabled={isUploadingMark} className="w-full py-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:bg-slate-400">
+                {isUploadingMark ? "Uploading..." : "Upload Marks"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                <th className="py-4 px-5">Subject Details</th>
+                <th className="py-4 px-5 hidden sm:table-cell">Assessment Type</th>
+                <th className="py-4 px-5 text-right">Performance Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!selectedStudent ? (
+                <tr><td colSpan="3" className="text-center py-20 text-slate-400 font-medium">Please select a student from the {filterCourseDept} list above.</td></tr>
+              ) : isFetchingMarks ? (
+                <tr><td colSpan="3" className="text-center py-20 text-blue-500 font-bold animate-pulse tracking-widest">LOADING RECORDS...</td></tr>
+              ) : (studentMarks || []).length === 0 ? (
+                <tr><td colSpan="3" className="text-center py-20 text-slate-400 italic">No scores recorded for {activeStudent?.name} yet.</td></tr>
+              ) : (
+                (studentMarks || []).map((mark) => {
+                  const isPass = (mark.score / mark.maxScore) * 100 >= 50; 
+                  return (
+                    <tr key={mark.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/30 transition-colors">
+                      <td className="py-4 px-5">
+                        <p className="font-bold text-slate-800">{getSubjectName(mark.subjectCode)}</p>
+                        <p className="text-[11px] font-mono text-slate-500 uppercase tracking-tighter">{mark.subjectCode}</p>
+                      </td>
+                      <td className="py-4 px-5 hidden sm:table-cell">
+                        <span className="bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200">{mark.examType}</span>
+                      </td>
+                      <td className="py-4 px-5 text-right">
+                        <div className="flex justify-end items-center gap-4">
+                          <p className="font-black text-slate-800 text-lg">{mark.score} <span className="text-xs text-slate-400 font-normal">/ {mark.maxScore}</span></p>
+                          <div className={`text-[10px] font-black px-2 py-1 rounded w-14 text-center border-2 ${isPass ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                            {isPass ? 'PASS' : 'FAIL'}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     );
   };
 
+  const renderComplaints = () => {
+    const safeComplaints = complaintList || [];
+    const filteredComplaints = filterCourseDept === "ALL" 
+      ? safeComplaints 
+      : safeComplaints.filter(c => c.department === filterCourseDept);
+
+    const handleStatusUpdate = async (id, newStatus) => {
+      try {
+        const res = await fetch(`${apiUrl}/api/host/update-complaint/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (res.ok) fetchData();
+      } catch (err) { console.error("Failed to update status"); }
+    };
+
+    const formatDate = (dateString) => {
+      if (!dateString) return "";
+      return new Date(dateString).toLocaleDateString('en-US', { 
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+      });
+    };
+
+    const pendingCount = filteredComplaints.filter(c => c.status === 'PENDING').length;
+    const resolvedCount = filteredComplaints.filter(c => c.status === 'RESOLVED').length;
+
+    return (
+      <div className="animate-in fade-in duration-500">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Helpdesk Tickets</h2>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm font-medium text-slate-500">Manage and resolve campus issues.</p>
+              <span className="h-4 w-[1px] bg-slate-300"></span>
+              
+              <select 
+                value={filterCourseDept} 
+                onChange={e => setFilterCourseDept(e.target.value)}
+                className="text-xs font-bold text-blue-600 bg-blue-50 border-none rounded px-2 py-1 outline-none cursor-pointer hover:bg-blue-100 transition-colors"
+              >
+                <option value="ALL">All Departments</option>
+                {(departmentList || []).map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex flex-col items-center min-w-[80px]">
+              <span className="text-xl font-bold text-amber-600">{pendingCount}</span>
+              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Pending</span>
+            </div>
+            <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex flex-col items-center min-w-[80px]">
+              <span className="text-xl font-bold text-emerald-600">{resolvedCount}</span>
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Resolved</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+            {filteredComplaints.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="text-5xl mb-4 opacity-30 italic font-serif">
+                  {filterCourseDept === "ALL" ? "✅" : "📂"}
+                </div>
+                <p className="text-slate-400 font-medium">
+                  {filterCourseDept === "ALL" 
+                    ? "Inbox zero. No complaints reported." 
+                    : `No tickets found for ${filterCourseDept}.`}
+                </p>
+              </div>
+            ) : (
+              filteredComplaints.map((ticket) => (
+                <div key={ticket.id} className={`p-6 rounded-2xl border transition-all ${ticket.status === 'RESOLVED' ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-amber-200 shadow-sm'}`}>
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg ${
+                        ticket.userRole === 'STAFF' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {ticket.userRole}
+                      </span>
+                      <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase tracking-tighter">
+                        {ticket.department}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">{formatDate(ticket.submittedAt)}</span>
+                      <span className="text-xs font-medium text-slate-400 border-l border-slate-300 pl-3">By: <span className="font-bold text-slate-700">{ticket.raisedBy}</span></span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <select 
+                        value={ticket.status} 
+                        onChange={(e) => handleStatusUpdate(ticket.id, e.target.value)}
+                        className={`text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border outline-none cursor-pointer appearance-none text-center ${
+                          ticket.status === 'PENDING' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                          ticket.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        <option value="PENDING">PENDING</option>
+                        <option value="IN_PROGRESS">IN PROGRESS</option>
+                        <option value="RESOLVED">RESOLVED</option>
+                      </select>
+                      
+                      <button onClick={() => handleDelete(ticket.id, 'complaint')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-2">{ticket.subject}</h4>
+                    <p className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+ const renderDepartments = () => {
+    const handleAddDept = async (e) => {
+      e.preventDefault();
+      setIsSavingDept(true);
+      try {
+        const res = await fetch(`${apiUrl}/api/host/add-department`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            name: newDeptName,
+            shortForm: newDeptShortForm.toUpperCase(),
+            degree: newDeptDegree,
+            cluster: newDeptCluster
+          })
+        });
+        if (res.ok) {
+          setNewDeptName("");
+          setNewDeptShortForm("");
+          setNewDeptDegree("B.E.");
+          setNewDeptCluster("Core Engineering");
+          fetchData(); 
+        } else {
+          alert("Failed to add. Department might already exist.");
+        }
+      } catch (err) { alert("Server Error"); } 
+      finally { setIsSavingDept(false); }
+    };
+
+    return (
+      <div className="animate-in fade-in duration-500 relative">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight mb-6">Department Master</h2>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          
+          {/* Add Department Form */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 border-b border-slate-100 pb-2 uppercase tracking-wider">Add Department</h3>
+            <form onSubmit={handleAddDept} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Full Name</label>
+                <input 
+                  type="text" required value={newDeptName} onChange={e => setNewDeptName(e.target.value)} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors" 
+                  placeholder="e.g. Computer Science" 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Short Form</label>
+                  <input 
+                    type="text" required value={newDeptShortForm} onChange={e => setNewDeptShortForm(e.target.value)} 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors uppercase" 
+                    placeholder="e.g. CSE" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Degree</label>
+                  <select 
+                    value={newDeptDegree} onChange={e => setNewDeptDegree(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="B.E.">B.E.</option>
+                    <option value="B.Tech">B.Tech</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Cluster</label>
+                <select 
+                  value={newDeptCluster} onChange={e => setNewDeptCluster(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition-colors appearance-none cursor-pointer font-medium text-slate-700"
+                >
+                  <option value="Core Engineering">Core Engineering</option>
+                  <option value="CSE Cluster">CSE Cluster</option>
+                </select>
+              </div>
+
+              <button disabled={isSavingDept} className="w-full py-2.5 mt-2 rounded-lg font-semibold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm disabled:bg-slate-400">
+                {isSavingDept ? "Saving..." : "Register Department"}
+              </button>
+            </form>
+          </div>
+
+          {/* Clickable Department Grid */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Manage Active Departments</h3>
+              <span className="text-[10px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded font-black uppercase tracking-widest">
+                Total: {(departmentList || []).length}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {(departmentList || []).length === 0 ? (
+                <div className="col-span-full text-center py-12 text-slate-400 text-sm font-medium">No departments registered yet.</div>
+              ) : (
+                (departmentList || []).map((dept) => (
+                  <div 
+                    key={dept.id} 
+                    onClick={() => setSelectedDeptDetailForModal(dept)}
+                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 group hover:bg-white hover:border-blue-400 hover:shadow-md transition-all relative flex flex-col items-center text-center gap-2 cursor-pointer"
+                  >
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(dept.id, 'department'); }} 
+                      className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-slate-100 text-slate-400 rounded hover:bg-rose-100 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Delete Department"
+                    >
+                      ✕
+                    </button>
+                    
+                    <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-xl border-4 border-white shadow-sm">
+                      {dept.shortForm ? dept.shortForm : (dept.name ? dept.name.charAt(0) : 'D')}
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800 tracking-wide mt-1">
+                        {dept.shortForm || dept.name}
+                      </h4>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                        {dept.degree || 'B.E/B.Tech'}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* BOTTOM SECTION: Full Demographics Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/80 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Institution Demographics Report</h3>
+            <span className="text-[10px] font-semibold text-slate-500 bg-white px-2.5 py-1 rounded border border-slate-200 uppercase tracking-wider">Click row for full details</span>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm min-w-[600px]">
+              <thead>
+                <tr className="bg-white text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                  <th className="py-4 px-6">Department Name</th>
+                  <th className="py-4 px-6 text-center">Total Students</th>
+                  <th className="py-4 px-6 text-center">Total Staff</th>
+                  <th className="py-4 px-6 text-right">Total Headcount</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {(departmentList || []).length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 font-medium">Add departments to see demographics.</td></tr>
+                ) : (
+                  (departmentList || []).map((dept) => {
+                    const deptStudents = (studentList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
+                    const deptStaff = (staffList || []).filter(s => s.department === dept.name || s.department === dept.shortForm).length;
+                    const totalMembers = deptStudents + deptStaff;
+
+                    return (
+                      <tr 
+                        key={`summary-${dept.id}`} 
+                        onClick={() => setSelectedDemographicDept(dept)} 
+                        className="border-b border-slate-100 hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-6 font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
+                          {dept.name} <span className="text-slate-400 ml-1">({dept.shortForm || 'N/A'})</span>
+                        </td>
+                        <td className="py-3.5 px-6 text-center font-bold text-blue-600 group-hover:scale-110 transition-transform">{deptStudents}</td>
+                        <td className="py-3.5 px-6 text-center font-bold text-indigo-600 group-hover:scale-110 transition-transform">{deptStaff}</td>
+                        <td className="py-3.5 px-6 text-right font-bold text-slate-900 bg-slate-50/30 group-hover:bg-blue-100/50 transition-colors">
+                          {totalMembers} <span className="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-blue-500">→</span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* MODAL 1: DEPARTMENT DETAILS */}
+        {selectedDeptDetailForModal && (
+          <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={() => setSelectedDeptDetailForModal(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200" onClick={e => e.stopPropagation()}>
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-start">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-black text-2xl border-2 border-white shadow-sm">
+                    {selectedDeptDetailForModal.shortForm ? selectedDeptDetailForModal.shortForm.charAt(0) : 'D'}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-xl leading-none tracking-tight">{selectedDeptDetailForModal.shortForm || 'Dept'}</h3>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">ID: {selectedDeptDetailForModal.id}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedDeptDetailForModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all shadow-sm">✕</button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Full Department Name</p>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-800">
+                    {selectedDeptDetailForModal.name}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Program</p>
+                    <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex items-center justify-center">
+                      <p className="font-black text-blue-700 text-base">{selectedDeptDetailForModal.degree || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Cluster Group</p>
+                    <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex items-center justify-center text-center">
+                      <p className="font-black text-indigo-700 text-xs uppercase tracking-wider">{selectedDeptDetailForModal.cluster || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: UPGRADED DEMOGRAPHICS (STUDENTS + STAFF DETAILS) */}
+        {selectedDemographicDept && (
+          <div className="fixed inset-0 bg-slate-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm transition-opacity" onClick={() => setSelectedDemographicDept(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200" onClick={e => e.stopPropagation()}>
+              
+              {/* Modal Header */}
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">{selectedDemographicDept.shortForm || selectedDemographicDept.name}</h3>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Demographic Breakdown</p>
+                </div>
+                <button onClick={() => setSelectedDemographicDept(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all shadow-sm">✕</button>
+              </div>
+
+              {/* Modal Body (Scrollable) */}
+              <div className="p-6 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-8">
+                {(() => {
+                  // Data fetching & calculation
+                  const deptStudents = (studentList || []).filter(s => s.department === selectedDemographicDept.name || s.department === selectedDemographicDept.shortForm);
+                  const deptStaff = (staffList || []).filter(s => s.department === selectedDemographicDept.name || s.department === selectedDemographicDept.shortForm);
+                  
+                  const batchCounts = deptStudents.reduce((acc, student) => {
+                    const b = student.batch || 'Unassigned';
+                    acc[b] = (acc[b] || 0) + 1;
+                    return acc;
+                  }, {});
+                  const sortedBatches = Object.entries(batchCounts).sort((a, b) => a[0].localeCompare(b[0]));
+
+                  return (
+                    <>
+                      {/* SECTION 1: STUDENTS BY BATCH */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center border-b border-slate-100 pb-2">
+                          <span>Student Batches</span>
+                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs">{deptStudents.length} Total</span>
+                        </h4>
+                        
+                        {sortedBatches.length === 0 ? (
+                          <p className="text-center text-slate-400 text-sm py-4 italic">No students enrolled yet.</p>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {sortedBatches.map(([batchName, count]) => (
+                              <div key={batchName} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                                  <span className="font-bold text-slate-700 text-sm">
+                                    {batchName === 'Unassigned' ? 'No Batch Assigned' : `Batch ${batchName}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black text-base text-blue-600">{count}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SECTION 2: STAFF LIST */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex justify-between items-center border-b border-slate-100 pb-2">
+                          <span>Faculty & Staff</span>
+                          <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs">{deptStaff.length} Total</span>
+                        </h4>
+
+                        {deptStaff.length === 0 ? (
+                          <p className="text-center text-slate-400 text-sm py-4 italic">No staff assigned yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {deptStaff.map(staff => (
+                              <div key={staff.id} className="flex justify-between items-center p-3 rounded-lg border border-slate-100 bg-slate-50/80 hover:bg-white hover:border-indigo-200 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold uppercase">
+                                    {staff.name ? staff.name.charAt(0) : 'S'}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-800 text-sm block leading-tight">{staff.name}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                                      {staff.email}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-slate-500 bg-white border border-slate-200 px-2 py-1 rounded shadow-sm">
+                                  {staff.employeeId || staff.registerNumber || 'ID N/A'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* GRAND TOTAL SUMMARY */}
+                      <div className="pt-4 border-t-2 border-slate-200 flex justify-between items-center px-1 bg-slate-50 p-4 rounded-xl">
+                        <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Total Headcount</span>
+                        <span className="font-black text-2xl text-slate-900">{deptStudents.length + deptStaff.length}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  };
   const renderSystemSettings = () => {
-    const handleSaveSettings = (e) => {
+    const handleSaveSettings = async (e) => {
       e.preventDefault();
       setIsSavingSettings(true);
-      setTimeout(() => {
+      try {
+        const res = await fetch(`${apiUrl}/api/host/update-settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            maintenanceMode,
+            registrationOpen,
+            academicYear,
+            currentSemester
+          })
+        });
+        if (res.ok) {
+          alert("System configurations updated successfully!");
+        } else {
+          alert("Failed to update settings");
+        }
+      } catch (err) {
+        alert("Server connection failed");
+      } finally {
         setIsSavingSettings(false);
-        alert("System configurations updated successfully!");
-      }, 800);
+      }
     };
 
     return (
@@ -1075,6 +1798,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
         <form onSubmit={handleSaveSettings} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-4xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             
+            {/* Global Toggles */}
             <div className="space-y-6">
               <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 uppercase tracking-wider">Access Controls</h3>
               
@@ -1099,6 +1823,7 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
               </div>
             </div>
 
+            {/* Academic Timelines */}
             <div className="space-y-6">
               <h3 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2 uppercase tracking-wider">Academic Timeline</h3>
               
@@ -1196,7 +1921,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       </div>
     );
   };
-
   const renderPlaceholder = () => (
     <div className="flex flex-col items-center justify-center h-[50vh] text-center">
       <div className="text-4xl mb-3 text-slate-300">⚙️</div>
@@ -1278,13 +2002,14 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
           {activeMenu === 'Dashboard' && renderDashboard()}
           {activeMenu === 'Departments' && renderDepartments()}
           {activeMenu === 'User Management' && renderUserManagement()}
-          {activeMenu === 'Bulk Data Import' && renderBulkImport()}
           {activeMenu === 'Courses & Subjects' && renderCoursesAndSubjects()}
           {activeMenu === 'Attendance Monitoring' && renderAttendance()}
           {activeMenu === 'Marks & Performance' && renderMarksAndPerformance()}
           {activeMenu === 'Announcements' && renderAnnouncements()}
           {activeMenu === 'Complaints' && renderComplaints()}
           {activeMenu === 'Placement Details' && renderPlacements()}
+          
+          {/* ---> ADD THESE TWO LINES <--- */}
           {activeMenu === 'System Settings' && renderSystemSettings()}
           {activeMenu === 'Security Logs' && renderSecurityLogs()}
 
@@ -1292,7 +2017,6 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
             activeMenu !== 'Dashboard' && 
             activeMenu !== 'Departments' &&
             activeMenu !== 'User Management' && 
-            activeMenu !== 'Bulk Data Import' &&
             activeMenu !== 'Courses & Subjects' && 
             activeMenu !== 'Attendance Monitoring' && 
             activeMenu !== 'Marks & Performance' && 

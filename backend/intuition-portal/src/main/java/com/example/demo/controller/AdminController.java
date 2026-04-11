@@ -34,6 +34,12 @@ import com.example.demo.repository.MarkRepository;
 import com.example.demo.repository.SessionRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
+import com.example.demo.model.Placement;
+import com.example.demo.model.SystemSetting;
+import com.example.demo.model.SecurityLog;
+import com.example.demo.repository.PlacementRepository;
+import com.example.demo.repository.SystemSettingRepository;
+import com.example.demo.repository.SecurityLogRepository;
 
 @RestController
 @RequestMapping("/api/host") 
@@ -69,6 +75,15 @@ public class AdminController {
 
     @Autowired
     private SessionRepository timetableRepository; // Missing in your code, added here!
+
+    @Autowired
+    private PlacementRepository placementRepository;
+
+    @Autowired
+    private SystemSettingRepository systemSettingRepository;
+
+    @Autowired
+    private SecurityLogRepository securityLogRepository;
 
     // ==========================================
     // STATS ENDPOINTS
@@ -250,4 +265,60 @@ public class AdminController {
     public Mark uploadMark(@RequestBody Mark mark) {
         return markRepository.save(mark);
     }
+
+    // ==========================================
+    // PLACEMENT ENDPOINTS
+    // ==========================================
+    @GetMapping("/all-placements")
+    public List<Placement> getAllPlacements() {
+        return placementRepository.findAll();
+    }
+
+    @PostMapping("/add-placement")
+    public Placement addPlacement(@RequestBody Placement placement) {
+        return placementRepository.save(placement);
+    }
+
+    @DeleteMapping("/delete-placement/{id}")
+    public String deletePlacement(@PathVariable Long id) {
+        placementRepository.deleteById(id);
+        return "Placement removed";
+    }
+
+    // ==========================================
+    // SYSTEM SETTINGS ENDPOINTS
+    // ==========================================
+    @GetMapping("/system-settings")
+    public SystemSetting getSystemSettings() {
+        List<SystemSetting> settings = systemSettingRepository.findAll();
+        if (settings.isEmpty()) {
+            SystemSetting defaultSettings = new SystemSetting();
+            defaultSettings.setMaintenanceMode(false);
+            defaultSettings.setRegistrationOpen(true);
+            defaultSettings.setAcademicYear("2024-2025");
+            defaultSettings.setCurrentSemester("ODD");
+            return systemSettingRepository.save(defaultSettings);
+        }
+        return settings.get(0);
+    }
+
+    @PostMapping("/update-settings")
+    public SystemSetting updateSystemSettings(@RequestBody SystemSetting updatedSetting) {
+        systemSettingRepository.deleteAll(); // Keep only one setting object
+        return systemSettingRepository.save(updatedSetting);
+    }
+
+    // ==========================================
+    // SECURITY LOGS ENDPOINTS
+    // ==========================================
+    @GetMapping("/security-logs")
+    public List<SecurityLog> getSecurityLogs() {
+        return securityLogRepository.findAllByOrderByTimeDesc();
+    }
+
+    @PostMapping("/add-security-log")
+    public SecurityLog addSecurityLog(@RequestBody SecurityLog log) {
+        return securityLogRepository.save(log);
+    }
+
 }
