@@ -20,7 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   // Use the local backend or deployed backend
-  const apiUrl = "http://localhost:8080"; // For development, this is perfectly fine. Change to your hosted URL if deployed.
+  const apiUrl = ("http://localhost:8080","https://ominicampus.vercel.app/"); // For development, this is perfectly fine. Change to your hosted URL if deployed.
 
   useEffect(() => {
     // Check if the user is already logged in
