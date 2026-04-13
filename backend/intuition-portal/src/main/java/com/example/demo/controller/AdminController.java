@@ -23,7 +23,7 @@ import com.example.demo.model.Course;
 import com.example.demo.model.Department;
 import com.example.demo.model.Mark;
 import com.example.demo.model.Session;
-import com.example.demo.model.StaffMember; // Make sure this matches your repo name
+import com.example.demo.model.Staff; 
 import com.example.demo.model.Student;
 import com.example.demo.repository.AnnouncementRepository; // Added this!
 import com.example.demo.repository.AttendanceRepository;
@@ -100,12 +100,12 @@ public class AdminController {
     // STAFF ENDPOINTS
     // ==========================================
     @GetMapping("/all-staff")
-    public List<StaffMember> getAllStaff() {
+    public List<Staff> getAllStaff() {
         return staffRepository.findAll();
     }
 
     @PostMapping("/add-staff")
-    public StaffMember addStaff(@RequestBody StaffMember staff) {
+    public Staff addStaff(@RequestBody Staff staff) {
         return staffRepository.save(staff);
     }
 
