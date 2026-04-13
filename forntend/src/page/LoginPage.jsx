@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
 
 const LoginPage = ({ apiUrl, onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -7,6 +9,37 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setIsLoading(true);
+    try {
+      const decoded = jwtDecode(credentialResponse.credential);
+      // For hosts, automatically assign ADMIN role and log them in
+      if (HOST_EMAILS.includes(decoded.email?.toLowerCase())) {
+         localStorage.setItem('erp_token', credentialResponse.credential);
+         localStorage.setItem('erp_role', 'ADMIN');
+         localStorage.setItem('erp_email', decoded.email);
+         localStorage.setItem('erp_name', decoded.name || 'System Admin');
+         onLoginSuccess('ADMIN');
+         return;
+      }
+      
+      // For general google login (mocking finding them in DB to make them STUDENT for now)
+      // Ideally you send this token to /api/auth/google in backend. For now:
+      localStorage.setItem('erp_token', credentialResponse.credential);
+      localStorage.setItem('erp_role', 'STUDENT');
+      localStorage.setItem('erp_email', decoded.email);
+      localStorage.setItem('erp_name', decoded.name);
+      onLoginSuccess('STUDENT');
+      
+    } catch(err) {
+      setError("Failed to decode Google Token.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const roles = [
     { value: 'ADMIN', label: 'Administrator' },
@@ -208,6 +241,22 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
               ) : "Sign In"}
             </button>
           </form>
+          
+          <div className="mt-6 flex items-center justify-center space-x-4">
+              <span className="h-px w-full bg-slate-200"></span>
+              <span className="text-xs text-slate-400 font-bold uppercase">OR</span>
+              <span className="h-px w-full bg-slate-200"></span>
+          </div>
+          
+          <div className="mt-6 flex justify-center">
+             <GoogleLogin 
+                onSuccess={handleGoogleSuccess} 
+                onError={() => setError("Google Login Failed")}
+                type="standard" 
+                theme="outline" 
+                size="large" 
+             />
+          </div>
           
           <div className="mt-8 text-center text-xs text-slate-500">
             &copy; {new Date().getFullYear()} Apex University. All rights reserved.
