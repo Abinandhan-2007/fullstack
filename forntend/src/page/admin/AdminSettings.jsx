@@ -1,0 +1,1 @@
+import React from 'react'; export default function AdminSettings() { return <div>Settings Scaffold</div>; }

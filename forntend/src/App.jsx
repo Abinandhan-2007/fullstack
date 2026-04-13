@@ -20,8 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   // Use the local backend or deployed backend
-  const apiUrl = ("http://localhost:8080","https://ominicampus.vercel.app/"); // For development, this is perfectly fine. Change to your hosted URL if deployed.
-
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080"; // Fallback to 8080. VITE_API_URL to be set in Vercel
   useEffect(() => {
     // Check if the user is already logged in
     const savedToken = localStorage.getItem('erp_token');
@@ -60,7 +59,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
