@@ -99,19 +99,22 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
     { name: 'Security Logs', icon: '🛡️' },
   ];
 
+  const token = localStorage.getItem('erp_token');
+  const authHeaders = { 'Authorization': `Bearer ${token}` };
+
   // Fetch all data
   const fetchData = async () => {
     try {
       const [staffRes, studentRes, statsRes, courseRes, announceRes, deptRes, placeRes, settingsRes, logsRes] = await Promise.all([
-        fetch(`${apiUrl}/api/host/all-staff`),
-        fetch(`${apiUrl}/api/host/all-students`),
-        fetch(`${apiUrl}/api/host/stats`),
-        fetch(`${apiUrl}/api/host/all-courses`),
-        fetch(`${apiUrl}/api/host/all-announcements`),
-        fetch(`${apiUrl}/api/host/all-departments`),
-        fetch(`${apiUrl}/api/host/all-placements`),
-        fetch(`${apiUrl}/api/host/system-settings`),
-        fetch(`${apiUrl}/api/host/security-logs`)
+        fetch(`${apiUrl}/api/host/all-staff`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/all-students`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/stats`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/all-courses`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/all-announcements`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/all-departments`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/all-placements`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/system-settings`, { headers: authHeaders }),
+        fetch(`${apiUrl}/api/host/security-logs`, { headers: authHeaders })
       ]);
 
       if (staffRes.ok) setStaffList(await staffRes.json());
@@ -154,7 +157,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
       });
       
@@ -184,7 +190,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
                    : type === 'department' ? `/api/host/delete-department/${id}`
                    : `/api/host/delete-student/${id}`;
     try {
-      const res = await fetch(`${apiUrl}${endpoint}`, { method: "DELETE" });
+      const res = await fetch(`${apiUrl}${endpoint}`, { 
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
       if (res.ok) fetchData();
     } catch (err) { console.error("Error deleting"); }
   };
@@ -420,8 +429,11 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       try {
         const res = await fetch(`${apiUrl}/api/host/post-announcement`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
             title: announcementTitle, 
             message: announcementMessage, 
             targetAudience: announcementAudience,
@@ -553,7 +565,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       try {
         const res = await fetch(`${apiUrl}/api/host/add-placement`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify({
             companyName, jobRole, ctc: parseFloat(ctc) || 0,
             placedStudents: parseInt(placedStudentsCount) || 0,
@@ -772,7 +787,10 @@ export default function AdminPortal({ handleLogout, apiUrl, user }) {
       try {
         const res = await fetch(`${apiUrl}/api/host/add-course`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
           body: JSON.stringify({ subjectName, subjectCode, credits: parseInt(credits), department: courseDepartment })
         });
         if (res.ok) {
