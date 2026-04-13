@@ -189,11 +189,28 @@ function StaffPortalContent({ handleLogout, apiUrl, loggedInEmail }) {
 
   const submitAttendance = async () => {
     setSubmitStatus("Submitting...");
+    if (!activeSession) return;
+    
+    // Prepare data payload for Spring Boot backend
+    const records = Object.keys(attendanceRecord).map(roll => ({
+      registerNumber: roll,
+      subjectCode: activeSession.subjectCode || "GENERAL",
+      date: new Date().toISOString().split('T')[0],
+      isPresent: attendanceRecord[roll] !== "Absent"
+    }));
+
     try {
-      setTimeout(() => {
+      const res = await fetch(`${apiUrl}/api/host/save-attendance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(records)
+      });
+      if (res.ok) {
         setSubmitStatus("Success");
         setTimeout(() => { setActiveSession(null); setSubmitStatus(null); setActiveMenu('Dashboard'); }, 1500);
-      }, 1000);
+      } else {
+        setSubmitStatus("Error");
+      }
     } catch (err) { setSubmitStatus("Error"); }
   };
 

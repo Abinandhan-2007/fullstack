@@ -21,7 +21,15 @@ const StudentPortal = ({ user, handleLogout }) => {
         if (res.ok) {
           const allStudents = await res.json();
           const myData = allStudents.find(s => s.email.toLowerCase() === user.email.toLowerCase());
-          if (myData) setStudentProfile(myData);
+          if (myData) {
+            setStudentProfile(myData);
+            setIsFetchingMarks(true);
+            try {
+              const marksRes = await fetch(`${apiUrl}/api/host/student-marks/${myData.registerNumber}`);
+              if (marksRes.ok) setMyMarks(await marksRes.json());
+            } catch (ignore) {}
+            setIsFetchingMarks(false);
+          }
         }
       } catch (err) { console.error("Failed to fetch student profile", err); }
     };
@@ -88,8 +96,29 @@ const StudentPortal = ({ user, handleLogout }) => {
   );
 
   const renderDashboard = () => {
+    const activeMarks = myMarks || [];
+    
+    let arrearCount = 0;
+    let totalScore = 0;
+    let totalMax = 0;
+
+    activeMarks.forEach(m => {
+       const isPass = (m.score / m.maxScore) * 100 >= 50;
+       if (!isPass) arrearCount++;
+       totalScore += m.score;
+       totalMax += m.maxScore;
+    });
+
+    const calculatedCgpa = totalMax > 0 ? ((totalScore / totalMax) * 10).toFixed(2) : "0.0";
+    
     const studentStats = {
-      mentorName: "Dr. Faculty Assigned", currentSemester: "Active Semester", attendancePercentage: 88.5, totalSubjects: 6, arrearCount: 0, sgpa: 8.42, cgpa: 8.55
+      mentorName: "Faculty Assigned", 
+      currentSemester: "Active Semester", 
+      attendancePercentage: 100, 
+      totalSubjects: activeMarks.length, 
+      arrearCount: arrearCount, 
+      sgpa: calculatedCgpa, 
+      cgpa: calculatedCgpa
     };
 
     return (
