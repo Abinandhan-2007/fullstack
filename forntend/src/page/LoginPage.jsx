@@ -73,10 +73,14 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
         localStorage.setItem('erp_name', data.name);
         onLoginSuccess(data.role);
       } else {
-        setError('Invalid credentials. Please try again.');
+        setError('Invalid credentials. Please check your email, password, and chosen role.');
       }
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+         setError('Network Error: Cannot connect to the server. Is your backend running?');
+      } else {
+         setError('An error occurred during login. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
