@@ -19,6 +19,7 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [loggedInEmail, setLoggedInEmail] = useState(null);
   const [userName, setUserName] = useState(null);
+  const [linkedId, setLinkedId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Use the local backend or deployed backend
@@ -35,6 +36,7 @@ export default function App() {
       setRole(savedRole);
       setLoggedInEmail(savedEmail);
       setUserName(savedName);
+      setLinkedId(localStorage.getItem('erp_linked_id'));
     }
     setLoading(false);
   }, []);
@@ -44,6 +46,7 @@ export default function App() {
     setRole(userRole);
     setLoggedInEmail(localStorage.getItem('erp_email'));
     setUserName(localStorage.getItem('erp_name'));
+    setLinkedId(localStorage.getItem('erp_linked_id'));
   };
 
   const handleLogout = () => {
@@ -55,6 +58,7 @@ export default function App() {
     setToken(null);
     setLoggedInEmail(null);
     setUserName(null);
+    setLinkedId(null);
     window.location.reload();
   };
 
@@ -72,7 +76,8 @@ export default function App() {
     apiUrl,
     loggedInEmail,
     token,
-    userName
+    userName,
+    linkedId
   };
 
   if (!role || !token) {
@@ -81,7 +86,10 @@ export default function App() {
 
   // --- ROUTER LOGIC ---
   const renderPortal = () => {
-    switch (role?.toUpperCase()) {
+    // Standardize role by removing ROLE_ prefix if present
+    const normalizedRole = role?.toUpperCase().replace('ROLE_', '');
+
+    switch (normalizedRole) {
       case 'ADMIN':
         return <AdminPortal {...portalProps} />;
       case 'STAFF':

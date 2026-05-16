@@ -1,67 +1,74 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../../api';
+import { useTheme } from '../../context/ThemeContext';
 
-export default function StaffAdminVenueManagement() {
-  const venues = [
-     { id: '1', name: 'Lab 4 (Systems)', type: 'Laboratory', capacity: 60, status: 'Occupied', current: 'Dr. Hopper (CS501)' },
-     { id: '2', name: 'Room 205', type: 'Lecture Hall', capacity: 120, status: 'Available', current: '-' },
-     { id: '3', name: 'Seminar Hall 2', type: 'Auditorium', capacity: 250, status: 'Booked', current: 'Guest Lecture (2 PM)' },
-  ];
+export default function StaffAdminVenueManagement({ apiUrl, token, user }) {
+  const { isDark } = useTheme();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/staff-admin/venues');
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Venue Management</h1>
-            <p className="text-slate-500 font-medium">Classrooms, labs, and seminar halls booking.</p>
-         </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight italic underline decoration-sky-500">Institutional Infrastructure Registry</h1>
+          <p className="text-slate-500 dark:text-gray-400 text-sm">Centralized management of lecture halls, specialized laboratories and seminar venues</p>
+        </div>
+        <button className="px-6 py-3 bg-sky-600 text-white rounded-xl font-bold shadow-xl flex items-center gap-2">
+           <span>📍</span> Register New Venue
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-x-auto">
-             <table className="w-full text-left border-collapse min-w-[600px]">
-                 <thead><tr className="border-b-2 border-slate-100">
-                     <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Venue</th>
-                     <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Capacity</th>
-                     <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Status</th>
-                     <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Current / Next</th>
-                     <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px] text-right">Action</th>
-                 </tr></thead>
-                 <tbody>
-                      {venues.map(v => (
-                          <tr key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                              <td className="py-4 font-bold text-slate-800">{v.name} <br/><span className="text-[10px] font-black text-slate-400">{v.type}</span></td>
-                              <td className="py-4 font-black tracking-widest text-slate-500">{v.capacity} Seats</td>
-                              <td className="py-4">
-                                  <span className={`px-2 py-1 text-[10px] font-black uppercase tracking-widest rounded-md ${v.status === 'Available' ? 'bg-emerald-50 text-emerald-600' : v.status === 'Booked' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>{v.status}</span>
-                              </td>
-                              <td className="py-4 font-bold text-slate-600">{v.current}</td>
-                              <td className="py-4 text-right">
-                                  {v.status === 'Available' && <button className="text-indigo-600 font-bold text-sm hover:underline">Book Now</button>}
-                              </td>
-                          </tr>
-                      ))}
-                 </tbody>
-             </table>
-         </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {data.map((venue, idx) => (
+          <div key={idx} className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col relative group hover:border-sky-500 transition-all overflow-hidden">
+             <div className="flex justify-between items-start mb-6 relative z-10">
+                <div className="w-14 h-14 bg-slate-50 dark:bg-gray-800 text-sky-600 rounded-2xl flex items-center justify-center text-3xl shadow-inner font-black italic">
+                   {venue.type === 'LAB' ? '🧪' : '🏫'}
+                </div>
+                <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                  venue.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                }`}>
+                   {venue.status || 'ACTIVE'}
+                </span>
+             </div>
+             
+             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1 italic leading-tight group-hover:text-sky-600 transition-colors">{venue.name}</h3>
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{venue.location || 'Science Block'}</p>
+             
+             <div className="mt-8 space-y-4 flex-1 relative z-10">
+                <div className="flex justify-between items-center border-b border-slate-50 dark:border-gray-800 pb-3">
+                   <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Max Capacity</p>
+                   <p className="text-sm font-black text-slate-800 dark:text-white italic">{venue.capacity || 60} Pax</p>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                   {['WIFI', 'AC', 'PROJECTOR'].map(f => (
+                     <span key={f} className="px-2 py-0.5 bg-slate-50 dark:bg-gray-800 text-[8px] font-black text-slate-400 rounded border border-slate-100 dark:border-gray-700">{f}</span>
+                   ))}
+                </div>
+             </div>
 
-         <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
-             <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Quick Book</h3>
-             <form className="space-y-4">
-                 <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Venue</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-indigo-500"><option>Room 205</option></select>
-                 </div>
-                 <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Date</label>
-                    <input type="date" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-indigo-500" />
-                 </div>
-                 <div>
-                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Purpose</label>
-                    <input className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-indigo-500" placeholder="e.g. Extra Class" />
-                 </div>
-                 <button type="button" className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-md hover:bg-indigo-700 transition">Confirm Booking</button>
-             </form>
-         </div>
+             <div className="mt-10 flex gap-2 pt-6 border-t border-slate-50 dark:border-gray-800 relative z-10">
+                <button className="flex-1 py-3 bg-slate-100 dark:bg-gray-800 text-slate-500 dark:text-gray-400 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-sky-600 hover:text-white transition-all shadow-sm">View Schedule</button>
+                <button className="px-4 py-3 bg-slate-100 dark:bg-gray-800 text-slate-400 rounded-xl hover:text-sky-600 transition-all">⚙️</button>
+             </div>
+             
+             <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-sky-500/5 rounded-full group-hover:scale-150 transition-transform"></div>
+          </div>
+        ))}
       </div>
     </div>
   );

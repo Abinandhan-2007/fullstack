@@ -1,292 +1,157 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Chart from 'chart.js/auto';
-import api from '../api';
+import React, { useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
 
-export default function StaffPortal({ loggedInEmail, handleLogout }) {
-  const [activeTab, setActiveTab] = useState('Workspace');
-  const [profile, setProfile] = useState(null);
-  const [timetable, setTimetable] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [marks, setMarks] = useState([]);
-  const [leaveHistory, setLeaveHistory] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  
-  const [loading, setLoading] = useState({});
-  const [errors, setErrors] = useState({});
-  const fetchedTabs = useRef(new Set());
+// Import Modular Components
+import StaffDashboard from './staff/StaffDashboard';
+import StaffMarkEntry from './staff/StaffMarkEntry';
+import StaffAttendanceEntry from './staff/StaffAttendanceEntry';
+import StaffTimetable from './staff/StaffTimetable';
+import StaffStudentRecords from './staff/StaffStudentRecords';
+import StaffClassPerformance from './staff/StaffClassPerformance';
+import StaffAttendanceAnalytics from './staff/StaffAttendanceAnalytics';
+import StaffLeave from './staff/StaffLeave';
+import StaffProfile from './staff/StaffProfile';
+import StaffPayslip from './staff/StaffPayslip';
+import StaffAnnouncements from './staff/StaffAnnouncements';
+import StaffEvents from './staff/StaffEvents';
 
-  // Form states
-  const [markEntryForm, setMarkEntryForm] = useState({ subject: '', examType: 'CAT-1', year: '1' });
-  const [attendanceForm, setAttendanceForm] = useState({ subject: '', date: new Date().toISOString().split('T')[0], section: 'A' });
-  const [leaveForm, setLeaveForm] = useState({ type: 'Casual', from: '', to: '', reason: '' });
+export default function StaffPortal({ handleLogout, apiUrl, user, token, userName, loggedInEmail, linkedId }) {
+  const { isDark, toggleTheme } = useTheme();
+  const [activeMenu, setActiveMenu] = useState('Dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Role guard
-  useEffect(() => {
-    const role = localStorage.getItem('erp_role');
-    if (role !== 'ROLE_STAFF' && role?.toUpperCase() !== 'STAFF') window.location.href = '/';
-  }, []);
+  // Common Props to pass down to sub-modules
+  const moduleProps = { apiUrl, token, user: { name: userName, email: loggedInEmail }, linkedId };
 
-  const showToast = (msg) => { alert(msg); };
+  const menuItems = [
+    { name: 'Dashboard', icon: '🏠', category: 'Main' },
+    { name: 'Mark Entry', icon: '📝', category: 'Academic' },
+    { name: 'Attendance Entry', icon: '✅', category: 'Academic' },
+    { name: 'My Timetable', icon: '🕒', category: 'Academic' },
+    { name: 'Student Records', icon: '👥', category: 'Academic' },
+    { name: 'Class Performance', icon: '📊', category: 'Analytics' },
+    { name: 'Attendance Analytics', icon: '📈', category: 'Analytics' },
+    { name: 'Leave Application', icon: '📋', category: 'Personal' },
+    { name: 'My Profile', icon: '👤', category: 'Personal' },
+    { name: 'My Payslip', icon: '💰', category: 'Personal' },
+    { name: 'Announcements', icon: '📢', category: 'General' },
+    { name: 'Events', icon: '📅', category: 'General' },
+  ];
 
-  const fetchData = async (key, apiCall, setter) => {
-    setLoading(prev => ({ ...prev, [key]: true }));
-    setErrors(prev => ({ ...prev, [key]: null }));
-    try {
-      const res = await apiCall();
-      setter(res.data);
-      return res.data;
-    } catch (err) {
-      setErrors(prev => ({ ...prev, [key]: err.message || 'Failed' }));
-      return null;
-    } finally {
-      setLoading(prev => ({ ...prev, [key]: false }));
-    }
-  };
+  const categories = ['Main', 'Academic', 'Analytics', 'Personal', 'General'];
 
-  useEffect(() => {
-    if (!profile) {
-      fetchData('profile', () => api.get('/staff/profile'), setProfile).then(data => {
-        if (!data) setProfile({ name: 'Staff User', designation: 'Assistant Professor', department: 'CSE', staffId: 'STF1001' }); // Mock fallback if API fails so UI loads
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!profile || fetchedTabs.current.has(activeTab)) return;
-    
-    if (activeTab === 'Workspace') {
-      fetchData('timetable', () => api.get(`/timetable/staff/${profile.staffId}`), setTimetable);
-      fetchData('leave', () => api.get(`/leave/staff/${profile.staffId}`), setLeaveHistory);
-      fetchedTabs.current.add('Workspace');
-    }
-    else if (activeTab === 'My Timetable') {
-      fetchData('timetable', () => api.get(`/timetable/staff/${profile.staffId}`), setTimetable);
-      fetchedTabs.current.add('My Timetable');
-    }
-    else if (activeTab === 'Leave Application') {
-      fetchData('leave', () => api.get(`/leave/staff/${profile.staffId}`), setLeaveHistory);
-      fetchedTabs.current.add('Leave Application');
-    }
-    else if (activeTab === 'Student Records') {
-      fetchData('students', () => api.get(`/staff/students/${profile.staffId}`), setStudents);
-      fetchedTabs.current.add('Student Records');
-    }
-    else if (activeTab === 'Announcements') {
-      fetchData('announcements', () => api.get('/announcements'), setAnnouncements);
-      fetchedTabs.current.add('Announcements');
-    }
-  }, [activeTab, profile]);
-
-  const loadStudentsForMarks = () => fetchData('markEntry', () => api.get(`/students/by-subject/${markEntryForm.subject}`), setStudents);
-  const loadStudentsForAttendance = () => fetchData('attEntry', () => api.get(`/students/by-subject/${attendanceForm.subject}`), setStudents);
-
-  const handleMarkSubmit = async () => {
-    try {
-      await api.post('/marks/upload', marks);
-      showToast('Marks uploaded successfully');
-    } catch(err) { showToast('Upload failed'); }
-  };
-
-  const handleAttendanceSubmit = async () => {
-    try {
-      await api.post('/attendance/mark', students);
-      showToast('Attendance submitted');
-    } catch(err) { showToast('Submit failed'); }
-  };
-
-  const handleLeaveSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const days = Math.ceil((new Date(leaveForm.to) - new Date(leaveForm.from)) / 86400000) + 1;
-      await api.post('/leave/apply', { ...leaveForm, staffId: profile.staffId, days });
-      showToast('Leave applied successfully');
-      setLeaveForm({ type: 'Casual', from: '', to: '', reason: '' });
-      fetchData('leave', () => api.get(`/leave/staff/${profile.staffId}`), setLeaveHistory);
-    } catch(err) { showToast('Leave application failed'); }
-  };
-
-  const Loader = () => <div className="p-6 animate-pulse space-y-4"><div className="h-4 bg-gray-800 rounded w-1/4"></div><div className="h-32 bg-gray-800 rounded w-full"></div></div>;
-  const ErrorCard = ({ msg, retryKey }) => <div className="p-6 text-center text-red-500 bg-red-950/20 rounded-xl border border-red-900/50">{msg} <button onClick={() => fetchedTabs.current.delete(retryKey)} className="ml-2 underline">Retry</button></div>;
-
-  const renderContent = () => {
-    if (!profile) return <Loader />;
-
-    switch(activeTab) {
-      case 'Workspace':
-        return (
-          <div className="space-y-6">
-            <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-white">Welcome back, {profile.name}</h2>
-                <p className="text-gray-400">{profile.designation} • {profile.department} • {profile.staffId}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Classes Today</div><div className="text-3xl font-black text-purple-500">{timetable.length || 0}</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Total Students</div><div className="text-3xl font-black text-white">120</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Pending Leaves</div><div className="text-3xl font-black text-amber-500">{leaveHistory.filter(l=>l.status==='PENDING').length}</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Marks Pending Entry</div><div className="text-3xl font-black text-red-500">2</div></div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-96 overflow-auto"><h3 className="font-bold text-white mb-4">Today's Schedule</h3>
-                {timetable.map((t,i) => <div key={i} className="p-3 bg-gray-950 rounded-xl mb-3 border border-gray-800"><div className="font-bold text-purple-400">{t.subject}</div><div className="text-xs text-gray-500">P{t.period} • {t.room}</div></div>)}
-              </div>
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-96 overflow-auto"><h3 className="font-bold text-white mb-4">Recent Mark Entries</h3><p className="text-gray-500 text-sm">No recent entries</p></div>
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-96 overflow-auto"><h3 className="font-bold text-white mb-4">Leave Status</h3>
-                {leaveHistory.map((l,i) => <div key={i} className="p-3 bg-gray-950 rounded-xl mb-3 border border-gray-800"><div className="font-bold text-white">{l.type}</div><div className="text-xs text-gray-500">{l.from} to {l.to}</div><span className="text-xs text-amber-500">{l.status}</span></div>)}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'Mark Entry':
-        return (
-          <div className="space-y-6">
-            <div className="flex gap-4 p-4 bg-gray-900 border border-gray-800 rounded-xl">
-              <input type="text" placeholder="Subject Code" className="px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={markEntryForm.subject} onChange={e=>setMarkEntryForm({...markEntryForm,subject:e.target.value})} />
-              <select className="px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={markEntryForm.examType} onChange={e=>setMarkEntryForm({...markEntryForm,examType:e.target.value})}><option>CAT-1</option><option>SEMESTER</option></select>
-              <button onClick={loadStudentsForMarks} className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl">Load Students</button>
-            </div>
-            {loading.markEntry ? <Loader /> : students.length > 0 && (
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-gray-800 flex justify-between">
-                  <button className="px-4 py-1.5 bg-gray-800 text-white rounded font-bold text-sm">Set Max Score All</button>
-                  <button onClick={handleMarkSubmit} className="px-4 py-1.5 bg-green-600 text-white rounded font-bold text-sm">Submit Marks</button>
-                </div>
-                <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
-                  <thead className="bg-gray-950 border-b border-gray-800 uppercase text-xs text-gray-500">
-                    <tr><th className="p-4">Reg No</th><th className="p-4">Name</th><th className="p-4">Max Score</th><th className="p-4">Score</th><th className="p-4">Grade</th><th className="p-4">Absent</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {students.map((s,i) => (
-                      <tr key={i} className="hover:bg-gray-800/50">
-                        <td className="p-4 font-bold text-white">{s.regNo}</td><td className="p-4">{s.name}</td>
-                        <td className="p-4"><input type="number" className="w-20 px-2 py-1 bg-gray-950 border border-gray-700 rounded text-white" /></td>
-                        <td className="p-4"><input type="number" className="w-20 px-2 py-1 bg-gray-950 border border-gray-700 rounded text-white" /></td>
-                        <td className="p-4 font-bold text-purple-400">-</td>
-                        <td className="p-4"><input type="checkbox" className="rounded" /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'Attendance Entry':
-        return (
-          <div className="space-y-6">
-            <div className="flex gap-4 p-4 bg-gray-900 border border-gray-800 rounded-xl">
-              <input type="text" placeholder="Subject" className="px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={attendanceForm.subject} onChange={e=>setAttendanceForm({...attendanceForm,subject:e.target.value})} />
-              <input type="date" className="px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={attendanceForm.date} onChange={e=>setAttendanceForm({...attendanceForm,date:e.target.value})} />
-              <button onClick={loadStudentsForAttendance} className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl">Load Students</button>
-            </div>
-            {loading.attEntry ? <Loader /> : students.length > 0 && (
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                  <div className="flex gap-2">
-                     <button className="px-4 py-1.5 bg-green-900/50 text-green-500 border border-green-900 rounded font-bold text-sm">Mark All Present</button>
-                     <button className="px-4 py-1.5 bg-red-900/50 text-red-500 border border-red-900 rounded font-bold text-sm">Mark All Absent</button>
-                  </div>
-                  <button onClick={handleAttendanceSubmit} className="px-4 py-1.5 bg-purple-600 text-white rounded font-bold text-sm">Submit Attendance</button>
-                </div>
-                <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
-                  <thead className="bg-gray-950 border-b border-gray-800 uppercase text-xs text-gray-500">
-                    <tr><th className="p-4">Reg No</th><th className="p-4">Name</th><th className="p-4 text-center">Status (Toggle)</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {students.map((s,i) => (
-                      <tr key={i} className="hover:bg-gray-800/50">
-                        <td className="p-4 font-bold text-white">{s.regNo}</td><td className="p-4">{s.name}</td>
-                        <td className="p-4 text-center"><button className="w-8 h-8 rounded-full bg-green-500 text-white font-bold">P</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'Leave Application':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <form onSubmit={handleLeaveSubmit} className="bg-gray-900 p-6 rounded-2xl border border-gray-800 h-fit space-y-4">
-              <h2 className="font-bold text-white mb-4">Apply Leave</h2>
-              <select required className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={leaveForm.type} onChange={e=>setLeaveForm({...leaveForm,type:e.target.value})}><option>Casual</option><option>Medical</option><option>Duty</option></select>
-              <input required type="date" className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-gray-400" value={leaveForm.from} onChange={e=>setLeaveForm({...leaveForm,from:e.target.value})} />
-              <input required type="date" className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-gray-400" value={leaveForm.to} onChange={e=>setLeaveForm({...leaveForm,to:e.target.value})} />
-              <textarea required rows="3" placeholder="Reason" className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" value={leaveForm.reason} onChange={e=>setLeaveForm({...leaveForm,reason:e.target.value})}></textarea>
-              <button type="submit" className="w-full py-2 bg-purple-600 text-white font-bold rounded-xl">Submit Leave</button>
-            </form>
-            <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden h-[500px] flex flex-col">
-              <h2 className="p-4 border-b border-gray-800 font-bold text-white">Leave History</h2>
-              <div className="flex-1 overflow-auto">
-                {loading.leave ? <Loader/> : errors.leave ? <ErrorCard msg={errors.leave} retryKey="Leave Application" /> : (
-                  <table className="w-full text-left text-sm text-gray-300">
-                    <thead className="bg-gray-950 text-gray-500 uppercase text-xs sticky top-0"><tr><th className="p-4">Type</th><th className="p-4">From</th><th className="p-4">To</th><th className="p-4">Days</th><th className="p-4">Status</th></tr></thead>
-                    <tbody className="divide-y divide-gray-800">
-                      {leaveHistory.map((l,i) => <tr key={i}><td className="p-4 font-bold text-white">{l.type}</td><td className="p-4">{l.from}</td><td className="p-4">{l.to}</td><td className="p-4">{l.days}</td><td className="p-4"><span className="px-2 py-1 text-xs rounded bg-gray-800 text-gray-300">{l.status}</span></td></tr>)}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'Announcements':
-        return (
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 min-h-[500px]">
-             <h2 className="font-bold text-white mb-6">Announcements Feed</h2>
-             {loading.announcements ? <Loader/> : errors.announcements ? <ErrorCard msg={errors.announcements} retryKey="Announcements" /> : (
-               <div className="space-y-4">
-                 {announcements.map((a,i) => (
-                   <div key={i} className="p-4 border border-gray-800 rounded-xl bg-gray-950">
-                     <div className="flex justify-between items-start mb-2"><h3 className="font-bold text-purple-400">{a.title}</h3><span className="text-[10px] uppercase bg-gray-800 text-gray-300 px-2 rounded">{a.priority}</span></div>
-                     <p className="text-sm text-gray-400 whitespace-pre-wrap">{a.message}</p>
-                   </div>
-                 ))}
-                 {!announcements.length && <p className="text-gray-500">No announcements</p>}
-               </div>
-             )}
-          </div>
-        );
-
-      default: return <div className="text-gray-400">Section under construction</div>;
+  const renderActiveModule = () => {
+    switch (activeMenu) {
+      case 'Dashboard': return <StaffDashboard {...moduleProps} />;
+      case 'Mark Entry': return <StaffMarkEntry {...moduleProps} />;
+      case 'Attendance Entry': return <StaffAttendanceEntry {...moduleProps} />;
+      case 'My Timetable': return <StaffTimetable {...moduleProps} />;
+      case 'Student Records': return <StaffStudentRecords {...moduleProps} />;
+      case 'Class Performance': return <StaffClassPerformance {...moduleProps} />;
+      case 'Attendance Analytics': return <StaffAttendanceAnalytics {...moduleProps} />;
+      case 'Leave Application': return <StaffLeave {...moduleProps} />;
+      case 'My Profile': return <StaffProfile {...moduleProps} />;
+      case 'My Payslip': return <StaffPayslip {...moduleProps} />;
+      case 'Announcements': return <StaffAnnouncements {...moduleProps} />;
+      case 'Events': return <StaffEvents {...moduleProps} />;
+      default: return <div className="p-10 text-center text-slate-500 dark:text-slate-400">Module under construction</div>;
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-200 font-sans overflow-hidden">
-      <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-        <div className="p-6 border-b border-gray-800 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gray-800 text-purple-500 flex items-center justify-center font-black border-2 border-purple-500">ST</div>
-          <div><h2 className="font-bold text-white leading-tight">Staff Portal</h2><p className="text-xs text-gray-500">Anti-Gravity ERP</p></div>
+    <div className="flex h-screen bg-[#F8FAFC] dark:bg-gray-950 font-sans overflow-hidden transition-colors duration-200">
+      
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/60 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800 z-30 transform transition-transform duration-300 ease-in-out flex flex-col shadow-xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner shadow-white/20">S</div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">Intuition</h1>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-widest mt-1">Staff Portal</p>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-gray-300 text-2xl">&times;</button>
         </div>
-        <div className="flex-1 overflow-y-auto py-4">
-          <div className="px-6 mb-2 text-xs font-bold text-gray-500 uppercase tracking-widest">Main</div>
-          {['Workspace', 'My Timetable', 'Leave Application'].map(tab => (
-            <button key={tab} onClick={()=>setActiveTab(tab)} className={`w-full text-left px-6 py-2.5 text-sm font-semibold transition-colors ${activeTab===tab?'bg-purple-500/10 text-purple-400 border-r-4 border-purple-500':'text-gray-400 hover:text-white hover:bg-gray-800'}`}>{tab}</button>
+
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8 custom-scrollbar">
+          {categories.map(category => (
+            <div key={category}>
+              <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2">{category}</p>
+              <ul className="space-y-1">
+                {menuItems.filter(item => item.category === category).map((item) => (
+                  <li key={item.name}>
+                    <button
+                      onClick={() => { setActiveMenu(item.name); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                        activeMenu === item.name
+                          ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                          : 'text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <span className="text-lg opacity-80">{item.icon}</span>
+                      {item.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-          <div className="px-6 mb-2 mt-6 text-xs font-bold text-gray-500 uppercase tracking-widest">Academic</div>
-          {['Mark Entry', 'Attendance Entry', 'Student Records'].map(tab => (
-            <button key={tab} onClick={()=>setActiveTab(tab)} className={`w-full text-left px-6 py-2.5 text-sm font-semibold transition-colors ${activeTab===tab?'bg-purple-500/10 text-purple-400 border-r-4 border-purple-500':'text-gray-400 hover:text-white hover:bg-gray-800'}`}>{tab}</button>
-          ))}
-          <div className="px-6 mb-2 mt-6 text-xs font-bold text-gray-500 uppercase tracking-widest">Admin</div>
-          {['Announcements', 'Profile'].map(tab => (
-            <button key={tab} onClick={()=>setActiveTab(tab)} className={`w-full text-left px-6 py-2.5 text-sm font-semibold transition-colors ${activeTab===tab?'bg-purple-500/10 text-purple-400 border-r-4 border-purple-500':'text-gray-400 hover:text-white hover:bg-gray-800'}`}>{tab}</button>
-          ))}
+        </nav>
+        
+        <div className="p-4 border-t border-slate-100 dark:border-gray-800 shrink-0">
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 font-bold rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/40 transition"
+          >
+            Sign Out Session
+          </button>
         </div>
-        <div className="p-4 border-t border-gray-800">
-          <button onClick={()=>{localStorage.clear(); window.location.href='/';}} className="w-full py-2.5 bg-gray-800 hover:bg-red-900/50 hover:text-red-400 text-gray-400 font-bold rounded-xl transition-colors">Logout</button>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Top Header */}
+        <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm relative z-10 transition-colors duration-200">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 -ml-2 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight hidden sm:block">{activeMenu}</h2>
+          </div>
+          
+          <div className="flex items-center gap-6">
+             {/* Theme Toggle */}
+             <button 
+                onClick={toggleTheme}
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
+             >
+                {isDark ? '☀️' : '🌙'}
+             </button>
+
+             <div className="hidden md:block text-right">
+                <p className="text-sm font-bold text-slate-800 dark:text-white">{userName || 'Staff member'}</p>
+                <p className="text-[10px] uppercase font-bold text-emerald-500 tracking-widest flex items-center justify-end gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ACTIVE</p>
+             </div>
+             <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/30 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 cursor-pointer shadow-sm">
+                👤
+             </div>
+          </div>
+        </header>
+
+        {/* Scrollable Module Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+           {renderActiveModule()}
         </div>
-      </div>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0"><h1 className="text-xl font-black text-white">{activeTab}</h1></div>
-        <div className="flex-1 overflow-y-auto p-8">{renderContent()}</div>
-      </div>
+      </main>
     </div>
   );
 }

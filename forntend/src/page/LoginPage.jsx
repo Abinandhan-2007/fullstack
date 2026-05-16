@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = ({ apiUrl, onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('STUDENT');
@@ -10,54 +12,64 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const HOST_EMAILS = ["kvabhinanthan@gmail.com", "sivanagu7771@gmail.com"];
-
   const handleGoogleSuccess = async (credentialResponse) => {
     setIsLoading(true);
+    setError('');
     try {
       const decoded = jwtDecode(credentialResponse.credential);
       const email = decoded.email;
 
-      // Call backend to get role
-      const res = await fetch(`${apiUrl}/api/auth/google-login`, {
+      const response = await fetch(`${apiUrl}/api/auth/google-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, googleToken: credentialResponse.credential })
       });
 
-      if (!res.ok) {
-        throw new Error("Unauthorized user");
-      }
+      if (!response.ok) throw new Error("Unauthorized user");
 
-      const data = await res.json();
-
-      // Store in localStorage
+      const data = await response.json();
       localStorage.setItem('erp_token', data.token);
       localStorage.setItem('erp_role', data.role);
       localStorage.setItem('erp_email', email);
       localStorage.setItem('erp_name', data.name || decoded.name);
+      localStorage.setItem('erp_linked_id', data.linkedId);
 
-      // Tell App.jsx we logged in successfully
+      // Role routes mapping
+      const roleRoutes = {
+        ROLE_STUDENT:   '/student',
+        ROLE_STAFF:     '/staff',
+        ROLE_ADMIN:     '/admin',
+        ROLE_COE:       '/coe',
+        ROLE_FINANCE:   '/finance',
+        ROLE_WARDEN:    '/hostel',
+        ROLE_LIBRARIAN: '/library',
+        ROLE_PARENT:    '/parent',
+        ROLE_PLACEMENT: '/placement',
+        ROLE_STAFFADMIN: '/staffadmin',
+      };
+
       onLoginSuccess(data.role);
+      navigate(roleRoutes[data.role] || '/');
       
     } catch(err) {
       console.error(err);
-      setError("Unauthorized user or login failed.");
+      setError("Institutional identity verification failed.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const roles = [
-    { value: 'ADMIN', label: 'Administrator' },
-    { value: 'STAFF', label: 'Faculty/Staff' },
-    { value: 'STUDENT', label: 'Student' },
-    { value: 'PARENT', label: 'Parent' },
+    { value: 'ADMIN', label: 'Institutional Admin' },
+    { value: 'STAFF', label: 'Academic Faculty' },
+    { value: 'STUDENT', label: 'Resident Scholar' },
+    { value: 'PARENT', label: 'Guardian' },
     { value: 'COE', label: 'Examinations (COE)' },
-    { value: 'FINANCE', label: 'Finance' },
-    { value: 'WARDEN', label: 'Hostel Warden' },
-    { value: 'LIBRARIAN', label: 'Librarian' },
-    { value: 'PLACEMENT', label: 'Placement Officer' }
+    { value: 'FINANCE', label: 'Fiscal Control' },
+    { value: 'WARDEN', label: 'Residential Warden' },
+    { value: 'LIBRARIAN', label: 'Knowledge Curator' },
+    { value: 'PLACEMENT', label: 'Career Placement' },
+    { value: 'STAFFADMIN', label: 'Staff Admin' }
   ];
 
   const handleLogin = async (e) => {
@@ -78,201 +90,133 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
         localStorage.setItem('erp_role', data.role);
         localStorage.setItem('erp_email', data.email);
         localStorage.setItem('erp_name', data.name);
+        localStorage.setItem('erp_linked_id', data.linkedId);
         onLoginSuccess(data.role);
       } else {
-        setError('Invalid credentials. Please check your email, password, and chosen role.');
+        setError('Invalid credentials or unmapped institutional role.');
       }
     } catch (err) {
-      if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
-         setError('Network Error: Cannot connect to the server. Is your backend running?');
-      } else {
-         setError('An error occurred during login. Please try again.');
-      }
+      setError('System communication error. Verify backend status.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#F8FAFC] font-sans">
-      {/* Left side branding */}
-      <div className="md:w-1/2 bg-gradient-to-br from-blue-800 to-indigo-900 text-white p-12 flex flex-col justify-center relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center space-x-3 mb-8">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <svg className="w-8 h-8 text-blue-800" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2L1 7l11 5 9-4.1V17h2V7L12 2zm0 10.9l-9-4.1v5.1l9 4.1 9-4.1V8.8l-9 4.1z" />
-              </svg>
-            </div>
-            <h1 className="text-4xl font-black tracking-tight">Apex University ERP</h1>
-          </div>
-          <h2 className="text-2xl font-bold text-blue-100 mb-12">Integrated Campus Management System</h2>
-          
-          <div className="space-y-8">
-            <div className="flex items-start space-x-4">
-              <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                <svg className="w-6 h-6 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Academic Excellence</h3>
-                <p className="text-blue-200 text-sm">Comprehensive modules for managing curriculum, attendance, and examinations.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start space-x-4">
-              <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                <svg className="w-6 h-6 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Data-Driven Insights</h3>
-                <p className="text-blue-200 text-sm">Advanced analytics and reporting for administrators and finance teams.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start space-x-4">
-              <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                <svg className="w-6 h-6 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Campus Life</h3>
-                <p className="text-blue-200 text-sm">Seamless administration of hostel, library, and student facilities.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start space-x-4">
-              <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                <svg className="w-6 h-6 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold">Career Placements</h3>
-                <p className="text-blue-200 text-sm">End-to-end recruitment drive management and student application tracking.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Abstract shapes */}
-        <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] font-sans relative overflow-hidden">
+      {/* Dynamic Background Elements */}
+      <div className="absolute top-0 left-0 w-full h-full">
+         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px] animate-pulse"></div>
+         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      {/* Right side login form */}
-      <div className="md:w-1/2 flex items-center justify-center p-8 bg-slate-50">
-        <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-          <div className="mb-8 text-center">
-            <h2 className="text-2xl font-bold text-slate-800">Welcome Back</h2>
-            <p className="text-sm text-slate-500 mt-2">Sign in to your account to continue</p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-sm flex items-center">
-              <svg className="w-5 h-5 mr-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              {error}
+      <div className="max-w-5xl w-full flex flex-col lg:flex-row bg-white rounded-[3rem] shadow-2xl overflow-hidden relative z-10 border border-slate-200/50 scale-95 lg:scale-100">
+         {/* Left Side: Branding & Aesthetics */}
+         <div className="lg:w-[45%] bg-indigo-600 p-12 lg:p-16 text-white flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-blue-800 opacity-90"></div>
+            <div className="absolute right-0 bottom-0 w-64 h-64 bg-white/10 rounded-full translate-x-24 translate-y-24 blur-3xl"></div>
+            
+            <div className="relative z-10">
+               <div className="flex items-center gap-4 mb-16">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 text-3xl font-black shadow-xl">I</div>
+                  <div>
+                     <h1 className="text-3xl font-black tracking-tighter leading-none italic">Intuition</h1>
+                     <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-1 text-indigo-200">Enterprise ERP</p>
+                  </div>
+               </div>
+               
+               <h2 className="text-4xl lg:text-5xl font-black tracking-tighter leading-tight italic mb-8">Harmonizing Institutional <span className="text-blue-200 underline decoration-indigo-400 underline-offset-8">Intelligence.</span></h2>
+               <p className="text-indigo-100 font-bold text-sm leading-relaxed max-w-sm">A unified digital ecosystem for scholars, faculty, and administrators to orchestrate academic excellence.</p>
             </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Select Role</label>
-              <select 
-                value={role} 
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-4 py-3 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none transition-all appearance-none"
-              >
-                {roles.map(r => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
+            
+            <div className="relative z-10 mt-16 lg:mt-0 flex items-center gap-6">
+               <div className="flex -space-x-3">
+                  {[1,2,3].map(i => <div key={i} className="w-10 h-10 bg-indigo-500 border-2 border-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black italic">U{i}</div>)}
+               </div>
+               <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 leading-tight">Trusted by 12,000+ Institutional Members</p>
             </div>
+         </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@university.edu"
-                className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-4 py-3 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none transition-all"
-                required
-              />
+         {/* Right Side: Login Logic */}
+         <div className="lg:w-[55%] p-12 lg:p-16 flex flex-col justify-center">
+            <div className="mb-10">
+               <h3 className="text-3xl font-black text-slate-800 tracking-tighter italic">Welcome Back, Scholar</h3>
+               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  Secure Gateway Entry
+               </p>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-slate-700">Password</label>
-                <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-700">Forgot password?</a>
+            {error && (
+              <div className="mb-8 p-5 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-4 shadow-sm">
+                 <span className="text-xl">⚠️</span> {error}
               </div>
-              <div className="relative">
-                <input 
-                  type={showPassword ? 'text' : 'password'} 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-4 py-3 pr-12 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 outline-none transition-all"
-                  required
-                />
-                <button 
-                  type="button" 
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                >
-                  {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-6">
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic">Institutional Role</label>
+                  <select 
+                    value={role} 
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-xs font-black text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none transition-all cursor-pointer"
+                  >
+                    {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic">Institutional Email</label>
+                  <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@intuition.edu"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-xs font-black text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all placeholder:opacity-30"
+                    required
+                  />
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic flex justify-between items-center">
+                     Secret Cipher
+                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-indigo-600 hover:underline">VIEW</button>
+                  </label>
+                  <input 
+                    type={showPassword ? 'text' : 'password'} 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-xs font-black text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all placeholder:opacity-30"
+                    required
+                  />
+               </div>
+
+               <button 
+                 type="submit" 
+                 disabled={isLoading}
+                 className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 mt-4"
+               >
+                 {isLoading ? 'Verifying Integrity...' : 'Authenticate Identity'}
+               </button>
+            </form>
+
+            <div className="mt-10 flex items-center gap-6">
+               <div className="h-px flex-1 bg-slate-100"></div>
+               <span className="text-[8px] font-black text-slate-300 uppercase tracking-[0.4em]">Secure SSO</span>
+               <div className="h-px flex-1 bg-slate-100"></div>
             </div>
 
-            <button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg px-4 py-3 transition-colors flex justify-center items-center h-12 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed mt-2"
-            >
-              {isLoading ? (
-                <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : "Sign In"}
-            </button>
-          </form>
-          
-          <div className="mt-6 flex items-center justify-center space-x-4">
-              <span className="h-px w-full bg-slate-200"></span>
-              <span className="text-xs text-slate-400 font-bold uppercase">OR</span>
-              <span className="h-px w-full bg-slate-200"></span>
-          </div>
-          
-          <div className="mt-6 flex justify-center">
-             <GoogleLogin 
-                onSuccess={handleGoogleSuccess} 
-                onError={() => setError("Google Login Failed")}
-                type="standard" 
-                theme="outline" 
-                size="large" 
-             />
-          </div>
-          
-          <div className="mt-8 text-center text-xs text-slate-500">
-            &copy; {new Date().getFullYear()} Apex University. All rights reserved.
-          </div>
-        </div>
+            <div className="mt-10 flex justify-center scale-110">
+               <GoogleLogin 
+                  onSuccess={handleGoogleSuccess} 
+                  onError={() => setError("Google SSO Verification Failed")}
+                  shape="pill"
+                  theme="outline"
+                  size="large"
+               />
+            </div>
+         </div>
       </div>
     </div>
   );

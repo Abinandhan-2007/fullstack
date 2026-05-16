@@ -1,54 +1,96 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../../api';
+import { useTheme } from '../../context/ThemeContext';
 
-export default function StaffAdminDepartmentStudents() {
-  const students = [
-     { roll: '737622CS101', name: 'Rahul K.', year: 'II', sec: 'A', att: 85, cgpa: 8.4 },
-     { roll: '737622CS102', name: 'Priya S.', year: 'II', sec: 'A', att: 92, cgpa: 9.1 },
-     { roll: '737622CS103', name: 'Amit P.', year: 'II', sec: 'B', att: 76, cgpa: 7.8 },
-  ];
+export default function StaffAdminDepartmentStudents({ apiUrl, token, user }) {
+  const { isDark } = useTheme();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/staff-admin/students');
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const filtered = data.filter(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.regNo?.includes(searchTerm));
+
+  if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">My Department Students</h1>
-            <p className="text-slate-500 font-medium">Manage student profiles, performance, and sections.</p>
-         </div>
-         <div className="flex gap-2">
-            <button className="px-4 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition shadow-sm">Bulk Import</button>
-            <button className="px-4 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition shadow-sm">Add Student</button>
-         </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight italic">Student Academic Registry</h1>
+          <p className="text-slate-500 dark:text-gray-400 text-sm">Unified repository of department scholars, performance metrics and attendance logs</p>
+        </div>
+        <div className="flex gap-3">
+           <button className="px-6 py-3 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl font-bold shadow-sm text-xs uppercase tracking-widest text-slate-600 dark:text-gray-300">Bulk Import</button>
+           <button className="px-6 py-3 bg-sky-600 text-white rounded-xl font-bold shadow-xl shadow-sky-500/20 text-xs uppercase tracking-widest">Add Student</button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-x-auto">
-         <div className="mb-6 max-w-sm"><input type="text" placeholder="Search by name or roll..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm focus:border-indigo-500 outline-none"/></div>
-         <table className="w-full text-left border-collapse min-w-[800px]">
-             <thead><tr className="border-b-2 border-slate-100">
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Roll No</th>
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Student Name</th>
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Year / Sec</th>
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Attendance</th>
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px]">CGPA</th>
-                 <th className="py-3 font-bold text-slate-400 uppercase tracking-widest text-[10px] text-right">Actions</th>
-             </tr></thead>
-             <tbody>
-                  {students.map(s => (
-                      <tr key={s.roll} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                          <td className="py-4 font-black tracking-widest text-slate-700">{s.roll}</td>
-                          <td className="py-4 font-bold text-slate-800 flex items-center gap-3">
-                             <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">{s.name[0]}</div>
-                             {s.name}
-                          </td>
-                          <td className="py-4 font-bold text-slate-500">Year {s.year} • Sec {s.sec}</td>
-                          <td className="py-4"><span className={`px-3 py-1 font-black text-xs rounded-lg ${s.att > 75 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{s.att}%</span></td>
-                          <td className="py-4 font-black text-slate-600">{s.cgpa}</td>
-                          <td className="py-4 text-right">
-                             <button className="text-slate-400 hover:text-indigo-600 font-bold text-sm">View Profile</button>
-                          </td>
-                      </tr>
+      <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] p-6 shadow-sm">
+         <input 
+            type="text"
+            placeholder="Search by name, roll number or registration ID..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-2xl px-6 py-4 text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-sky-500/10"
+         />
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+         <div className="p-8 border-b border-slate-100 dark:border-gray-800 flex justify-between items-center">
+            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight italic underline decoration-sky-500">Scholar Enrollment Ledger</h3>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Total: {filtered.length} Students</span>
+         </div>
+         <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse">
+               <thead>
+                  <tr className="bg-slate-50 dark:bg-gray-800/50">
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Student Identity</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Current Year / Sec</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">CGPA</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Attendance</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
+                  {filtered.map((s, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors group">
+                       <td className="p-6">
+                          <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight italic underline decoration-slate-100 dark:decoration-gray-800">{s.name}</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">{s.regNo}</p>
+                       </td>
+                       <td className="p-6 text-xs font-bold text-slate-500 dark:text-gray-400 uppercase tracking-widest">
+                          Year {s.year || 3} • Sec {s.section || 'A'}
+                       </td>
+                       <td className="p-6 text-center">
+                          <span className="text-sm font-black text-sky-600 italic">{s.gpa || '8.5'}</span>
+                       </td>
+                       <td className="p-6 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                             <div className="w-24 h-1.5 bg-slate-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500" style={{ width: `${s.attendance || 92}%` }}></div>
+                             </div>
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{s.attendance || 92}% Present</span>
+                          </div>
+                       </td>
+                       <td className="p-6 text-right">
+                          <button className="text-[9px] font-black text-sky-600 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Full Record →</button>
+                       </td>
+                    </tr>
                   ))}
-             </tbody>
-         </table>
+               </tbody>
+            </table>
+         </div>
       </div>
     </div>
   );

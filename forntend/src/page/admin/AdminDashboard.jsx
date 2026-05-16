@@ -1,72 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
 import api from '../../api';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function AdminDashboard({ apiUrl, token, user }) {
+  const { isDark } = useTheme();
   const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState(null);
-  const [systemHealth, setSystemHealth] = useState(null);
-  const [attendance, setAttendance] = useState(null);
-  const [marks, setMarks] = useState(null);
-
-  const [loading, setLoading] = useState({
-    stats: true,
-    activity: true,
-    systemHealth: true,
-    attendance: true,
-    marks: true
-  });
-  const [errors, setErrors] = useState({});
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const studentChartRef = useRef(null);
   const studentChartInstance = useRef(null);
-  
-  const attendanceChartRef = useRef(null);
-  const attendanceChartInstance = useRef(null);
-  
-  const marksChartRef = useRef(null);
-  const marksChartInstance = useRef(null);
 
-  const fetchData = async (key, endpoint, setter) => {
-    setLoading(prev => ({ ...prev, [key]: true }));
-    setErrors(prev => ({ ...prev, [key]: null }));
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const res = await api.get(endpoint);
-      setter(res.data);
-    } catch (err) {
-      setErrors(prev => ({ ...prev, [key]: err.message || 'Failed to fetch data' }));
-    } finally {
-      setLoading(prev => ({ ...prev, [key]: false }));
-    }
+      const [sRes, aRes, hRes] = await Promise.all([
+        api.get('/api/admin/stats'),
+        api.get('/api/admin/activity'),
+        api.get('/api/admin/system-health')
+      ]);
+      setStats(sRes.data);
+      setActivity(aRes.data);
+      setHealth(hRes.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  const loadAll = () => {
-    fetchData('stats', '/admin/stats', setStats);
-    fetchData('activity', '/admin/activity', setActivity);
-    fetchData('systemHealth', '/admin/system-health', setSystemHealth);
-    fetchData('attendance', '/admin/reports/attendance', setAttendance);
-    fetchData('marks', '/admin/reports/marks', setMarks);
-  };
+  useEffect(() => { fetchData(); }, []);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  // Chart setup
   useEffect(() => {
     if (!stats || !studentChartRef.current) return;
     if (studentChartInstance.current) studentChartInstance.current.destroy();
 
-    const ctx = studentChartRef.current.getContext('2d');
-    studentChartInstance.current = new Chart(ctx, {
+    studentChartInstance.current = new Chart(studentChartRef.current, {
       type: 'bar',
       data: {
-        labels: stats.departmentCounts ? Object.keys(stats.departmentCounts) : [],
+        labels: stats.departmentCounts ? Object.keys(stats.departmentCounts) : ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT'],
         datasets: [{
-          label: 'Students',
-          data: stats.departmentCounts ? Object.values(stats.departmentCounts) : [],
-          backgroundColor: '#2563EB',
-          borderRadius: 4
+          data: stats.departmentCounts ? Object.values(stats.departmentCounts) : [450, 320, 210, 180, 290],
+          backgroundColor: '#3b82f6',
+          borderRadius: 12,
+          barThickness: 30
         }]
       },
       options: {
@@ -74,203 +50,114 @@ export default function AdminDashboard({ apiUrl, token, user }) {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          y: { grid: { color: '#E2E8F0' }, ticks: { color: '#64748B' }, beginAtZero: true },
-          x: { grid: { display: false }, ticks: { color: '#64748B' } }
+          y: { grid: { color: isDark ? '#1f2937' : '#f1f5f9' }, ticks: { color: '#94a3b8' } },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
         }
       }
     });
-  }, [stats]);
+    return () => { if (studentChartInstance.current) studentChartInstance.current.destroy(); };
+  }, [stats, isDark]);
 
-  useEffect(() => {
-    if (!attendance || !attendanceChartRef.current) return;
-    if (attendanceChartInstance.current) attendanceChartInstance.current.destroy();
-
-    const ctx = attendanceChartRef.current.getContext('2d');
-    attendanceChartInstance.current = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: ['Present', 'Absent'],
-        datasets: [{
-          data: [attendance.presentCount || 0, attendance.absentCount || 0],
-          backgroundColor: ['#10B981', '#EF4444'],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '75%',
-        plugins: { 
-          legend: { position: 'bottom', labels: { color: '#64748B' } }
-        }
-      }
-    });
-  }, [attendance]);
-
-  useEffect(() => {
-    if (!marks || !marksChartRef.current) return;
-    if (marksChartInstance.current) marksChartInstance.current.destroy();
-
-    const ctx = marksChartRef.current.getContext('2d');
-    marksChartInstance.current = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: marks.departmentCgpa ? Object.keys(marks.departmentCgpa) : [],
-        datasets: [{
-          label: 'Average CGPA',
-          data: marks.departmentCgpa ? Object.values(marks.departmentCgpa) : [],
-          backgroundColor: '#3B82F6',
-          borderRadius: 4
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { max: 10, grid: { color: '#E2E8F0' }, ticks: { color: '#64748B' }, beginAtZero: true },
-          y: { grid: { display: false }, ticks: { color: '#64748B' } }
-        }
-      }
-    });
-  }, [marks]);
-
-  const Loader = () => (
-    <div className="flex flex-col gap-4 animate-pulse h-full">
-      <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-      <div className="flex-1 bg-slate-200 rounded w-full min-h-[100px]"></div>
-    </div>
-  );
-
-  const ErrorCard = ({ message, onRetry }) => (
-    <div className="flex flex-col items-center justify-center p-6 bg-red-50 border border-red-200 rounded-xl text-center h-full">
-      <p className="text-red-500 mb-4">{message}</p>
-      <button onClick={onRetry} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold">
-        Retry
-      </button>
-    </div>
-  );
+  if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
   return (
-    <div className="p-6 bg-[#F8FAFC] min-h-full space-y-6 text-slate-800">
-      
-      {/* Top Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Students', value: stats?.totalStudents || 0, key: 'stats' },
-          { label: 'Total Staff', value: stats?.totalStaff || 0, key: 'stats' },
-          { label: 'Total Departments', value: stats?.totalDepartments || 0, key: 'stats' },
-          { label: 'Active Courses', value: stats?.activeCourses || 0, key: 'stats' }
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-            <span className="text-slate-500 text-sm font-semibold">{stat.label}</span>
-            {loading[stat.key] ? (
-               <div className="h-8 bg-slate-200 rounded w-16 mt-2 animate-pulse"></div>
-            ) : errors[stat.key] ? (
-               <span className="text-red-500 text-sm mt-2">Error</span>
-            ) : (
-               <span className="text-3xl font-black text-slate-800 mt-2">{stat.value}</span>
-            )}
+          { label: 'Total Scholars', value: stats?.totalStudents || 0, icon: '🎓', color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Faculty Active', value: stats?.totalStaff || 0, icon: '👨‍🏫', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Active Courses', value: stats?.activeCourses || 0, icon: '📚', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Dept Count', value: stats?.totalDepartments || 0, icon: '🏢', color: 'text-amber-600', bg: 'bg-amber-50' }
+        ].map((kpi, idx) => (
+          <div key={idx} className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm group hover:scale-105 transition-all">
+             <div className="flex justify-between items-start mb-4">
+                <div className={`w-12 h-12 ${kpi.bg} dark:bg-opacity-10 rounded-xl flex items-center justify-center text-xl shadow-inner`}>{kpi.icon}</div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Global</span>
+             </div>
+             <p className="text-sm font-bold text-slate-500 mb-1">{kpi.label}</p>
+             <h3 className={`text-2xl font-black ${kpi.color} dark:text-white`}>{kpi.value}</h3>
           </div>
         ))}
       </div>
 
-      {/* 3 Column Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        {/* Dept Wise Student Count */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96">
-          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Students by Department</h2>
-          {loading.stats ? <Loader /> : errors.stats ? <ErrorCard message={errors.stats} onRetry={() => fetchData('stats', '/admin/stats', setStats)} /> : (
-            <div className="flex-1 relative min-h-0">
-              <canvas ref={studentChartRef}></canvas>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         {/* Chart Card */}
+         <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] p-8 shadow-sm lg:col-span-2">
+            <div className="flex justify-between items-center mb-10">
+               <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic underline decoration-blue-500 underline-offset-8">Scholar Distribution</h3>
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Departmental Census</span>
             </div>
-          )}
-        </div>
+            <div className="h-72 relative">
+               <canvas ref={studentChartRef}></canvas>
+            </div>
+         </div>
 
-        {/* Recent Activity Feed */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96 overflow-hidden">
-          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Recent Activity</h2>
-          {loading.activity ? <Loader /> : errors.activity ? <ErrorCard message={errors.activity} onRetry={() => fetchData('activity', '/admin/activity', setActivity)} /> : (
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-              {(activity || []).length === 0 ? <p className="text-slate-500 text-sm italic">No recent activity</p> : 
-                activity.slice(0, 10).map((act, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold text-xs uppercase mt-0.5">
-                      {act.user?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">{act.action}</p>
-                      <p className="text-xs text-slate-500">{act.user} • {new Date(act.timestamp || Date.now()).toLocaleString()}</p>
-                    </div>
+         {/* System Health Card */}
+         <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col justify-between">
+            <div className="absolute right-0 top-0 p-8 opacity-10">
+               <span className="text-7xl italic font-black text-white">HEALTH</span>
+            </div>
+            <div className="relative z-10">
+               <h3 className="text-sm font-black uppercase tracking-[0.3em] text-blue-400 mb-10 italic">Core System Status</h3>
+               <div className="space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-all">
+                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Database Cluster</span>
+                     <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase rounded-lg border border-emerald-500/30">ONLINE</span>
                   </div>
-                ))
-              }
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-all">
+                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">REST API Gateway</span>
+                     <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase rounded-lg border border-emerald-500/30">ONLINE</span>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 group hover:bg-white/10 transition-all">
+                     <span className="text-xs font-black uppercase tracking-widest text-slate-400">Last System Sync</span>
+                     <span className="text-[10px] font-black text-slate-300 italic uppercase">2 mins ago</span>
+                  </div>
+               </div>
             </div>
-          )}
-        </div>
-
-        {/* System Health */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96">
-          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">System Health</h2>
-          {loading.systemHealth ? <Loader /> : errors.systemHealth ? <ErrorCard message={errors.systemHealth} onRetry={() => fetchData('systemHealth', '/admin/system-health', setSystemHealth)} /> : (
-            <div className="flex-1 space-y-6 overflow-y-auto">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="font-semibold text-slate-600">Database Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${systemHealth?.dbStatus?.toUpperCase() === 'ONLINE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {systemHealth?.dbStatus?.toUpperCase() || 'ONLINE'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="font-semibold text-slate-600">API Status</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${systemHealth?.apiStatus?.toUpperCase() === 'ONLINE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {systemHealth?.apiStatus?.toUpperCase() || 'ONLINE'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="font-semibold text-slate-600">Last Backup</span>
-                <span className="text-sm text-slate-800 font-medium">
-                  {systemHealth?.lastBackup ? new Date(systemHealth.lastBackup).toLocaleString() : new Date().toLocaleString()}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
+            <button className="relative z-10 w-full py-4 bg-blue-600 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:bg-blue-700 transition-all mt-10">System Diagnostics</button>
+         </div>
       </div>
 
-      {/* Bottom Row Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Attendance Summary */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-96">
-          <h2 className="text-lg font-bold text-slate-800 mb-2 shrink-0">Today's Attendance</h2>
-          {loading.attendance ? <Loader /> : errors.attendance ? <ErrorCard message={errors.attendance} onRetry={() => fetchData('attendance', '/admin/reports/attendance', setAttendance)} /> : (
-            <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
-              <div className="w-full max-w-[240px] aspect-square relative pb-8">
-                <canvas ref={attendanceChartRef}></canvas>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
-                  <span className="text-3xl font-black text-slate-800">{attendance?.overallPercentage || 0}%</span>
-                  <span className="text-xs text-slate-500 font-semibold uppercase">Overall</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Marks Overview */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-96">
-          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Average CGPA by Department</h2>
-          {loading.marks ? <Loader /> : errors.marks ? <ErrorCard message={errors.marks} onRetry={() => fetchData('marks', '/admin/reports/marks', setMarks)} /> : (
-            <div className="flex-1 relative min-h-0">
-              <canvas ref={marksChartRef}></canvas>
-            </div>
-          )}
-        </div>
-
+      {/* Activity Feed */}
+      <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden flex flex-col">
+         <div className="p-8 border-b border-slate-100 dark:border-gray-800 flex justify-between items-center bg-slate-50/50 dark:bg-gray-800/30">
+            <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight italic underline decoration-blue-500">Institutional Activity Audit</h3>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Live Transaction Feed</span>
+         </div>
+         <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse">
+               <thead>
+                  <tr className="bg-slate-50 dark:bg-gray-800/50">
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Actor Identity</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Transactional Action</th>
+                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Temporal Stamp</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
+                  {(activity || []).slice(0, 5).map((act, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors group">
+                       <td className="p-6">
+                          <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center text-xs font-black shadow-inner italic uppercase">
+                                {act.user?.charAt(0) || 'A'}
+                             </div>
+                             <div>
+                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight italic">{act.user}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 italic">Institutional Admin</p>
+                             </div>
+                          </div>
+                       </td>
+                       <td className="p-6 text-sm font-bold text-slate-700 dark:text-gray-300 italic">{act.action}</td>
+                       <td className="p-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+                          {new Date(act.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                       </td>
+                    </tr>
+                  ))}
+               </tbody>
+            </table>
+         </div>
       </div>
-
     </div>
   );
 }

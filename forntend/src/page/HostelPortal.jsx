@@ -1,155 +1,125 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Chart from 'chart.js/auto';
-import api from '../api';
+import React, { useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
 
-export default function HostelPortal({ loggedInEmail, handleLogout }) {
-  const [activeTab, setActiveTab] = useState('Workspace');
-  const [rooms, setRooms] = useState([]);
-  const [complaints, setComplaints] = useState([]);
-  const [messMenu, setMessMenu] = useState([]);
-  
-  const [loading, setLoading] = useState({});
-  const [errors, setErrors] = useState({});
-  const fetchedTabs = useRef(new Set());
+// Import Modular Components
+import HostelDashboard from './hostel/HostelDashboard';
+import HostelAllocation from './hostel/HostelAllocation';
+import HostelMaintenance from './hostel/HostelMaintenance';
+import HostelMess from './hostel/HostelMess';
+import HostelInventory from './hostel/HostelInventory';
+import HostelVisitors from './hostel/HostelVisitors';
+import HostelAnnouncements from './hostel/HostelAnnouncements';
 
-  useEffect(() => {
-    const role = localStorage.getItem('erp_role');
-    if (role !== 'ROLE_HOSTEL' && role?.toUpperCase() !== 'HOSTEL') window.location.href = '/';
-  }, []);
+export default function HostelPortal({ handleLogout, apiUrl, user, token, userName, loggedInEmail }) {
+  const { isDark, toggleTheme } = useTheme();
+  const [activeMenu, setActiveMenu] = useState('Dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const showToast = (msg) => { alert(msg); };
+  const moduleProps = { apiUrl, token, user: { name: userName, email: loggedInEmail } };
 
-  const fetchData = async (key, apiCall, setter) => {
-    setLoading(prev => ({ ...prev, [key]: true }));
-    setErrors(prev => ({ ...prev, [key]: null }));
-    try {
-      const res = await apiCall();
-      setter(res.data);
-      return res.data;
-    } catch (err) {
-      setErrors(prev => ({ ...prev, [key]: err.message || 'Failed' }));
-      return null;
-    } finally {
-      setLoading(prev => ({ ...prev, [key]: false }));
-    }
-  };
+  const menuItems = [
+    { name: 'Dashboard', icon: '🏠', category: 'Main' },
+    { name: 'Room Allocation', icon: '🛏️', category: 'Operations' },
+    { name: 'Maintenance Log', icon: '🛠️', category: 'Operations' },
+    { name: 'Mess & Dining', icon: '🍽️', category: 'Operations' },
+    { name: 'Stock Inventory', icon: '📦', category: 'Assets' },
+    { name: 'Visitor Registry', icon: '📋', category: 'Security' },
+    { name: 'Announcements', icon: '📢', category: 'General' },
+  ];
 
-  useEffect(() => {
-    if (fetchedTabs.current.has(activeTab)) return;
-    if (activeTab === 'Workspace') {
-      fetchData('rooms', () => api.get('/hostel/rooms'), setRooms);
-      fetchData('complaints', () => api.get('/hostel/complaints'), setComplaints);
-      fetchedTabs.current.add('Workspace');
-    }
-    else if (activeTab === 'Room Allocation' || activeTab === 'Occupancy') {
-      fetchData('rooms', () => api.get('/hostel/rooms'), setRooms);
-      fetchedTabs.current.add(activeTab);
-    }
-    else if (activeTab === 'Complaints') {
-      fetchData('complaints', () => api.get('/hostel/complaints'), setComplaints);
-      fetchedTabs.current.add('Complaints');
-    }
-    else if (activeTab === 'Mess Menu') {
-      fetchData('menu', () => api.get('/hostel/mess-menu'), setMessMenu);
-      fetchedTabs.current.add('Mess Menu');
-    }
-  }, [activeTab]);
+  const categories = ['Main', 'Operations', 'Assets', 'Security', 'General'];
 
-  const Loader = () => <div className="p-6 animate-pulse space-y-4"><div className="h-4 bg-gray-800 rounded w-1/4"></div><div className="h-32 bg-gray-800 rounded w-full"></div></div>;
-  const ErrorCard = ({ msg, retryKey }) => <div className="p-6 text-center text-red-500 bg-red-950/20 rounded-xl border border-red-900/50">{msg} <button onClick={() => fetchedTabs.current.delete(retryKey)} className="ml-2 underline">Retry</button></div>;
-
-  const renderContent = () => {
-    switch(activeTab) {
-      case 'Workspace':
-        return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Total Rooms</div><div className="text-3xl font-black text-white">{rooms.length || 0}</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Occupied Beds</div><div className="text-3xl font-black text-purple-500">450</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Vacant Beds</div><div className="text-3xl font-black text-green-500">120</div></div>
-              <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800"><div className="text-gray-400 text-sm">Pending Complaints</div><div className="text-3xl font-black text-red-500">{complaints.filter(c=>c.status==='OPEN').length}</div></div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-96 overflow-auto">
-                <h3 className="font-bold text-white mb-4">Recent Maintenance Issues</h3>
-                {complaints.slice(0,5).map((c,i) => (
-                  <div key={i} className="p-3 bg-gray-950 border border-gray-800 rounded-xl mb-3 flex justify-between">
-                    <div><div className="font-bold text-purple-400">Room {c.room} - {c.type}</div><div className="text-xs text-gray-500">{c.description}</div></div>
-                    <span className="text-xs bg-red-500/20 text-red-400 px-2 py-1 rounded h-fit font-bold">{c.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'Room Allocation':
-        return (
-          <div className="space-y-6">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex gap-4 items-end">
-              <div className="flex-1"><label className="text-xs text-gray-400 font-bold mb-2 block uppercase tracking-wider">Search Student</label><input type="text" placeholder="Enter Register Number" className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white" /></div>
-              <div className="flex-1"><label className="text-xs text-gray-400 font-bold mb-2 block uppercase tracking-wider">Available Rooms</label><select className="w-full px-4 py-2 bg-gray-950 border border-gray-800 rounded-xl text-white"><option>A Block - Room 101 (2 beds left)</option></select></div>
-              <button className="px-5 py-2 bg-purple-600 text-white font-bold rounded-xl h-[42px]">Allocate</button>
-            </div>
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col h-[500px]">
-               <div className="p-4 border-b border-gray-800 flex justify-between items-center"><h2 className="font-bold text-white">Current Allocations</h2></div>
-               <div className="flex-1 overflow-auto">
-                 {loading.rooms ? <Loader/> : errors.rooms ? <ErrorCard msg={errors.rooms} retryKey="Room Allocation"/> : (
-                   <table className="w-full text-left text-sm text-gray-300 whitespace-nowrap">
-                     <thead className="bg-gray-950 text-gray-500 uppercase text-xs sticky top-0"><tr><th className="p-4">Reg No</th><th className="p-4">Name</th><th className="p-4">Block / Room</th><th className="p-4">Bed</th><th className="p-4 text-right">Actions</th></tr></thead>
-                     <tbody className="divide-y divide-gray-800">
-                       <tr className="hover:bg-gray-800/50"><td className="p-4 font-bold text-white">411421104001</td><td className="p-4">John Doe</td><td className="p-4 text-gray-400">A Block / 101</td><td className="p-4 font-bold text-purple-400">Bed 1</td><td className="p-4 text-right"><button className="text-red-400 font-bold">Deallocate</button></td></tr>
-                     </tbody>
-                   </table>
-                 )}
-               </div>
-            </div>
-          </div>
-        );
-
-      case 'Occupancy':
-        return (
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 h-[600px] flex flex-col">
-            <h2 className="font-bold text-white mb-6">Occupancy Map</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 overflow-auto pb-4">
-               {[...Array(24)].map((_,i) => {
-                 const beds = Math.floor(Math.random()*4);
-                 const status = beds === 0 ? 'bg-red-500/10 border-red-500/50 text-red-500' : beds === 1 ? 'bg-amber-500/10 border-amber-500/50 text-amber-500' : 'bg-green-500/10 border-green-500/50 text-green-500';
-                 return (
-                   <div key={i} className={`p-4 rounded-xl border text-center cursor-pointer hover:bg-gray-800 transition-colors ${status}`}>
-                     <div className="font-bold mb-1">A-{101+i}</div>
-                     <div className="text-xs font-bold">{beds} beds free</div>
-                   </div>
-                 );
-               })}
-            </div>
-          </div>
-        );
-
-      default: return <div className="text-gray-500 text-center py-20">Section under construction</div>;
+  const renderActiveModule = () => {
+    switch (activeMenu) {
+      case 'Dashboard': return <HostelDashboard {...moduleProps} />;
+      case 'Room Allocation': return <HostelAllocation {...moduleProps} />;
+      case 'Maintenance Log': return <HostelMaintenance {...moduleProps} />;
+      case 'Mess & Dining': return <HostelMess {...moduleProps} />;
+      case 'Stock Inventory': return <HostelInventory {...moduleProps} />;
+      case 'Visitor Registry': return <HostelVisitors {...moduleProps} />;
+      case 'Announcements': return <HostelAnnouncements {...moduleProps} />;
+      default: return <div className="p-10 text-center text-slate-500 dark:text-slate-400">Module under construction</div>;
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-200 font-sans overflow-hidden">
-      <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-        <div className="p-6 border-b border-gray-800 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gray-800 text-purple-500 flex items-center justify-center font-black border-2 border-purple-500">🏠</div>
-          <div><h2 className="font-bold text-white leading-tight">Hostel</h2><p className="text-xs text-gray-500">Accommodation</p></div>
+    <div className="flex h-screen bg-[#F8FAFC] dark:bg-gray-950 font-sans overflow-hidden transition-colors duration-200">
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/60 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+      )}
+
+      <aside className={`fixed md:static inset-y-0 left-0 w-72 bg-white dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800 z-30 transform transition-transform duration-300 ease-in-out flex flex-col shadow-xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-inner shadow-white/20">H</div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-none">Intuition</h1>
+              <p className="text-[10px] font-bold text-slate-400 dark:text-gray-500 uppercase tracking-widest mt-1">Hostel Portal</p>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
         </div>
-        <div className="flex-1 overflow-y-auto py-4">
-          {['Workspace', 'Room Allocation', 'Occupancy', 'Complaints', 'Mess Menu', 'Reports'].map(tab => (
-            <button key={tab} onClick={()=>setActiveTab(tab)} className={`w-full text-left px-6 py-2.5 text-sm font-semibold transition-colors ${activeTab===tab?'bg-purple-500/10 text-purple-400 border-r-4 border-purple-500':'text-gray-400 hover:text-white hover:bg-gray-800'}`}>{tab}</button>
+
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8 custom-scrollbar">
+          {categories.map(category => (
+            <div key={category}>
+              <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-gray-500 mb-2">{category}</p>
+              <ul className="space-y-1">
+                {menuItems.filter(item => item.category === category).map((item) => (
+                  <li key={item.name}>
+                    <button
+                      onClick={() => { setActiveMenu(item.name); setIsMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                        activeMenu === item.name
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 shadow-sm'
+                          : 'text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <span className="text-lg opacity-80">{item.icon}</span>
+                      {item.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
+        </nav>
+        
+        <div className="p-4 border-t border-slate-100 dark:border-gray-800 shrink-0">
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 font-bold rounded-xl hover:bg-rose-100 transition"
+          >
+            Sign Out Session
+          </button>
         </div>
-        <div className="p-4 border-t border-gray-800">
-          <button onClick={()=>{localStorage.clear(); window.location.href='/';}} className="w-full py-2.5 bg-gray-800 hover:bg-red-900/50 hover:text-red-400 text-gray-400 font-bold rounded-xl transition-colors">Logout</button>
+      </aside>
+
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between shrink-0 shadow-sm relative z-10 transition-colors duration-200">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800 rounded-lg"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight hidden sm:block">{activeMenu}</h2>
+          </div>
+          
+          <div className="flex items-center gap-6">
+             <button onClick={toggleTheme} className="w-10 h-10 rounded-full flex items-center justify-center bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors">
+                {isDark ? '☀️' : '🌙'}
+             </button>
+             <div className="hidden md:block text-right">
+                <p className="text-sm font-bold text-slate-800 dark:text-white">{userName || 'Hostel Admin'}</p>
+                <p className="text-[10px] uppercase font-bold text-indigo-500 tracking-widest flex items-center justify-end gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span> WARDEN</p>
+             </div>
+             <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-full border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 cursor-pointer shadow-sm">
+                👤
+             </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+           {renderActiveModule()}
         </div>
-      </div>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-16 bg-gray-900 border-b border-gray-800 flex items-center px-8 shrink-0"><h1 className="text-xl font-black text-white">{activeTab}</h1></div>
-        <div className="flex-1 overflow-y-auto p-8">{renderContent()}</div>
-      </div>
+      </main>
     </div>
   );
 }

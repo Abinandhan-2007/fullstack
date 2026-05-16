@@ -9,14 +9,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Arrays;
-import java.util.Date;
+import java.util.Optional;
 
 @Configuration
 public class DataSeeder {
 
     @Bean
     CommandLineRunner seedDatabase(
+            UserRepository userRepo,
             StudentRepository studentRepo,
             StaffRepository staffRepo,
             CourseRepository courseRepo,
@@ -44,526 +44,398 @@ public class DataSeeder {
             PasswordEncoder encoder
     ) {
         return args -> {
-            // Only seed if database is empty
-            if (studentRepo.count() > 0) return;
+            if (userRepo.count() > 0) return;
 
-            System.out.println("Beginning Data Seeding...");
+            System.out.println("Starting Comprehensive Intuition Portal Data Seeding...");
 
             // 1. Departments
-            Department cs = createDept(deptRepo, "Computer Science and Engineering", "CS", "Dr. Rajeshkumar G");
-            Department ec = createDept(deptRepo, "Electronics and Communication", "EC", "Dr. Priya Sharma");
-            Department me = createDept(deptRepo, "Mechanical Engineering", "ME", "Dr. Suresh Kumar");
-            Department cv = createDept(deptRepo, "Civil Engineering", "CV", "Dr. Anitha Rajan");
-            Department it = createDept(deptRepo, "Information Technology", "IT", "Dr. Karthik Nair");
+            Department cs = createDept(deptRepo, "Computer Science and Engineering", "CS");
+            Department ec = createDept(deptRepo, "Electronics and Communication", "EC");
+            Department me = createDept(deptRepo, "Mechanical Engineering", "ME");
+            Department cv = createDept(deptRepo, "Civil Engineering", "CV");
+            Department it = createDept(deptRepo, "Information Technology", "IT");
 
-            // 2. Staff
+            // 2. Staff (15 - 3 per dept)
             List<Staff> staffList = new ArrayList<>();
-            staffList.add(createStaff(staffRepo, encoder, "S001", "Rajeshkumar G", "Professor", "CS", "raj@intuition.ac.in", "CS10963"));
-            staffList.add(createStaff(staffRepo, encoder, "S002", "Meena Devi", "Asst Professor", "CS", "meena@intuition.ac.in", "CS10964"));
-            staffList.add(createStaff(staffRepo, encoder, "S003", "Vijay Kumar", "Asst Professor", "CS", "vijay@intuition.ac.in", "CS10965"));
-
-            staffList.add(createStaff(staffRepo, encoder, "S004", "Priya Sharma", "Professor", "EC", "priya@intuition.ac.in", "EC10966"));
-            staffList.add(createStaff(staffRepo, encoder, "S005", "Arun Balaji", "Asst Professor", "EC", "arun@intuition.ac.in", "EC10967"));
-            staffList.add(createStaff(staffRepo, encoder, "S006", "Lakshmi R", "Asst Professor", "EC", "lakshmi@intuition.ac.in", "EC10968"));
-
-            staffList.add(createStaff(staffRepo, encoder, "S007", "Suresh Kumar", "Professor", "ME", "suresh@intuition.ac.in", "ME10969"));
-            staffList.add(createStaff(staffRepo, encoder, "S008", "Dinesh P", "Asst Professor", "ME", "dinesh@intuition.ac.in", "ME10970"));
-            staffList.add(createStaff(staffRepo, encoder, "S009", "Kavitha M", "Asst Professor", "ME", "kavitha@intuition.ac.in", "ME10971"));
-
-            staffList.add(createStaff(staffRepo, encoder, "S010", "Anitha Rajan", "Professor", "CV", "anitha@intuition.ac.in", "CV10972"));
-            staffList.add(createStaff(staffRepo, encoder, "S011", "Mohan Das", "Asst Professor", "CV", "mohan@intuition.ac.in", "CV10973"));
-            staffList.add(createStaff(staffRepo, encoder, "S012", "Saranya K", "Asst Professor", "CV", "saranya@intuition.ac.in", "CV10974"));
-
-            staffList.add(createStaff(staffRepo, encoder, "S013", "Karthik Nair", "Professor", "IT", "karthik@intuition.ac.in", "IT10975"));
-            staffList.add(createStaff(staffRepo, encoder, "S014", "Divya S", "Asst Professor", "IT", "divya@intuition.ac.in", "IT10976"));
-            staffList.add(createStaff(staffRepo, encoder, "S015", "Prakash T", "Asst Professor", "IT", "prakash@intuition.ac.in", "IT10977"));
-
-            // Generate other specific users based on roles needed
-            createAdmin(staffRepo, encoder, "Administrator", "admin@intuition.ac.in", "ROLE_ADMIN");
-            createAdmin(staffRepo, encoder, "COE Officer", "coe@intuition.ac.in", "ROLE_COE");
-            createAdmin(staffRepo, encoder, "Finance Officer", "finance@intuition.ac.in", "ROLE_FINANCE");
-            createAdmin(staffRepo, encoder, "Hostel Warden", "hostel@intuition.ac.in", "ROLE_WARDEN");
-            createAdmin(staffRepo, encoder, "Librarian", "library@intuition.ac.in", "ROLE_LIBRARIAN");
-            createAdmin(staffRepo, encoder, "Placement Officer", "placement@intuition.ac.in", "ROLE_PLACEMENT");
-            createAdmin(staffRepo, encoder, "Staff Admin Officer", "staffadmin@intuition.ac.in", "ROLE_STAFFADMIN");
-            // Parent created as Staff with ROLE_PARENT mapped for auth
-            createAdmin(staffRepo, encoder, "Parent of Abinandhan K", "parent@gmail.com", "ROLE_PARENT");
-
-            // 3. Students
-            List<Student> students = new ArrayList<>();
             // CS
-            students.add(createStudent(studentRepo, encoder, "7376241CS101", "Abinandhan K", "abi@gmail.com", "CS", "O+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS102", "Preethi R", "preethi@gmail.com", "CS", "A+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS103", "Surya M", "surya@gmail.com", "CS", "B+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS104", "Dharani S", "dharani@gmail.com", "CS", "O-", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS105", "Keerthana V", "keerthana@gmail.com", "CS", "AB+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS106", "Arun Prasad", "arunprasad@gmail.com", "CS", "A+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS107", "Nithya Devi", "nithya@gmail.com", "CS", "B-", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS108", "Rajesh T", "rajesh@gmail.com", "CS", "O+", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS109", "Sowmiya P", "sowmiya@gmail.com", "CS", "A-", "IV"));
-            students.add(createStudent(studentRepo, encoder, "7376241CS110", "Manikandan R", "mani@gmail.com", "CS", "AB-", "IV"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S001", "Rajeshkumar G", "Professor", "CS", "raj@intuition.ac.in", "CS10963", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S002", "Meena Devi", "Asst Professor", "CS", "meena@intuition.ac.in", "CS10964", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S003", "Vijay Kumar", "Asst Professor", "CS", "vijay@intuition.ac.in", "CS10965", "ROLE_STAFF"));
+            // EC
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S004", "Priya Sharma", "Professor", "EC", "priya@intuition.ac.in", "EC10966", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S005", "Arun Balaji", "Asst Professor", "EC", "arun@intuition.ac.in", "EC10967", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S006", "Lakshmi R", "Asst Professor", "EC", "lakshmi@intuition.ac.in", "EC10968", "ROLE_STAFF"));
+            // ME
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S007", "Suresh Kumar", "Professor", "ME", "suresh@intuition.ac.in", "ME10969", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S008", "Dinesh P", "Asst Professor", "ME", "dinesh@intuition.ac.in", "ME10970", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S009", "Kavitha M", "Asst Professor", "ME", "kavitha@intuition.ac.in", "ME10971", "ROLE_STAFF"));
+            // CV
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S010", "Anitha Rajan", "Professor", "CV", "anitha@intuition.ac.in", "CV10972", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S011", "Mohan Das", "Asst Professor", "CV", "mohan@intuition.ac.in", "CV10973", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S012", "Saranya K", "Asst Professor", "CV", "saranya@intuition.ac.in", "CV10974", "ROLE_STAFF"));
+            // IT
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S013", "Karthik Nair", "Professor", "IT", "karthik@intuition.ac.in", "IT10975", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S014", "Divya S", "Asst Professor", "IT", "divya@intuition.ac.in", "IT10976", "ROLE_STAFF"));
+            staffList.add(createStaff(staffRepo, userRepo, encoder, "S015", "Prakash T", "Asst Professor", "IT", "prakash@intuition.ac.in", "IT10977", "ROLE_STAFF"));
 
-            // Other Departments Auto Generate
+            // Special Accounts
+            createUser(userRepo, "admin@intuition.ac.in", "Administrator", "ROLE_ADMIN", "ADMIN001");
+            createUser(userRepo, "coe@intuition.ac.in", "COE Officer", "ROLE_COE", "COE001");
+            createUser(userRepo, "finance@intuition.ac.in", "Finance Officer", "ROLE_FINANCE", "FIN001");
+            createUser(userRepo, "hostel@intuition.ac.in", "Hostel Warden", "ROLE_WARDEN", "WARD001");
+            createUser(userRepo, "library@intuition.ac.in", "Librarian", "ROLE_LIBRARIAN", "LIB001");
+            createUser(userRepo, "placement@intuition.ac.in", "Placement Officer", "ROLE_PLACEMENT", "PLACE001");
+            createUser(userRepo, "staffadmin@intuition.ac.in", "Staff Admin Officer", "ROLE_STAFFADMIN", "SA001");
+            createUser(userRepo, "parent@gmail.com", "Parent of Abinandhan K", "ROLE_PARENT", "7376241CS101");
+
+            // 3. Students (50 - 10 per dept)
+            List<Student> students = new ArrayList<>();
+            String[] studentNames = {"Abinandhan K", "Preethi R", "Surya M", "Dharani S", "Keerthana V", "Arun Prasad", "Nithya Devi", "Rajesh T", "Sowmiya P", "Manikandan R"};
+            String[] studentEmails = {"abi@gmail.com", "preethi@gmail.com", "surya@gmail.com", "dharani@gmail.com", "keerthana@gmail.com", "arunprasad@gmail.com", "nithya@gmail.com", "rajesh@gmail.com", "sowmiya@gmail.com", "mani@gmail.com"};
+            String[] bloods = {"O+", "A+", "B+", "O-", "AB+", "A+", "B-", "O+", "A-", "AB-"};
+
+            for (int i = 0; i < 10; i++) {
+                students.add(createStudent(studentRepo, userRepo, encoder, "7376241CS1" + String.format("%02d", i+1), studentNames[i], studentEmails[i], "CS", bloods[i], "IV"));
+            }
+            
             String[] depts = {"EC", "ME", "CV", "IT"};
             for (String dp : depts) {
-                for (int i=1; i<=10; i++) {
+                for (int i = 1; i <= 10; i++) {
                     String reg = "7376241" + dp + "1" + String.format("%02d", i);
-                    students.add(createStudent(studentRepo, encoder, reg, "Student " + dp + " " + i, "student" + i + "@" + dp.toLowerCase() + ".com", dp, "O+", "IV"));
+                    students.add(createStudent(studentRepo, userRepo, encoder, reg, "Student " + dp + " " + i, "student." + dp.toLowerCase() + i + "@gmail.com", dp, "B+", "IV"));
                 }
             }
 
-            // 4. Courses
-            List<Course> csCourses = new ArrayList<>();
-            csCourses.add(createCourse(courseRepo, "Data Structures & Algorithms", "CS401", 4, "CS"));
-            csCourses.add(createCourse(courseRepo, "Database Management Systems", "CS402", 4, "CS"));
-            csCourses.add(createCourse(courseRepo, "Operating Systems", "CS403", 3, "CS"));
-            csCourses.add(createCourse(courseRepo, "Computer Networks", "CS404", 3, "CS"));
-            csCourses.add(createCourse(courseRepo, "Software Engineering", "CS405", 3, "CS"));
+            // 4. Courses (25 - 5 per dept)
+            List<Course> allCourses = new ArrayList<>();
+            String[][] courseData = {
+                {"CS", "Data Structures & Algorithms", "CS401", "4"},
+                {"CS", "Database Management Systems", "CS402", "4"},
+                {"CS", "Operating Systems", "CS403", "3"},
+                {"CS", "Computer Networks", "CS404", "3"},
+                {"CS", "Software Engineering", "CS405", "3"},
+                {"EC", "Digital Signal Processing", "EC401", "4"},
+                {"EC", "VLSI Design", "EC402", "4"},
+                {"EC", "Microprocessors", "EC403", "3"},
+                {"EC", "Communication Systems", "EC404", "3"},
+                {"EC", "Embedded Systems", "EC405", "3"},
+                {"ME", "Thermodynamics", "ME401", "4"},
+                {"ME", "Fluid Mechanics", "ME402", "4"},
+                {"ME", "Heat Transfer", "ME403", "3"},
+                {"ME", "Machine Design", "ME404", "3"},
+                {"ME", "Dynamics of Machines", "ME405", "3"},
+                {"CV", "Structural Analysis", "CV401", "4"},
+                {"CV", "Concrete Technology", "CV402", "4"},
+                {"CV", "Environmental Engg", "CV403", "3"},
+                {"CV", "Surveying", "CV404", "3"},
+                {"CV", "Geotechnical Engg", "CV405", "3"},
+                {"IT", "Web Technologies", "IT401", "4"},
+                {"IT", "Python Programming", "IT402", "4"},
+                {"IT", "Cyber Security", "IT403", "3"},
+                {"IT", "Cloud Computing", "IT404", "3"},
+                {"IT", "Mobile App Dev", "IT405", "3"}
+            };
 
-            List<Course> ecCourses = new ArrayList<>();
-            ecCourses.add(createCourse(courseRepo, "Digital Signal Processing", "EC401", 4, "EC"));
-            ecCourses.add(createCourse(courseRepo, "VLSI Design", "EC402", 4, "EC"));
-            ecCourses.add(createCourse(courseRepo, "Microprocessors", "EC403", 3, "EC"));
-            ecCourses.add(createCourse(courseRepo, "Communication Systems", "EC404", 3, "EC"));
-            ecCourses.add(createCourse(courseRepo, "Embedded Systems", "EC405", 3, "EC"));
-
-            List<Course> meCourses = new ArrayList<>();
-            meCourses.add(createCourse(courseRepo, "Thermodynamics", "ME401", 4, "ME"));
-            meCourses.add(createCourse(courseRepo, "Fluid Mechanics", "ME402", 4, "ME"));
-
-            List<Course> cvCourses = new ArrayList<>();
-            cvCourses.add(createCourse(courseRepo, "Structural Analysis", "CV401", 4, "CV"));
-            cvCourses.add(createCourse(courseRepo, "Concrete Technology", "CV402", 4, "CV"));
-
-            List<Course> itCourses = new ArrayList<>();
-            itCourses.add(createCourse(courseRepo, "Web Technologies", "IT401", 4, "IT"));
-            itCourses.add(createCourse(courseRepo, "Python Programming", "IT402", 4, "IT"));
+            for (String[] cd : courseData) {
+                allCourses.add(createCourse(courseRepo, cd[1], cd[2], Integer.parseInt(cd[3]), cd[0]));
+            }
 
             // 5. Marks and Attendance
             for (Student s : students) {
-                List<Course> cList;
-                if (s.getDepartment().equals("CS")) cList = csCourses;
-                else if (s.getDepartment().equals("EC")) cList = ecCourses;
-                else if (s.getDepartment().equals("ME")) cList = meCourses;
-                else if (s.getDepartment().equals("CV")) cList = cvCourses;
-                else cList = itCourses;
+                List<Course> deptCourses = new ArrayList<>();
+                for (Course c : allCourses) if (c.getDepartment().equals(s.getDepartment())) deptCourses.add(c);
 
-                for (Course c : cList) {
+                for (Course c : deptCourses) {
                     // Marks
-                    boolean isArrear = Math.random() < 0.1; // 10% chance of arrear
-                    int c1 = isArrear ? 20 + (int)(Math.random() * 15) : 35 + (int)(Math.random() * 15);
-                    int c2 = isArrear ? 20 + (int)(Math.random() * 15) : 35 + (int)(Math.random() * 15);
-                    int mod = isArrear ? 40 + (int)(Math.random() * 20) : 70 + (int)(Math.random() * 30);
+                    int c1 = 30 + (int)(Math.random() * 20);
+                    int c2 = 30 + (int)(Math.random() * 20);
+                    int mod = 60 + (int)(Math.random() * 40);
                     
-                    if (s.getRegisterNumber().equals("7376241CS101") && c.getSubjectCode().equals("CS401")) { c1=42; c2=45; mod=87; }
-                    if (s.getRegisterNumber().equals("7376241CS101") && c.getSubjectCode().equals("CS402")) { c1=38; c2=41; mod=79; }
-                    if (s.getRegisterNumber().equals("7376241CS101") && c.getSubjectCode().equals("CS403")) { c1=46; c2=44; mod=91; }
-                    if (s.getRegisterNumber().equals("7376241CS101") && c.getSubjectCode().equals("CS404")) { c1=35; c2=38; mod=72; }
-                    if (s.getRegisterNumber().equals("7376241CS101") && c.getSubjectCode().equals("CS405")) { c1=40; c2=43; mod=83; }
+                    // Specifics for Abinandhan
+                    if (s.getRegisterNumber().equals("7376241CS101")) {
+                        if (c.getSubjectCode().equals("CS401")) { c1=42; c2=45; mod=87; }
+                        else if (c.getSubjectCode().equals("CS402")) { c1=38; c2=41; mod=79; }
+                        else if (c.getSubjectCode().equals("CS403")) { c1=46; c2=44; mod=91; }
+                        else if (c.getSubjectCode().equals("CS404")) { c1=35; c2=38; mod=72; }
+                        else if (c.getSubjectCode().equals("CS405")) { c1=40; c2=43; mod=83; }
+                    }
 
                     createMark(markRepo, s, c, "CIA1", c1, 50);
                     createMark(markRepo, s, c, "CIA2", c2, 50);
                     createMark(markRepo, s, c, "Model", mod, 100);
 
-                    // Attendance
-                    int present = 35 + (int)(Math.random() * 10); // 35-45
-                    if (s.getRegisterNumber().equals("7376241CS103") && c.getSubjectCode().equals("CS401")) present = 28;
-                    if (s.getRegisterNumber().equals("7376241CS107") && c.getSubjectCode().equals("CS402")) present = 31;
-                    if (s.getRegisterNumber().equals("7376241CS104") && c.getSubjectCode().equals("CS403")) present = 33;
+                    // Attendance (45 sessions)
+                    int presentCount = 34 + (int)(Math.random() * 11); // 34-45
+                    if (s.getRegisterNumber().equals("7376241CS103") && c.getSubjectCode().equals("CS401")) presentCount = 28;
+                    if (s.getRegisterNumber().equals("7376241CS107") && c.getSubjectCode().equals("CS402")) presentCount = 31;
+                    if (s.getRegisterNumber().equals("7376241CS104") && c.getSubjectCode().equals("CS403")) presentCount = 33;
                     
-                    for (int j=0; j<45; j++) {
-                        boolean isP = j < present;
-                        createAttendance(attendanceRepo, s, c, LocalDate.now().minusDays(45-j), isP);
+                    for (int j = 0; j < 45; j++) {
+                        createAttendance(attendanceRepo, s, c, LocalDate.now().minusDays(45-j), j < presentCount);
                     }
                 }
                 
-                // Fees
-                double rand = Math.random();
-                if (rand < 0.6) { // 60% all paid
-                    createFee(feeRepo, s, "Tuition Fee", 45000.0, "2026-03-31", "2026-02-15", "PAID", "RCP0" + s.getId());
-                    createFee(feeRepo, s, "Exam Fee", 2500.0, "2026-04-15", "2026-03-10", "PAID", "RCP1" + s.getId());
-                    createFee(feeRepo, s, "Lab Fee", 5000.0, "2026-03-31", "2026-02-20", "PAID", "RCP2" + s.getId());
-                } else if (rand < 0.9) { // 30% partial
-                    createFee(feeRepo, s, "Tuition Fee", 45000.0, "2026-03-31", "2026-03-25", "PAID", "RCP0" + s.getId());
-                    createFee(feeRepo, s, "Exam Fee", 2500.0, "2026-04-15", null, "PENDING", null);
-                    createFee(feeRepo, s, "Lab Fee", 5000.0, "2026-03-31", "2026-03-25", "PAID", "RCP2" + s.getId());
-                } else { // 10% defaulter
-                    createFee(feeRepo, s, "Tuition Fee", 45000.0, "2026-03-31", null, "PENDING", null);
-                    createFee(feeRepo, s, "Exam Fee", 2500.0, "2026-04-15", null, "PENDING", null);
-                    createFee(feeRepo, s, "Lab Fee", 5000.0, "2026-03-31", null, "PENDING", null);
-                }
+                // Historical Marks for SGPA Chart
+                createMark(markRepo, s, allCourses.get(0), "SEM_1_SGPA", (int)(85 + Math.random()*7), 100);
+                createMark(markRepo, s, allCourses.get(0), "SEM_2_SGPA", (int)(80 + Math.random()*8), 100);
+                createMark(markRepo, s, allCourses.get(0), "SEM_3_SGPA", (int)(78 + Math.random()*7), 100);
+
+                // Fee Records
+                boolean isDefaulter = s.getId() != null && s.getId() % 10 == 0;
+                boolean isPartial = s.getId() != null && s.getId() % 10 == 5;
+                
+                createFee(feeRepo, s, "Tuition Fee", 45000.0, "2026-03-31", isDefaulter ? null : "2026-02-15", isDefaulter ? "PENDING" : "PAID", isDefaulter ? null : "RCP0"+s.getRegisterNumber());
+                createFee(feeRepo, s, "Exam Fee", 2500.0, "2026-04-15", (isDefaulter || isPartial) ? null : "2026-03-10", (isDefaulter || isPartial) ? "PENDING" : "PAID", (isDefaulter || isPartial) ? null : "RCP1"+s.getRegisterNumber());
+                createFee(feeRepo, s, "Lab Fee", 5000.0, "2026-03-31", isDefaulter ? null : "2026-02-20", isDefaulter ? "PENDING" : "PAID", isDefaulter ? null : "RCP2"+s.getRegisterNumber());
             }
 
-            // 6. Timetable
-            Staff s001 = staffRepo.findByStaffId("S001").orElse(staffList.get(0));
-            Staff s002 = staffRepo.findByStaffId("S002").orElse(staffList.get(1));
-            Staff s003 = staffRepo.findByStaffId("S003").orElse(staffList.get(2));
+            // 6. Timetable (CS Dept)
+            Staff s1 = staffRepo.findByStaffId("S001").get();
+            Staff s2 = staffRepo.findByStaffId("S002").get();
+            Staff s3 = staffRepo.findByStaffId("S003").get();
             
-            createSlot(timetableRepo, s001, csCourses.get(0), "Monday", 1, "CS101", "IV", "A");
-            createSlot(timetableRepo, s002, csCourses.get(1), "Monday", 2, "CS102", "IV", "A");
-            createSlot(timetableRepo, s003, csCourses.get(2), "Monday", 3, "CS101", "IV", "A");
-            createSlot(timetableRepo, s001, csCourses.get(3), "Monday", 4, "CS103", "IV", "A");
-            createSlot(timetableRepo, s002, csCourses.get(4), "Monday", 5, "CS102", "IV", "A");
+            Course cs401 = courseRepo.findBySubjectCode("CS401").get();
+            Course cs402 = courseRepo.findBySubjectCode("CS402").get();
+            Course cs403 = courseRepo.findBySubjectCode("CS403").get();
+            Course cs404 = courseRepo.findBySubjectCode("CS404").get();
+            Course cs405 = courseRepo.findBySubjectCode("CS405").get();
 
-            createSlot(timetableRepo, s003, csCourses.get(2), "Tuesday", 1, "CS101", "IV", "A");
-            createSlot(timetableRepo, s001, csCourses.get(0), "Tuesday", 2, "CS102", "IV", "A");
-            createSlot(timetableRepo, s002, csCourses.get(4), "Tuesday", 3, "CS103", "IV", "A");
-            createSlot(timetableRepo, s002, csCourses.get(1), "Tuesday", 4, "CS101", "IV", "A");
-            createSlot(timetableRepo, s001, csCourses.get(3), "Tuesday", 5, "CS102", "IV", "A");
+            String[] days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+            for (String day : days) {
+                createSlot(timetableRepo, s1, cs401, day, 1, "CS101", "IV", "A");
+                createSlot(timetableRepo, s2, cs402, day, 2, "CS102", "IV", "A");
+                createSlot(timetableRepo, s3, cs403, day, 3, "CS101", "IV", "A");
+                createSlot(timetableRepo, s1, cs404, day, 4, "CS103", "IV", "A");
+                createSlot(timetableRepo, s2, cs405, day, 5, "CS102", "IV", "A");
+            }
 
             // 7. Exam Schedule
-            createExam(examRepo, csCourses.get(0), "Final", "2026-06-02", "09:00", "Hall A", 100, true);
-            createExam(examRepo, csCourses.get(1), "Final", "2026-06-04", "09:00", "Hall B", 100, true);
-            createExam(examRepo, csCourses.get(2), "Final", "2026-06-06", "14:00", "Hall A", 100, false);
-            createExam(examRepo, csCourses.get(3), "Final", "2026-06-09", "09:00", "Hall C", 100, false);
-            createExam(examRepo, csCourses.get(4), "Final", "2026-06-11", "14:00", "Hall B", 100, false);
-            createExam(examRepo, ecCourses.get(0), "Final", "2026-06-03", "09:00", "Hall D", 100, true);
+            createExam(examRepo, cs401, "Final", "2026-06-02", "09:00", "Hall A", 100, true);
+            createExam(examRepo, cs402, "Final", "2026-06-04", "09:00", "Hall B", 100, true);
+            createExam(examRepo, cs403, "Final", "2026-06-06", "14:00", "Hall A", 100, false);
+            createExam(examRepo, cs404, "Final", "2026-06-09", "09:00", "Hall C", 100, false);
+            createExam(examRepo, cs405, "Final", "2026-06-11", "14:00", "Hall B", 100, false);
+            createExam(examRepo, allCourses.get(5), "Final", "2026-06-03", "09:00", "Hall D", 100, true);
 
-            // 8. Library Books
-            LibraryBook b1 = createBook(bookRepo, "B001", "Introduction to Algorithms", "Cormen", "CS", "9780262033848", 5, 3);
-            LibraryBook b2 = createBook(bookRepo, "B002", "Database System Concepts", "Silberschatz", "CS", "9780078022159", 4, 2);
-            LibraryBook b3 = createBook(bookRepo, "B003", "Operating System Concepts", "Galvin", "CS", "9781118063330", 4, 4);
-            LibraryBook b4 = createBook(bookRepo, "B004", "Computer Networks", "Tanenbaum", "CS", "9780132126953", 3, 1);
-            LibraryBook b5 = createBook(bookRepo, "B005", "Software Engineering", "Pressman", "CS", "9780078022128", 3, 3);
-            LibraryBook b6 = createBook(bookRepo, "B006", "Digital Signal Processing", "Proakis", "EC", "9780131873742", 4, 3);
-            LibraryBook b7 = createBook(bookRepo, "B007", "VLSI Design", "Weste", "EC", "9780321547743", 3, 2);
-            LibraryBook b8 = createBook(bookRepo, "B008", "Microprocessor Architecture", "Brey", "EC", "9780135026458", 4, 4);
-            LibraryBook b9 = createBook(bookRepo, "B009", "Engineering Mathematics Vol 1", "Grewal", "ALL", "9788121935906", 8, 5);
-            LibraryBook b16 = createBook(bookRepo, "B016", "Web Technologies", "Godbole", "IT", "9780070146839", 5, 3);
-            LibraryBook b17 = createBook(bookRepo, "B017", "Python Programming", "Guido", "IT/CS", "9780596009427", 6, 4);
-            LibraryBook b18 = createBook(bookRepo, "B018", "Machine Learning", "Mitchell", "CS/IT", "9780070428072", 4, 2);
-            LibraryBook b20 = createBook(bookRepo, "B020", "Clean Code", "Martin", "ALL", "9780132350884", 5, 3);
+            // 8. Library Books (20)
+            String[][] bookData = {
+                {"B001", "Introduction to Algorithms", "Cormen", "CS", "9780262033848", "5", "3"},
+                {"B002", "Database System Concepts", "Silberschatz", "CS", "9780078022159", "4", "2"},
+                {"B003", "Operating System Concepts", "Galvin", "CS", "9781118063330", "4", "4"},
+                {"B004", "Computer Networks", "Tanenbaum", "CS", "9780132126953", "3", "1"},
+                {"B005", "Software Engineering", "Pressman", "CS", "9780078022128", "3", "3"},
+                {"B006", "Digital Signal Processing", "Proakis", "EC", "9780131873742", "4", "3"},
+                {"B007", "VLSI Design", "Weste", "EC", "9780321547743", "3", "2"},
+                {"B008", "Microprocessor Architecture", "Brey", "EC", "9780135026458", "4", "4"},
+                {"B009", "Engineering Mathematics Vol 1", "Grewal", "ALL", "9788121935906", "8", "5"},
+                {"B010", "Engineering Mathematics Vol 2", "Grewal", "ALL", "9788121935920", "8", "6"},
+                {"B011", "Strength of Materials", "Bansal", "ME", "9788174091277", "5", "4"},
+                {"B012", "Thermodynamics", "Cengel", "ME", "9780073398174", "4", "3"},
+                {"B013", "Fluid Mechanics", "White", "ME/CV", "9780073398273", "4", "2"},
+                {"B014", "Structural Analysis", "Bhavikatti", "CV", "9788122427974", "4", "4"},
+                {"B015", "Concrete Technology", "Shetty", "CV", "9788121928915", "3", "3"},
+                {"B016", "Web Technologies", "Godbole", "IT", "9780070146839", "5", "3"},
+                {"B017", "Python Programming", "Guido", "IT/CS", "9780596009427", "6", "4"},
+                {"B018", "Machine Learning", "Mitchell", "CS/IT", "9780070428072", "4", "2"},
+                {"B019", "Data Science Handbook", "Field Cady", "ALL", "9781491931615", "3", "1"},
+                {"B020", "Clean Code", "Martin", "ALL", "9780132350884", "5", "3"}
+            };
+            List<LibraryBook> books = new ArrayList<>();
+            for (String[] bd : bookData) {
+                books.add(createBook(bookRepo, bd[0], bd[1], bd[2], bd[3], bd[4], Integer.parseInt(bd[5]), Integer.parseInt(bd[6])));
+            }
 
             // Library Issues
-            createIssue(issueRepo, students.get(0), b1, "2026-04-20", "2026-05-04", null, "OVERDUE", 24.0);
-            createIssue(issueRepo, students.get(1), b17, "2026-05-01", "2026-05-15", null, "OVERDUE", 2.0);
-            createIssue(issueRepo, students.get(2), b9, "2026-05-10", "2026-05-24", null, "ISSUED", 0.0);
-            createIssue(issueRepo, students.get(3), b18, "2026-05-12", "2026-05-26", null, "ISSUED", 0.0);
-            
-            createIssue(issueRepo, students.get(0), b2, "2026-03-01", "2026-03-14", "2026-03-14", "RETURNED", 0.0);
-            createIssue(issueRepo, students.get(1), b20, "2026-03-05", "2026-03-20", "2026-03-20", "RETURNED", 0.0);
-            createIssue(issueRepo, students.get(2), b17, "2026-03-10", "2026-04-01", "2026-04-01", "RETURNED", 34.0);
+            createIssue(issueRepo, students.get(0), books.get(0), "2026-04-20", "2026-05-04", null, "OVERDUE", 24.0);
+            createIssue(issueRepo, students.get(1), books.get(16), "2026-05-01", "2026-05-15", null, "OVERDUE", 2.0);
+            createIssue(issueRepo, students.get(2), books.get(8), "2026-05-10", "2026-05-24", null, "ISSUED", 0.0);
+            createIssue(issueRepo, students.get(3), books.get(17), "2026-05-12", "2026-05-26", null, "ISSUED", 0.0);
 
-            // 9. Hostel Rooms & Allocations
-            HostelRoom a101 = createRoom(roomRepo, "A101", "Block A", 1, 4, 4);
-            HostelRoom a102 = createRoom(roomRepo, "A102", "Block A", 1, 4, 3);
-            HostelRoom a103 = createRoom(roomRepo, "A103", "Block A", 1, 4, 2);
-            
-            createAllocation(hostelAllocRepo, students.get(0), a101, "Bed 1");
-            createAllocation(hostelAllocRepo, students.get(1), a101, "Bed 2");
-            createAllocation(hostelAllocRepo, students.get(10), a101, "Bed 3");
-            createAllocation(hostelAllocRepo, students.get(20), a101, "Bed 4");
+            // 9. Hostel
+            for (int i=1; i<=5; i++) createRoom(roomRepo, "A10"+i, "Block A", 1, 4, 4);
+            for (int i=1; i<=5; i++) createRoom(roomRepo, "A20"+i, "Block A", 2, 4, 4);
+            for (int i=1; i<=5; i++) createRoom(roomRepo, "B10"+i, "Block B", 1, 4, 4);
+            for (int i=1; i<=5; i++) createRoom(roomRepo, "B20"+i, "Block B", 2, 4, 4);
 
-            createAllocation(hostelAllocRepo, students.get(2), a102, "Bed 1");
-            createAllocation(hostelAllocRepo, students.get(3), a102, "Bed 2");
-            createAllocation(hostelAllocRepo, students.get(11), a102, "Bed 3");
+            HostelRoom r1 = roomRepo.findByRoomNumber("A101").get();
+            createAllocation(hostelAllocRepo, students.get(0), r1, "Bed 1");
+            createAllocation(hostelAllocRepo, students.get(1), r1, "Bed 2");
 
-            // Hostel Complaints
             createComplaint(complaintRepo, students.get(0), "Electrical", "Fan in room A101 not working", "2026-05-10", "RESOLVED");
             createComplaint(complaintRepo, students.get(2), "Plumbing", "Tap leaking in bathroom", "2026-05-12", "IN_PROGRESS");
             createComplaint(complaintRepo, students.get(1), "Cleanliness", "Room not cleaned for 3 days", "2026-05-14", "OPEN");
 
-            // Mess Menu
-            createMenu(messRepo, "Monday", "Idli (3) + Sambar + Coconut Chutney", "Rice + Dal + Rajma + Papad + Curd", "Bread Toast + Tea", "Chapati (3) + Paneer Butter Masala + Rice + Dal");
-            createMenu(messRepo, "Tuesday", "Dosa (2) + Chutney + Sambar", "Rice + Sambar + Potato Fry + Appalam + Buttermilk", "Vada + Coffee", "Chapati + Chicken Curry + Rice + Raita");
+            for (String day : days) {
+                createMenu(messRepo, day, "Institutional Breakfast", "Institutional Lunch", "Tea/Coffee + Snacks", "Institutional Dinner");
+            }
 
-            // 10. Placement Companies
+            // 10. Placement
             Company tcs = createCompany(companyRepo, "TCS", "IT Services", "2026-07-15", 6.0, "Upcoming", "3.5-7 LPA");
             Company infosys = createCompany(companyRepo, "Infosys", "IT Services", "2026-07-22", 6.5, "Upcoming", "4-8 LPA");
             Company wipro = createCompany(companyRepo, "Wipro", "IT Services", "2026-08-05", 6.0, "Upcoming", "3.5-6 LPA");
             Company zoho = createCompany(companyRepo, "Zoho", "Product", "2026-08-12", 7.5, "Upcoming", "6-12 LPA");
+            Company amazon = createCompany(companyRepo, "Amazon", "E-commerce", "2026-09-01", 8.0, "Upcoming", "12-20 LPA");
+            Company lt = createCompany(companyRepo, "L&T", "Construction", "2026-07-20", 6.5, "Upcoming", "4-7 LPA");
 
-            // Placement Applications
             createApp(placementAppRepo, students.get(0), zoho, "2025-12-01", "PLACED", "8 LPA");
             createApp(placementAppRepo, students.get(1), tcs, "2025-11-10", "PLACED", "4.5 LPA");
-            createApp(placementAppRepo, students.get(10), infosys, "2025-11-20", "PLACED", "5 LPA");
 
             // 11. Announcements & Events
             createAnnouncement(announcementRepo, "Final Exam Hall Tickets Released for CS and EC departments", "Admin", "2026-05-14", "URGENT");
             createAnnouncement(announcementRepo, "Fee payment last date extended to May 30, 2026", "Finance", "2026-05-12", "IMPORTANT");
             createAnnouncement(announcementRepo, "Library will remain closed on May 19 (holiday)", "Library", "2026-05-11", "NORMAL");
+            createAnnouncement(announcementRepo, "TCS Campus Drive registration open until May 25", "Placement", "2026-05-10", "URGENT");
 
             createEvent(eventRepo, "Buddha Purnima", "College Holiday", "2026-05-19", "Holiday");
             createEvent(eventRepo, "Sports Day 2026", "Annual sports meet", "2026-06-01", "Event");
+            createEvent(eventRepo, "Final Exam Begins", "Semester IV finals start", "2026-06-02", "Exam");
 
             // 12. Leaves
-            createStaffLeave(staffLeaveRepo, s001, "Medical", "2026-05-05", "2026-05-07", 3, "APPROVED");
-            createStaffLeave(staffLeaveRepo, s002, "Casual", "2026-05-10", "2026-05-10", 1, "APPROVED");
-            createStaffLeave(staffLeaveRepo, s003, "Duty", "2026-05-15", "2026-05-16", 2, "PENDING");
+            createStaffLeave(staffLeaveRepo, s1, "Medical", "2026-05-05", "2026-05-07", 3, "APPROVED");
+            createStaffLeave(staffLeaveRepo, s2, "Casual", "2026-05-10", "2026-05-10", 1, "APPROVED");
+            createStaffLeave(staffLeaveRepo, s3, "Duty", "2026-05-15", "2026-05-16", 2, "PENDING");
 
             createStudentLeave(studentLeaveRepo, students.get(0), "Medical", "2026-04-28", "2026-04-29", 2, "APPROVED");
             createStudentLeave(studentLeaveRepo, students.get(1), "Casual", "2026-05-02", "2026-05-02", 1, "APPROVED");
-            createStudentLeave(studentLeaveRepo, students.get(2), "Medical", "2026-05-10", "2026-05-12", 3, "PENDING");
 
-            // 13. Payroll
+            // 13. Payroll & Logs
             for (Staff st : staffList) {
-                if (st.getDesignation().equals("Professor")) {
-                    createPayroll(payrollRepo, st, "May 2026", 80000.0, 20000.0, 15000.0, 85000.0, "PROCESSED");
-                } else {
-                    createPayroll(payrollRepo, st, "May 2026", 55000.0, 15000.0, 10000.0, 60000.0, "PROCESSED");
-                }
+                double base = st.getDesignation().equals("Professor") ? 80000 : 55000;
+                createPayroll(payrollRepo, st, "May 2026", base, base*0.2, base*0.1, base*1.1, "PROCESSED");
             }
 
-            // 14. Security Logs
             createLog(logRepo, "abi@gmail.com", "STUDENT", "LOGIN", "192.168.1.10", "SUCCESS", "2026-05-16 08:15");
-            createLog(logRepo, "raj@intuition.ac.in", "STAFF", "LOGIN", "192.168.1.11", "SUCCESS", "2026-05-16 08:20");
             createLog(logRepo, "admin@intuition.ac.in", "ADMIN", "LOGIN", "192.168.1.1", "SUCCESS", "2026-05-16 08:22");
-            createLog(logRepo, "unknown@test.com", "UNKNOWN", "LOGIN", "203.45.67.89", "FAILED", "2026-05-16 08:45");
+            createLog(logRepo, "hacker@evil.com", "UNKNOWN", "LOGIN", "45.67.89.123", "FAILED", "2026-05-13 22:15");
 
-            System.out.println("Data Seeding Completed Successfully.");
+            System.out.println("Comprehensive Data Seeding Completed.");
         };
     }
 
-    private Department createDept(DepartmentRepository repo, String name, String code, String hod) {
+    private Department createDept(DepartmentRepository repo, String name, String code) {
         Department d = new Department();
-        d.setName(name);
-        d.setShortForm(code);
+        d.setName(name); d.setShortForm(code);
         return repo.save(d);
     }
 
-    private Staff createStaff(StaffRepository repo, PasswordEncoder encoder, String staffId, String name, String desig, String dept, String email, String empId) {
+    private Staff createStaff(StaffRepository repo, UserRepository uRepo, PasswordEncoder enc, String sid, String name, String des, String dept, String email, String eid, String role) {
         Staff s = new Staff();
-        s.setStaffId(staffId);
-        s.setName(name);
-        s.setDesignation(desig);
-        s.setDepartment(dept);
-        s.setEmail(email);
-        s.setEmployeeId(empId);
-        s.setRole("ROLE_STAFF");
-        s.setPassword(encoder.encode("password"));
+        s.setStaffId(sid); s.setName(name); s.setDesignation(des); s.setDepartment(dept); s.setEmail(email); s.setEmployeeId(eid); s.setRole(role); s.setPassword(enc.encode("password"));
+        createUser(uRepo, email, name, role, sid);
         return repo.save(s);
     }
 
-    private Staff createAdmin(StaffRepository repo, PasswordEncoder encoder, String name, String email, String role) {
-        Staff s = new Staff();
-        s.setName(name);
-        s.setEmail(email);
-        s.setRole(role);
-        s.setDepartment("Admin");
-        s.setStaffId("A" + (int)(Math.random() * 1000));
-        s.setPassword(encoder.encode("password"));
-        return repo.save(s);
+    private void createUser(UserRepository repo, String email, String name, String role, String lid) {
+        User u = new User();
+        u.setEmail(email); u.setName(name); u.setRole(role); u.setLinkedId(lid);
+        repo.save(u);
     }
 
-    private Student createStudent(StudentRepository repo, PasswordEncoder encoder, String regNo, String name, String email, String dept, String blood, String sem) {
+    private Student createStudent(StudentRepository repo, UserRepository uRepo, PasswordEncoder enc, String reg, String name, String email, String dept, String blood, String sem) {
         Student s = new Student();
-        s.setRegisterNumber(regNo);
-        s.setName(name);
-        s.setEmail(email);
-        s.setDepartment(dept);
-        s.setBloodGroup(blood);
-        s.setSemester(sem);
-        s.setRole("ROLE_STUDENT");
-        s.setPassword(encoder.encode("password"));
+        s.setRegisterNumber(reg); s.setName(name); s.setEmail(email); s.setDepartment(dept); s.setBloodGroup(blood); s.setSemester(sem); s.setRole("ROLE_STUDENT"); s.setPassword(enc.encode("password"));
+        createUser(uRepo, email, name, "ROLE_STUDENT", reg);
         return repo.save(s);
     }
 
     private Course createCourse(CourseRepository repo, String name, String code, int cred, String dept) {
         Course c = new Course();
-        c.setSubjectName(name);
-        c.setSubjectCode(code);
-        c.setCredits(cred);
-        c.setDepartment(dept);
+        c.setSubjectName(name); c.setSubjectCode(code); c.setCredits(cred); c.setDepartment(dept);
         return repo.save(c);
     }
 
-    private Mark createMark(MarkRepository repo, Student s, Course c, String type, int score, int max) {
-        Mark m = new Mark();
-        m.setStudent(s);
-        m.setCourse(c);
-        m.setExamType(type);
-        m.setScore(score);
-        m.setMaxScore(max);
-        return repo.save(m);
+    private void createMark(MarkRepository repo, Student s, Course c, String type, int score, int max) {
+        Mark m = new Mark(); m.setStudent(s); m.setCourse(c); m.setExamType(type); m.setScore(score); m.setMaxScore(max);
+        repo.save(m);
     }
 
-    private Attendance createAttendance(AttendanceRepository repo, Student s, Course c, LocalDate date, boolean present) {
-        Attendance a = new Attendance();
-        a.setStudent(s);
-        a.setCourse(c);
-        a.setDate(date);
-        a.setPresent(present);
-        return repo.save(a);
+    private void createAttendance(AttendanceRepository repo, Student s, Course c, LocalDate d, boolean p) {
+        Attendance a = new Attendance(); a.setStudent(s); a.setCourse(c); a.setDate(d); a.setPresent(p);
+        repo.save(a);
     }
 
-    private FeePayment createFee(FeePaymentRepository repo, Student s, String type, double amt, String due, String paid, String status, String rec) {
-        FeePayment f = new FeePayment();
-        f.setStudent(s);
-        f.setFeeType(type);
-        f.setAmount(amt);
-        f.setDueDate(due);
-        f.setPaidDate(paid);
-        f.setStatus(status);
-        f.setReceiptNumber(rec);
-        return repo.save(f);
+    private void createFee(FeePaymentRepository repo, Student s, String t, double a, String d, String p, String st, String r) {
+        FeePayment f = new FeePayment(); f.setStudent(s); f.setFeeType(t); f.setAmount(a); f.setDueDate(d); f.setPaidDate(p); f.setStatus(st); f.setReceiptNumber(r);
+        repo.save(f);
     }
 
-    private TimetableSlot createSlot(TimetableSlotRepository repo, Staff st, Course c, String day, int period, String room, String year, String sec) {
-        TimetableSlot t = new TimetableSlot();
-        t.setStaff(st);
-        t.setSubject(c);
-        t.setDay(day);
-        t.setPeriod(period);
-        t.setRoomNumber(room);
-        t.setYear(year);
-        t.setSection(sec);
-        return repo.save(t);
+    private void createSlot(TimetableSlotRepository repo, Staff st, Course c, String day, int per, String room, String year, String sec) {
+        TimetableSlot t = new TimetableSlot(); t.setStaff(st); t.setSubject(c); t.setDay(day); t.setPeriod(per); t.setRoomNumber(room); t.setYear(year); t.setSection(sec);
+        repo.save(t);
     }
 
-    private ExamSchedule createExam(ExamScheduleRepository repo, Course c, String type, String date, String time, String venue, int max, boolean hall) {
-        ExamSchedule e = new ExamSchedule();
-        e.setSubject(c);
-        e.setExamType(type);
-        e.setDate(date);
-        e.setTime(time);
-        e.setVenue(venue);
-        e.setMaxMarks(max);
-        e.setHallTicketReleased(hall);
-        return repo.save(e);
+    private void createExam(ExamScheduleRepository repo, Course c, String type, String d, String t, String v, int m, boolean h) {
+        ExamSchedule e = new ExamSchedule(); e.setSubject(c); e.setExamType(type); e.setDate(d); e.setTime(t); e.setVenue(v); e.setMaxMarks(m); e.setHallTicketReleased(h);
+        repo.save(e);
     }
 
-    private LibraryBook createBook(LibraryBookRepository repo, String code, String title, String author, String dept, String isbn, int copies, int avail) {
-        LibraryBook b = new LibraryBook();
-        b.setTitle(title);
-        b.setAuthor(author);
-        b.setCategory(dept);
-        b.setIsbn(isbn);
-        b.setTotalCopies(copies);
-        b.setAvailableCopies(avail);
+    private LibraryBook createBook(LibraryBookRepository repo, String c, String t, String a, String d, String i, int cp, int av) {
+        LibraryBook b = new LibraryBook(); b.setTitle(t); b.setAuthor(a); b.setCategory(d); b.setIsbn(i); b.setTotalCopies(cp); b.setAvailableCopies(av);
         return repo.save(b);
     }
 
-    private LibraryIssue createIssue(LibraryIssueRepository repo, Student s, LibraryBook b, String issue, String due, String ret, String status, double fine) {
-        LibraryIssue i = new LibraryIssue();
-        i.setStudent(s);
-        i.setBook(b);
-        i.setIssueDate(issue);
-        i.setDueDate(due);
-        i.setReturnDate(ret);
-        i.setFinePaid(fine);
-        return repo.save(i);
+    private void createIssue(LibraryIssueRepository repo, Student s, LibraryBook b, String i, String d, String r, String st, double f) {
+        LibraryIssue issue = new LibraryIssue(); issue.setStudent(s); issue.setBook(b); issue.setIssueDate(i); issue.setDueDate(d); issue.setReturnDate(r); issue.setFinePaid(f);
+        repo.save(issue);
     }
 
-    private HostelRoom createRoom(HostelRoomRepository repo, String num, String block, int floor, int cap, int occ) {
-        HostelRoom r = new HostelRoom();
-        r.setRoomNumber(num);
-        r.setBlock(block);
-        r.setFloor(floor);
-        r.setTotalBeds(cap);
-        r.setStatus(occ < cap ? "AVAILABLE" : "FULL");
-        return repo.save(r);
+    private void createRoom(HostelRoomRepository repo, String n, String b, int f, int c, int o) {
+        HostelRoom r = new HostelRoom(); r.setRoomNumber(n); r.setBlock(b); r.setFloor(f); r.setTotalBeds(c); r.setStatus(o<c?"AVAILABLE":"FULL");
+        repo.save(r);
     }
 
-    private HostelAllocation createAllocation(HostelAllocationRepository repo, Student s, HostelRoom r, String bed) {
-        HostelAllocation a = new HostelAllocation();
-        a.setStudent(s);
-        a.setRoom(r);
-        a.setBedNumber(bed);
-        a.setAllocatedOn(LocalDate.now().toString());
-        return repo.save(a);
+    private void createAllocation(HostelAllocationRepository repo, Student s, HostelRoom r, String b) {
+        HostelAllocation a = new HostelAllocation(); a.setStudent(s); a.setRoom(r); a.setBedNumber(b); a.setAllocatedOn(LocalDate.now().toString());
+        repo.save(a);
     }
 
-    private HostelComplaint createComplaint(HostelComplaintRepository repo, Student s, String type, String desc, String date, String status) {
-        HostelComplaint c = new HostelComplaint();
-        c.setStudent(s);
-        c.setPriority("NORMAL");
-        c.setDescription(type + " - " + desc);
-        c.setCreatedAt(date);
-        c.setStatus(status);
+    private void createComplaint(HostelComplaintRepository repo, Student s, String t, String desc, String d, String st) {
+        HostelComplaint c = new HostelComplaint(); c.setStudent(s); c.setPriority("NORMAL"); c.setDescription(t+" - "+desc); c.setCreatedAt(d); c.setStatus(st);
+        repo.save(c);
+    }
+
+    private void createMenu(MessMenuRepository repo, String day, String b, String l, String s, String d) {
+        MessMenu m = new MessMenu(); m.setDay(day); m.setBreakfast(b); m.setLunch(l); m.setSnacks(s); m.setDinner(d);
+        repo.save(m);
+    }
+
+    private Company createCompany(CompanyRepository repo, String n, String i, String d, double m, String s, String p) {
+        Company c = new Company(); c.setCompanyName(n); c.setIndustry(i); c.setDriveDate(d); c.setMinCGPA(m); c.setStatus(s); c.setPackageRange(p);
         return repo.save(c);
     }
 
-    private MessMenu createMenu(MessMenuRepository repo, String day, String b, String l, String s, String d) {
-        MessMenu m = new MessMenu();
-        m.setDay(day);
-        m.setBreakfast(b);
-        m.setLunch(l);
-        m.setSnacks(s);
-        m.setDinner(d);
-        return repo.save(m);
+    private void createApp(PlacementApplicationRepository repo, Student s, Company c, String d, String st, String p) {
+        PlacementApplication a = new PlacementApplication(); a.setStudent(s); a.setCompany(c); a.setAppliedOn(d); a.setStatus(st); a.setPackageOffered(p);
+        repo.save(a);
     }
 
-    private Company createCompany(CompanyRepository repo, String name, String ind, String date, double min, String stat, String pack) {
-        Company c = new Company();
-        c.setCompanyName(name);
-        c.setIndustry(ind);
-        c.setDriveDate(date);
-        c.setMinCGPA(min);
-        c.setStatus(stat);
-        c.setPackageRange(pack);
-        return repo.save(c);
+    private void createAnnouncement(AnnouncementRepository repo, String t, String a, String d, String p) {
+        Announcement ann = new Announcement(); ann.setTitle(t); ann.setSentBy(a); ann.setSentAt(d); ann.setPriority(p);
+        repo.save(ann);
     }
 
-    private PlacementApplication createApp(PlacementApplicationRepository repo, Student s, Company c, String date, String stat, String pack) {
-        PlacementApplication p = new PlacementApplication();
-        p.setStudent(s);
-        p.setCompany(c);
-        p.setAppliedOn(date);
-        p.setStatus(stat);
-        p.setPackageOffered(pack);
-        return repo.save(p);
+    private void createEvent(EventRepository repo, String n, String ds, String d, String t) {
+        Event e = new Event(); e.setTitle(n); e.setDescription(ds); e.setDate(d); e.setType(t);
+        repo.save(e);
     }
 
-    private Announcement createAnnouncement(AnnouncementRepository repo, String title, String author, String date, String prio) {
-        Announcement a = new Announcement();
-        a.setTitle(title);
-        a.setSentBy(author);
-        a.setSentAt(date);
-        a.setPriority(prio);
-        return repo.save(a);
+    private void createStaffLeave(StaffLeaveRepository repo, Staff s, String t, String f, String to, int d, String st) {
+        StaffLeave l = new StaffLeave(); l.setStaff(s); l.setLeaveType(t); l.setFromDate(f); l.setToDate(to); l.setDays(d); l.setStatus(st);
+        repo.save(l);
     }
 
-    private Event createEvent(EventRepository repo, String name, String desc, String date, String type) {
-        Event e = new Event();
-        e.setTitle(name);
-        e.setDescription(desc);
-        e.setDate(date);
-        e.setType(type);
-        return repo.save(e);
+    private void createStudentLeave(StudentLeaveRepository repo, Student s, String t, String f, String to, int d, String st) {
+        StudentLeave l = new StudentLeave(); l.setStudent(s); l.setLeaveType(t); l.setFromDate(f); l.setToDate(to); l.setDays(d); l.setStatus(st);
+        repo.save(l);
     }
 
-    private StaffLeave createStaffLeave(StaffLeaveRepository repo, Staff s, String type, String from, String to, int days, String stat) {
-        StaffLeave l = new StaffLeave();
-        l.setStaff(s);
-        l.setLeaveType(type);
-        l.setFromDate(from);
-        l.setToDate(to);
-        l.setDays(days);
-        l.setStatus(stat);
-        return repo.save(l);
+    private void createPayroll(PayrollRepository repo, Staff s, String m, double b, double a, double d, double n, String st) {
+        Payroll p = new Payroll(); p.setStaff(s); p.setMonth(m); p.setBasicPay(b); p.setAllowances(a); p.setDeductions(d); p.setNetPay(n); p.setStatus(st);
+        repo.save(p);
     }
 
-    private StudentLeave createStudentLeave(StudentLeaveRepository repo, Student s, String type, String from, String to, int days, String stat) {
-        StudentLeave l = new StudentLeave();
-        l.setStudent(s);
-        l.setLeaveType(type);
-        l.setFromDate(from);
-        l.setToDate(to);
-        l.setDays(days);
-        l.setStatus(stat);
-        return repo.save(l);
-    }
-
-    private Payroll createPayroll(PayrollRepository repo, Staff s, String month, double b, double a, double d, double net, String stat) {
-        Payroll p = new Payroll();
-        p.setStaff(s);
-        p.setMonth(month);
-        p.setBasicPay(b);
-        p.setAllowances(a);
-        p.setDeductions(d);
-        p.setNetPay(net);
-        p.setStatus(stat);
-        return repo.save(p);
-    }
-
-    private SecurityLog createLog(SecurityLogRepository repo, String email, String role, String action, String ip, String status, String time) {
-        SecurityLog l = new SecurityLog();
-        l.setUserEmail(email);
-        l.setRole(role);
-        l.setAction(action);
-        l.setIpAddress(ip);
-        l.setStatus(status);
-        l.setTimestamp(time);
-        return repo.save(l);
+    private void createLog(SecurityLogRepository repo, String e, String r, String a, String ip, String st, String t) {
+        SecurityLog l = new SecurityLog(); l.setUserEmail(e); l.setRole(r); l.setAction(a); l.setIpAddress(ip); l.setStatus(st); l.setTimestamp(t);
+        repo.save(l);
     }
 }

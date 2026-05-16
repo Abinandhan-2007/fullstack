@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.model.Staff;
 import com.example.demo.model.Student;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.StaffRepository;
 import com.example.demo.repository.StudentRepository;
 import com.example.demo.security.JwtUtil;
@@ -49,6 +50,7 @@ public class AuthController {
                 response.put("email", student.getEmail());
                 response.put("name", student.getName());
                 response.put("id", student.getId());
+                response.put("linkedId", student.getRegisterNumber());
                 return ResponseEntity.ok(response);
             }
         } else {
@@ -63,6 +65,7 @@ public class AuthController {
                     response.put("email", staff.getEmail());
                     response.put("name", staff.getName());
                     response.put("id", staff.getId());
+                    response.put("linkedId", staff.getStaffId());
                     return ResponseEntity.ok(response);
                 }
             }
@@ -104,36 +107,25 @@ public class AuthController {
         }
     }
 
+    @Autowired
+    private UserRepository userRepository;
+
     public record GoogleLoginRequest(String email, String googleToken) {}
 
     @PostMapping("/google-login")
     public ResponseEntity<?> googleLogin(@RequestBody GoogleLoginRequest request) {
         String email = request.email();
-        // Look up in student
-        Optional<Student> studentOpt = studentRepository.findByEmail(email);
-        if (studentOpt.isPresent()) {
-            Student student = studentOpt.get();
-            String token = jwtUtil.generateToken(student.getEmail(), student.getRole());
+        Optional<com.example.demo.model.User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isPresent()) {
+            com.example.demo.model.User user = userOpt.get();
+            String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
-            response.put("role", student.getRole());
-            response.put("email", student.getEmail());
-            response.put("name", student.getName());
-            response.put("id", student.getId());
-            return ResponseEntity.ok(response);
-        }
-        
-        // Look up in staff
-        Optional<Staff> staffOpt = staffRepository.findByEmail(email);
-        if (staffOpt.isPresent()) {
-            Staff staff = staffOpt.get();
-            String token = jwtUtil.generateToken(staff.getEmail(), staff.getRole());
-            Map<String, Object> response = new HashMap<>();
-            response.put("token", token);
-            response.put("role", staff.getRole());
-            response.put("email", staff.getEmail());
-            response.put("name", staff.getName());
-            response.put("id", staff.getId());
+            response.put("role", user.getRole()); // e.g., ROLE_STUDENT
+            response.put("email", user.getEmail());
+            response.put("name", user.getName());
+            response.put("linkedId", user.getLinkedId());
             return ResponseEntity.ok(response);
         }
         

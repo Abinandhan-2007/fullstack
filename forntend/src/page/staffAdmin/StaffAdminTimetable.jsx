@@ -1,120 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../../api';
+import { useTheme } from '../../context/ThemeContext';
 
-export default function StaffAdminTimetable() {
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-  const periods = ['P1', 'P2', 'P3', 'P4', 'Lunch', 'P5', 'P6'];
-  const [modalOpen, setModalOpen] = useState(false);
-  const [timetable, setTimetable] = useState([
-     { id: '1', day: 'Monday', period: 'P1', sub: 'DS', fac: 'Dr. Alan', venue: 'R201', dept: 'CSE' }
-  ]);
+export default function StaffAdminTimetable({ apiUrl, token, user }) {
+  const { isDark } = useTheme();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDay, setActiveDay] = useState('MONDAY');
 
-  const [formData, setFormData] = useState({ sub: '', fac: '', venue: '', day: 'Monday', period: 'P1', dept: 'CSE' });
+  const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const periods = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
 
-  const isCellOccupied = (day, period) => timetable.find(t => t.day === day && t.period === period);
-
-  const handleCellClick = (day, period) => {
-      const existing = isCellOccupied(day, period);
-      if(existing) {
-          setFormData(existing);
-      } else {
-          setFormData({ sub: '', fac: '', venue: '', day, period, dept: 'CSE' });
-      }
-      setModalOpen(true);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/staff-admin/timetable');
+      setData(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  const handleSave = (e) => {
-      e.preventDefault();
-      // Basic conflict detection
-      const facultyClash = timetable.find(t => t.fac === formData.fac && t.day === formData.day && t.period === formData.period && t.id !== formData.id);
-      if(facultyClash) return alert(`Clash: ${formData.fac} is already booked at this time.`);
-      
-      const venueClash = timetable.find(t => t.venue === formData.venue && t.day === formData.day && t.period === formData.period && t.id !== formData.id);
-      if(venueClash) return alert(`Clash: ${formData.venue} is already occupied at this time.`);
+  useEffect(() => { fetchData(); }, []);
 
-      setTimetable(prev => {
-          const removed = prev.filter(t => t.id !== formData.id && !(t.day === formData.day && t.period === formData.period));
-          return [...removed, { ...formData, id: formData.id || Date.now().toString() }];
-      });
-      setModalOpen(false);
+  const getSlot = (day, period) => {
+    return data.find(s => s.day === day && s.period === period);
   };
+
+  if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
   return (
     <div className="space-y-6">
-      
-      <div className="flex justify-between items-center bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Timetable Manager</h1>
-            <p className="text-slate-500 font-medium">Department scheduling with write access & conflict detection.</p>
-         </div>
-         <div className="flex gap-2">
-            <button className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition text-sm shadow-sm">Clear All</button>
-            <button className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition text-sm shadow-sm">Export</button>
-         </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight italic underline decoration-sky-500">Departmental Academic Planner</h1>
+          <p className="text-slate-500 dark:text-gray-400 text-sm">Master schedule management for all curriculum sessions and laboratory blocks</p>
+        </div>
+        <div className="flex gap-2">
+           <button className="px-6 py-3 bg-sky-600 text-white rounded-xl font-bold shadow-xl shadow-sky-500/20 text-xs uppercase tracking-widest">
+              <span>➕</span> Add New Session
+           </button>
+        </div>
       </div>
 
-      <div className="bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden">
-         <div className="overflow-x-auto">
-             <table className="w-full border-collapse min-w-[800px]">
-                 <thead>
-                     <tr>
-                         <th className="bg-slate-50 border border-slate-100 p-3 w-20 text-[10px] font-black uppercase text-slate-500 tracking-widest text-center">Day</th>
-                         {periods.map(p => <th key={p} className="bg-slate-50 border border-slate-100 p-3 text-[10px] font-black uppercase text-slate-500 tracking-widest">{p}</th>)}
-                     </tr>
-                 </thead>
-                 <tbody>
-                     {days.map(day => (
-                         <tr key={day}>
-                             <td className="bg-slate-50 border border-slate-100 p-3 text-xs font-black text-slate-600 uppercase text-center">{day.substring(0,3)}</td>
-                             {periods.map(period => {
-                                 if(period === 'Lunch') return <td key={period} className="bg-slate-100 border border-slate-200 opacity-50 p-2"></td>;
-                                 const cell = isCellOccupied(day, period);
-                                 return (
-                                     <td key={period} onClick={() => handleCellClick(day, period)} className={`border border-slate-100 p-2 h-24 align-top cursor-pointer transition-colors ${!cell ? 'bg-white hover:bg-indigo-50/30' : 'bg-slate-50 hover:bg-slate-100'}`}>
-                                         {cell ? (
-                                             <div className="h-full p-2 rounded-lg border bg-indigo-50 border-indigo-200 text-indigo-900 flex flex-col justify-between shadow-sm">
-                                                 <span className="font-black text-xs">{cell.sub}</span>
-                                                 <div><p className="text-[10px] font-bold opacity-80">{cell.fac}</p><p className="text-[9px] font-black uppercase mt-0.5 opacity-60">📍 {cell.venue}</p></div>
-                                             </div>
-                                         ) : (
-                                             <div className="h-full rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center opacity-0 hover:opacity-100"><span className="text-[10px] font-bold text-slate-400">Add</span></div>
-                                         )}
-                                     </td>
-                                 )
-                             })}
-                         </tr>
-                     ))}
-                 </tbody>
-             </table>
-         </div>
+      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+         {days.map(d => (
+           <button 
+             key={d}
+             onClick={() => setActiveDay(d)}
+             className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border whitespace-nowrap ${
+               activeDay === d 
+               ? 'bg-sky-600 border-sky-600 text-white shadow-lg shadow-sky-500/20 scale-105' 
+               : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800 text-slate-400'
+             }`}
+           >
+             {d}
+           </button>
+         ))}
       </div>
 
-      {modalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl relative">
-                  <button onClick={() => setModalOpen(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600">✕</button>
-                  <h2 className="text-xl font-black text-slate-800 mb-4">{formData.id ? 'Edit' : 'Add'} Session</h2>
-                  <form onSubmit={handleSave} className="space-y-4">
-                      <div>
-                         <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Subject</label>
-                         <input required value={formData.sub} onChange={e=>setFormData({...formData, sub: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-bold outline-none focus:border-indigo-500" />
+      <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden p-8">
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {periods.map(p => {
+               const slot = getSlot(activeDay, p);
+               return (
+                 <div key={p} className="bg-slate-50 dark:bg-gray-800/50 border border-slate-100 dark:border-gray-700 rounded-3xl p-6 flex flex-col relative group hover:border-sky-500 transition-all cursor-pointer">
+                    <div className="flex justify-between items-start mb-6">
+                       <span className="text-[10px] font-black text-sky-600 bg-sky-50 dark:bg-sky-900/20 px-2 py-1 rounded-lg uppercase tracking-widest">{p}</span>
+                       <button className="text-slate-300 hover:text-sky-500 transition-colors">✏️</button>
+                    </div>
+                    
+                    {slot ? (
+                      <div className="space-y-4">
+                         <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight italic line-clamp-2">{slot.course?.name || 'Academic Session'}</h4>
+                         <div className="pt-4 border-t border-slate-200/50 dark:border-gray-700 space-y-2">
+                            <div className="flex items-center gap-2">
+                               <span className="text-xs">👨‍🏫</span>
+                               <span className="text-[10px] font-bold text-slate-500 dark:text-gray-400 uppercase italic">{slot.staff?.name || 'Faculty Member'}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <span className="text-xs">📍</span>
+                               <span className="text-[10px] font-bold text-slate-500 dark:text-gray-400 uppercase tracking-widest">{slot.venue || 'Lecture Hall'}</span>
+                            </div>
+                         </div>
                       </div>
-                      <div>
-                         <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Faculty</label>
-                         <input required value={formData.fac} onChange={e=>setFormData({...formData, fac: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-bold outline-none focus:border-indigo-500" />
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center py-10 opacity-30 italic">
+                         <span className="text-2xl mb-2">💤</span>
+                         <p className="text-[10px] font-black uppercase tracking-widest">Free Slot</p>
                       </div>
-                      <div>
-                         <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Venue</label>
-                         <input required value={formData.venue} onChange={e=>setFormData({...formData, venue: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm font-bold outline-none focus:border-indigo-500" />
-                      </div>
-                      <div className="pt-2">
-                         <button type="submit" className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-md transition">Save Session</button>
-                         {formData.id && <button type="button" onClick={() => {setTimetable(prev => prev.filter(t=>t.id!==formData.id)); setModalOpen(false);}} className="w-full py-3 mt-2 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition">Delete</button>}
-                      </div>
-                  </form>
-              </div>
-          </div>
-      )}
-
+                    )}
+                 </div>
+               );
+            })}
+         </div>
+      </div>
     </div>
   );
 }
