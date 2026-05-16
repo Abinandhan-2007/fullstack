@@ -1,44 +1,40 @@
 package com.example.demo.model;
 
 import jakarta.persistence.*;
+import java.util.Date;
 
 @Entity
-@Table(name = "feepayments")
 public class FeePayment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String studentName;
-    private String registerNumber;
-    private String department;
-    private String batch;
-    private Double amountPaid;
-    private String paymentDate;
-    private String receiptNumber;
-    private String paymentMode;
-    private String academicYear;
-    private String status;
 
+    @ManyToOne
+    @JoinColumn(name = "student_id")
+    private Student student;
+
+    private String feeType;
+    private Double amount;
+    private String dueDate;
+    private String paidDate;
+    private String status;
+    private String receiptNumber;
+
+    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public String getStudentName() { return studentName; }
-    public void setStudentName(String studentName) { this.studentName = studentName; }
-    public String getRegisterNumber() { return registerNumber; }
-    public void setRegisterNumber(String registerNumber) { this.registerNumber = registerNumber; }
-    public String getDepartment() { return department; }
-    public void setDepartment(String department) { this.department = department; }
-    public String getBatch() { return batch; }
-    public void setBatch(String batch) { this.batch = batch; }
-    public Double getAmountPaid() { return amountPaid; }
-    public void setAmountPaid(Double amountPaid) { this.amountPaid = amountPaid; }
-    public String getPaymentDate() { return paymentDate; }
-    public void setPaymentDate(String paymentDate) { this.paymentDate = paymentDate; }
-    public String getReceiptNumber() { return receiptNumber; }
-    public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
-    public String getPaymentMode() { return paymentMode; }
-    public void setPaymentMode(String paymentMode) { this.paymentMode = paymentMode; }
-    public String getAcademicYear() { return academicYear; }
-    public void setAcademicYear(String academicYear) { this.academicYear = academicYear; }
+    public Student getStudent() { return student; }
+    public void setStudent(Student student) { this.student = student; }
+    public String getFeeType() { return feeType; }
+    public void setFeeType(String feeType) { this.feeType = feeType; }
+    public Double getAmount() { return amount; }
+    public void setAmount(Double amount) { this.amount = amount; }
+    public String getDueDate() { return dueDate; }
+    public void setDueDate(String dueDate) { this.dueDate = dueDate; }
+    public String getPaidDate() { return paidDate; }
+    public void setPaidDate(String paidDate) { this.paidDate = paidDate; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getReceiptNumber() { return receiptNumber; }
+    public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
 }

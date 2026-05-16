@@ -1,276 +1,276 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Chart from 'chart.js/auto';
+import api from '../../api';
 
-export default function AdminDashboard({ apiUrl, token }) {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [stats, setStats] = useState({
-    activeSessions: 0,
-    attendancePercent: 0,
-    newStudents: 0,
-    isApiHealthOk: false,
-    isDbHealthOk: false,
-    semesterWeeksDone: 6,
-    totalSemesterWeeks: 16
+export default function AdminDashboard({ apiUrl, token, user }) {
+  const [stats, setStats] = useState(null);
+  const [activity, setActivity] = useState(null);
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [attendance, setAttendance] = useState(null);
+  const [marks, setMarks] = useState(null);
+
+  const [loading, setLoading] = useState({
+    stats: true,
+    activity: true,
+    systemHealth: true,
+    attendance: true,
+    marks: true
   });
-  
-  const [deptStrength, setDeptStrength] = useState([]);
-  const [recentActivity, setRecentActivity] = useState([]);
-  const [defaulters, setDefaulters] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [errors, setErrors] = useState({});
 
-  // Modals state
-  const [actionModal, setActionModal] = useState(null); // 'student', 'staff', 'announcement', 'report'
+  const studentChartRef = useRef(null);
+  const studentChartInstance = useRef(null);
+  
+  const attendanceChartRef = useRef(null);
+  const attendanceChartInstance = useRef(null);
+  
+  const marksChartRef = useRef(null);
+  const marksChartInstance = useRef(null);
+
+  const fetchData = async (key, endpoint, setter) => {
+    setLoading(prev => ({ ...prev, [key]: true }));
+    setErrors(prev => ({ ...prev, [key]: null }));
+    try {
+      const res = await api.get(endpoint);
+      setter(res.data);
+    } catch (err) {
+      setErrors(prev => ({ ...prev, [key]: err.message || 'Failed to fetch data' }));
+    } finally {
+      setLoading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const loadAll = () => {
+    fetchData('stats', '/admin/stats', setStats);
+    fetchData('activity', '/admin/activity', setActivity);
+    fetchData('systemHealth', '/admin/system-health', setSystemHealth);
+    fetchData('attendance', '/admin/reports/attendance', setAttendance);
+    fetchData('marks', '/admin/reports/marks', setMarks);
+  };
 
   useEffect(() => {
-    // Real-time clock
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    loadAll();
   }, []);
 
+  // Chart setup
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
-      const headers = { 'Authorization': `Bearer ${token}` };
-      
-      try {
-        // Attempt to fetch real data, fallback to realistic mock data if endpoints don't exist yet
-        const [ttRes, deptRes, studentsRes] = await Promise.all([
-          fetch(`${apiUrl}/api/host/timetable`, { headers }).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-departments`, { headers }).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-students`, { headers }).catch(() => null)
-        ]);
+    if (!stats || !studentChartRef.current) return;
+    if (studentChartInstance.current) studentChartInstance.current.destroy();
 
-        let sessionsCount = 24; // Mock default
-        if (ttRes?.ok) {
-           const tt = await ttRes.json();
-           sessionsCount = (tt.data || tt).length || 24;
+    const ctx = studentChartRef.current.getContext('2d');
+    studentChartInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: stats.departmentCounts ? Object.keys(stats.departmentCounts) : [],
+        datasets: [{
+          label: 'Students',
+          data: stats.departmentCounts ? Object.values(stats.departmentCounts) : [],
+          backgroundColor: '#2563EB',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { grid: { color: '#E2E8F0' }, ticks: { color: '#64748B' }, beginAtZero: true },
+          x: { grid: { display: false }, ticks: { color: '#64748B' } }
         }
+      }
+    });
+  }, [stats]);
 
-        let depts = ["CSE", "ECE", "EEE", "MECH", "IT"];
-        if (deptRes?.ok) {
-           const d = await deptRes.json();
-           depts = (d.data || d).map(x => x.name || x.shortForm || x);
+  useEffect(() => {
+    if (!attendance || !attendanceChartRef.current) return;
+    if (attendanceChartInstance.current) attendanceChartInstance.current.destroy();
+
+    const ctx = attendanceChartRef.current.getContext('2d');
+    attendanceChartInstance.current = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Present', 'Absent'],
+        datasets: [{
+          data: [attendance.presentCount || 0, attendance.absentCount || 0],
+          backgroundColor: ['#10B981', '#EF4444'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '75%',
+        plugins: { 
+          legend: { position: 'bottom', labels: { color: '#64748B' } }
         }
+      }
+    });
+  }, [attendance]);
 
-        let totalStudents = 1200;
-        if (studentsRes?.ok) {
-            const s = await studentsRes.json();
-            totalStudents = (s.data || s).length || 1200;
+  useEffect(() => {
+    if (!marks || !marksChartRef.current) return;
+    if (marksChartInstance.current) marksChartInstance.current.destroy();
+
+    const ctx = marksChartRef.current.getContext('2d');
+    marksChartInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: marks.departmentCgpa ? Object.keys(marks.departmentCgpa) : [],
+        datasets: [{
+          label: 'Average CGPA',
+          data: marks.departmentCgpa ? Object.values(marks.departmentCgpa) : [],
+          backgroundColor: '#3B82F6',
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { max: 10, grid: { color: '#E2E8F0' }, ticks: { color: '#64748B' }, beginAtZero: true },
+          y: { grid: { display: false }, ticks: { color: '#64748B' } }
         }
+      }
+    });
+  }, [marks]);
 
-        // Mocking sophisticated enterprise data to meet requirements beautifully
-        setStats({
-          activeSessions: sessionsCount,
-          attendancePercent: 88.4,
-          newStudents: 14,
-          isApiHealthOk: true,
-          isDbHealthOk: true, // DB connected
-          semesterWeeksDone: 9,
-          totalSemesterWeeks: 16
-        });
+  const Loader = () => (
+    <div className="flex flex-col gap-4 animate-pulse h-full">
+      <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+      <div className="flex-1 bg-slate-200 rounded w-full min-h-[100px]"></div>
+    </div>
+  );
 
-        // Generate department strength chart data
-        const mockStrength = depts.slice(0, 6).map(dep => ({
-            dept: dep,
-            count: Math.floor(Math.random() * 400) + 100,
-            color: ['bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500'][Math.floor(Math.random() * 6)]
-        }));
-        setDeptStrength(mockStrength.sort((a,b) => b.count - a.count));
-
-        setRecentActivity([
-          { id: 1, action: "Logged in to System", user: "Dr. Admin", time: "2 mins ago", icon: "👤", color: "text-blue-500 bg-blue-50" },
-          { id: 2, action: "Added 45 new timetable sessions", user: "Faculty (CSE)", time: "15 mins ago", icon: "📅", color: "text-emerald-500 bg-emerald-50" },
-          { id: 3, action: "Deleted outdated syllabus file", user: "HOD (IT)", time: "1 hr ago", icon: "🗑️", color: "text-rose-500 bg-rose-50" },
-          { id: 4, action: "Marked attendance for II Year B", user: "Prof. Sarah", time: "2 hrs ago", icon: "✅", color: "text-indigo-500 bg-indigo-50" },
-          { id: 5, action: "System health check complete", user: "Automated", time: "3 hrs ago", icon: "🛡️", color: "text-slate-500 bg-slate-100" }
-        ]);
-
-        setDefaulters([
-          { roll: "737622CS101", name: "Rahul Kumar", dept: "CSE", percent: 45.2 },
-          { roll: "737622EC055", name: "Priya Singh", dept: "ECE", percent: 52.8 },
-          { roll: "737622IT204", name: "Amit Patel", dept: "IT", percent: 61.5 },
-          { roll: "737622ME089", name: "Suresh Menon", dept: "MECH", percent: 68.0 },
-          { roll: "737622EE112", name: "Kavya N", dept: "EEE", percent: 71.2 }
-        ]);
-
-        setEvents([
-          { title: "Mid-Semester Examinations", date: new Date(Date.now() + 86400000 * 2), type: "Exam", color: "bg-rose-500" },
-          { title: "Tech Fest 2026 - Hackathon", date: new Date(Date.now() + 86400000 * 5), type: "Fest", color: "bg-indigo-500" },
-          { title: "Board of Studies Meeting", date: new Date(Date.now() + 86400000 * 6), type: "Meeting", color: "bg-violet-500" }
-        ]);
-
-      } catch (err) { }
-      setIsLoading(false);
-    };
-
-    fetchDashboardData();
-  }, [apiUrl, token]);
-
-  const maxDeptCount = Math.max(...deptStrength.map(d => d.count), 1);
-  const progressPercent = (stats.semesterWeeksDone / stats.totalSemesterWeeks) * 100;
-
-  if (isLoading) {
-      return (
-          <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          </div>
-      );
-  }
+  const ErrorCard = ({ message, onRetry }) => (
+    <div className="flex flex-col items-center justify-center p-6 bg-red-50 border border-red-200 rounded-xl text-center h-full">
+      <p className="text-red-500 mb-4">{message}</p>
+      <button onClick={onRetry} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold">
+        Retry
+      </button>
+    </div>
+  );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="p-6 bg-[#F8FAFC] min-h-full space-y-6 text-slate-800">
       
-      {/* Top Banner: Clock, Health, Quick Actions */}
-      <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </h1>
-            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">{currentTime.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-         </div>
-
-         <div className="flex flex-wrap gap-3">
-            <button onClick={() => setActionModal('student')} className="px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors duration-200 rounded-xl text-sm font-bold shadow-sm border border-blue-100 flex items-center gap-2"><span>👤</span> Add Student</button>
-            <button onClick={() => setActionModal('staff')} className="px-4 py-2 bg-violet-50 text-violet-700 hover:bg-violet-600 hover:text-white transition-colors duration-200 rounded-xl text-sm font-bold shadow-sm border border-violet-100 flex items-center gap-2"><span>👨‍🏫</span> Add Staff</button>
-            <button onClick={() => setActionModal('announcement')} className="px-4 py-2 bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white transition-colors duration-200 rounded-xl text-sm font-bold shadow-sm border border-amber-100 flex items-center gap-2"><span>📢</span> Post Notice</button>
-            <button onClick={() => setActionModal('report')} className="px-4 py-2 bg-slate-900 text-white hover:bg-slate-800 transition-colors duration-200 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2"><span>🖨️</span> PDF Report</button>
-         </div>
-      </div>
-
-      {/* KPI Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-5">
-           <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl">⚡</div>
-           <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Sessions</p><h3 className="text-3xl font-black text-slate-800">{stats.activeSessions}</h3></div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-5">
-           <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-2xl">📈</div>
-           <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Today's Attendance</p><h3 className="text-3xl font-black text-slate-800">{stats.attendancePercent}%</h3></div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-5">
-           <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-2xl">🎓</div>
-           <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">New Admits (Week)</p><h3 className="text-3xl font-black text-slate-800">+{stats.newStudents}</h3></div>
-        </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-center">
-           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">System Health Checks</p>
-           <div className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100 mb-2">
-              <span className="text-xs font-bold text-slate-600">Database Engine</span><span className={`w-2 h-2 rounded-full ${stats.isDbHealthOk ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-           </div>
-           <div className="flex justify-between items-center bg-slate-50 px-3 py-1.5 rounded-md border border-slate-100">
-              <span className="text-xs font-bold text-slate-600">Main API Gateway</span><span className={`w-2 h-2 rounded-full ${stats.isApiHealthOk ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
-           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Center Column (Spans 2) */}
-        <div className="lg:col-span-2 space-y-6">
-           
-           {/* Semester Progress */}
-           <div className="bg-white p-6/8 rounded-[2rem] border border-slate-200 shadow-sm p-8">
-               <div className="flex justify-between items-end mb-4">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800">Semester Progress</h3>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Week {stats.semesterWeeksDone} of {stats.totalSemesterWeeks}</p>
-                  </div>
-                  <span className="text-2xl font-black text-indigo-600">{Math.round(progressPercent)}%</span>
-               </div>
-               <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
-                   <div className="h-full bg-indigo-500 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
-               </div>
-           </div>
-
-           {/* Tailwind pure CSS Bar Chart */}
-           <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-               <h3 className="text-lg font-black text-slate-800 mb-6">Department Strength Dashboard</h3>
-               <div className="space-y-4">
-                  {deptStrength.map((dept, i) => (
-                      <div key={i} className="flex items-center gap-4">
-                          <div className="w-16 text-right font-black text-sm text-slate-600">{dept.dept}</div>
-                          <div className="flex-1 h-8 bg-slate-50 rounded-r-lg flex items-center relative overflow-hidden group">
-                              <div className={`h-full ${dept.color} transition-all duration-700 ease-out flex items-center rounded-r-lg min-w-[2rem] hover:brightness-110`} style={{ width: `${(dept.count / maxDeptCount) * 100}%` }}>
-                                  <span className="text-white text-[10px] font-black ml-2">{dept.count}</span>
-                              </div>
-                          </div>
-                      </div>
-                  ))}
-               </div>
-           </div>
-           
-           {/* Defaulters List */}
-           <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-               <div className="p-6 border-b border-slate-100 bg-rose-50/30 flex items-center gap-3">
-                  <span className="text-rose-500 text-xl">⚠️</span>
-                  <h3 className="text-lg font-black text-slate-800">Top Attendance Defaulters (&lt; 75%)</h3>
-               </div>
-               <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400"><tr><th className="px-6 py-3">Roll No</th><th className="px-6 py-3">Name</th><th className="px-6 py-3">Dept</th><th className="px-6 py-3 text-right">Attendance</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {defaulters.map((d, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                              <td className="px-6 py-4 font-bold text-slate-700">{d.roll}</td>
-                              <td className="px-6 py-4 font-medium text-slate-600">{d.name}</td>
-                              <td className="px-6 py-4"><span className="bg-slate-100 text-slate-500 px-2.5 py-1 text-[10px] font-black uppercase rounded">{d.dept}</span></td>
-                              <td className="px-6 py-4 text-right font-black text-rose-600">{d.percent}%</td>
-                          </tr>
-                      ))}
-                  </tbody>
-               </table>
-           </div>
-        </div>
-
-        {/* Right Sidebar Column */}
-        <div className="space-y-6">
-           
-           {/* Upcoming Events */}
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm items-start">
-               <h3 className="text-lg font-black text-slate-800 mb-6">Upcoming Events (7 Days)</h3>
-               <div className="space-y-4">
-                  {events.map((ev, i) => (
-                     <div key={i} className="flex gap-4">
-                        <div className={`w-1 shrink-0 rounded-full ${ev.color}`}></div>
-                        <div>
-                           <p className="font-bold text-slate-800 text-sm leading-tight mb-1">{ev.title}</p>
-                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{ev.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} • {ev.type}</p>
-                        </div>
-                     </div>
-                  ))}
-               </div>
-           </div>
-
-           {/* Activity Feed */}
-           <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-               <h3 className="text-lg font-black text-slate-800 mb-6">Recent Activity Feed</h3>
-               <div className="space-y-5 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                  {recentActivity.map((act) => (
-                      <div key={act.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                          <div className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 ${act.color} z-10 font-bold text-sm`}>
-                              {act.icon}
-                          </div>
-                          <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-100 bg-slate-50 shadow-sm ml-4 md:ml-0">
-                              <div className="flex flex-col mb-1">
-                                 <span className="font-black text-slate-700 text-xs">{act.action}</span>
-                                 <span className="text-[10px] font-bold text-slate-400 mt-1">{act.user} • {act.time}</span>
-                              </div>
-                          </div>
-                      </div>
-                  ))}
-               </div>
-           </div>
-        </div>
-      </div>
-
-      {/* Basic Modal Implementations for Quick Actions */}
-      {actionModal && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-md p-8 rounded-[2rem] shadow-xl text-center border border-slate-100">
-                  <div className="text-4xl mb-4">🚧</div>
-                  <h2 className="text-2xl font-black text-slate-800 mb-2">Feature Launched</h2>
-                  <p className="text-slate-500 mb-6 text-sm">The '{actionModal}' quick action panel is being loaded from the respective module.</p>
-                  <button onClick={() => setActionModal(null)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800">Close Panel</button>
-              </div>
+      {/* Top Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {[
+          { label: 'Total Students', value: stats?.totalStudents || 0, key: 'stats' },
+          { label: 'Total Staff', value: stats?.totalStaff || 0, key: 'stats' },
+          { label: 'Total Departments', value: stats?.totalDepartments || 0, key: 'stats' },
+          { label: 'Active Courses', value: stats?.activeCourses || 0, key: 'stats' }
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+            <span className="text-slate-500 text-sm font-semibold">{stat.label}</span>
+            {loading[stat.key] ? (
+               <div className="h-8 bg-slate-200 rounded w-16 mt-2 animate-pulse"></div>
+            ) : errors[stat.key] ? (
+               <span className="text-red-500 text-sm mt-2">Error</span>
+            ) : (
+               <span className="text-3xl font-black text-slate-800 mt-2">{stat.value}</span>
+            )}
           </div>
-      )}
+        ))}
+      </div>
+
+      {/* 3 Column Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        {/* Dept Wise Student Count */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96">
+          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Students by Department</h2>
+          {loading.stats ? <Loader /> : errors.stats ? <ErrorCard message={errors.stats} onRetry={() => fetchData('stats', '/admin/stats', setStats)} /> : (
+            <div className="flex-1 relative min-h-0">
+              <canvas ref={studentChartRef}></canvas>
+            </div>
+          )}
+        </div>
+
+        {/* Recent Activity Feed */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96 overflow-hidden">
+          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Recent Activity</h2>
+          {loading.activity ? <Loader /> : errors.activity ? <ErrorCard message={errors.activity} onRetry={() => fetchData('activity', '/admin/activity', setActivity)} /> : (
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              {(activity || []).length === 0 ? <p className="text-slate-500 text-sm italic">No recent activity</p> : 
+                activity.slice(0, 10).map((act, i) => (
+                  <div key={i} className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 font-bold text-xs uppercase mt-0.5">
+                      {act.user?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{act.action}</p>
+                      <p className="text-xs text-slate-500">{act.user} • {new Date(act.timestamp || Date.now()).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </div>
+
+        {/* System Health */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:col-span-1 h-96">
+          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">System Health</h2>
+          {loading.systemHealth ? <Loader /> : errors.systemHealth ? <ErrorCard message={errors.systemHealth} onRetry={() => fetchData('systemHealth', '/admin/system-health', setSystemHealth)} /> : (
+            <div className="flex-1 space-y-6 overflow-y-auto">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="font-semibold text-slate-600">Database Status</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${systemHealth?.dbStatus?.toUpperCase() === 'ONLINE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {systemHealth?.dbStatus?.toUpperCase() || 'ONLINE'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="font-semibold text-slate-600">API Status</span>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${systemHealth?.apiStatus?.toUpperCase() === 'ONLINE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {systemHealth?.apiStatus?.toUpperCase() || 'ONLINE'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <span className="font-semibold text-slate-600">Last Backup</span>
+                <span className="text-sm text-slate-800 font-medium">
+                  {systemHealth?.lastBackup ? new Date(systemHealth.lastBackup).toLocaleString() : new Date().toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Bottom Row Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Attendance Summary */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-96">
+          <h2 className="text-lg font-bold text-slate-800 mb-2 shrink-0">Today's Attendance</h2>
+          {loading.attendance ? <Loader /> : errors.attendance ? <ErrorCard message={errors.attendance} onRetry={() => fetchData('attendance', '/admin/reports/attendance', setAttendance)} /> : (
+            <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
+              <div className="w-full max-w-[240px] aspect-square relative pb-8">
+                <canvas ref={attendanceChartRef}></canvas>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-8">
+                  <span className="text-3xl font-black text-slate-800">{attendance?.overallPercentage || 0}%</span>
+                  <span className="text-xs text-slate-500 font-semibold uppercase">Overall</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Marks Overview */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-96">
+          <h2 className="text-lg font-bold text-slate-800 mb-6 shrink-0">Average CGPA by Department</h2>
+          {loading.marks ? <Loader /> : errors.marks ? <ErrorCard message={errors.marks} onRetry={() => fetchData('marks', '/admin/reports/marks', setMarks)} /> : (
+            <div className="flex-1 relative min-h-0">
+              <canvas ref={marksChartRef}></canvas>
+            </div>
+          )}
+        </div>
+
+      </div>
+
     </div>
   );
 }

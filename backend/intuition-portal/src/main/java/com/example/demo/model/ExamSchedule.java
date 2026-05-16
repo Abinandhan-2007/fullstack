@@ -3,39 +3,37 @@ package com.example.demo.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "examschedules")
 public class ExamSchedule {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String subjectName;
-    private String subjectCode;
-    private String department;
-    private String batch;
-    private String examDate;
-    private String examTime;
-    private String hallNumber;
-    private String duration;
-    private String createdAt;
 
+    @ManyToOne
+    @JoinColumn(name = "course_id")
+    private Course subject;
+
+    private String examType;
+    private String date;
+    private String time;
+    private String venue;
+    private Integer maxMarks;
+    private Boolean hallTicketReleased;
+
+    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public String getSubjectName() { return subjectName; }
-    public void setSubjectName(String subjectName) { this.subjectName = subjectName; }
-    public String getSubjectCode() { return subjectCode; }
-    public void setSubjectCode(String subjectCode) { this.subjectCode = subjectCode; }
-    public String getDepartment() { return department; }
-    public void setDepartment(String department) { this.department = department; }
-    public String getBatch() { return batch; }
-    public void setBatch(String batch) { this.batch = batch; }
-    public String getExamDate() { return examDate; }
-    public void setExamDate(String examDate) { this.examDate = examDate; }
-    public String getExamTime() { return examTime; }
-    public void setExamTime(String examTime) { this.examTime = examTime; }
-    public String getHallNumber() { return hallNumber; }
-    public void setHallNumber(String hallNumber) { this.hallNumber = hallNumber; }
-    public String getDuration() { return duration; }
-    public void setDuration(String duration) { this.duration = duration; }
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public Course getSubject() { return subject; }
+    public void setSubject(Course subject) { this.subject = subject; }
+    public String getExamType() { return examType; }
+    public void setExamType(String examType) { this.examType = examType; }
+    public String getDate() { return date; }
+    public void setDate(String date) { this.date = date; }
+    public String getTime() { return time; }
+    public void setTime(String time) { this.time = time; }
+    public String getVenue() { return venue; }
+    public void setVenue(String venue) { this.venue = venue; }
+    public Integer getMaxMarks() { return maxMarks; }
+    public void setMaxMarks(Integer maxMarks) { this.maxMarks = maxMarks; }
+    public Boolean getHallTicketReleased() { return hallTicketReleased; }
+    public void setHallTicketReleased(Boolean hallTicketReleased) { this.hallTicketReleased = hallTicketReleased; }
 }

@@ -16,26 +16,33 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
     setIsLoading(true);
     try {
       const decoded = jwtDecode(credentialResponse.credential);
-      // For hosts, automatically assign ADMIN role and log them in
-      if (HOST_EMAILS.includes(decoded.email?.toLowerCase())) {
-         localStorage.setItem('erp_token', credentialResponse.credential);
-         localStorage.setItem('erp_role', 'ADMIN');
-         localStorage.setItem('erp_email', decoded.email);
-         localStorage.setItem('erp_name', decoded.name || 'System Admin');
-         onLoginSuccess('ADMIN');
-         return;
+      const email = decoded.email;
+
+      // Call backend to get role
+      const res = await fetch(`${apiUrl}/api/auth/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, googleToken: credentialResponse.credential })
+      });
+
+      if (!res.ok) {
+        throw new Error("Unauthorized user");
       }
-      
-      // For general google login (mocking finding them in DB to make them STUDENT for now)
-      // Ideally you send this token to /api/auth/google in backend. For now:
-      localStorage.setItem('erp_token', credentialResponse.credential);
-      localStorage.setItem('erp_role', 'STUDENT');
-      localStorage.setItem('erp_email', decoded.email);
-      localStorage.setItem('erp_name', decoded.name);
-      onLoginSuccess('STUDENT');
+
+      const data = await res.json();
+
+      // Store in localStorage
+      localStorage.setItem('erp_token', data.token);
+      localStorage.setItem('erp_role', data.role);
+      localStorage.setItem('erp_email', email);
+      localStorage.setItem('erp_name', data.name || decoded.name);
+
+      // Tell App.jsx we logged in successfully
+      onLoginSuccess(data.role);
       
     } catch(err) {
-      setError("Failed to decode Google Token.");
+      console.error(err);
+      setError("Unauthorized user or login failed.");
     } finally {
       setIsLoading(false);
     }

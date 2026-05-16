@@ -2,8 +2,8 @@ package com.example.demo.repository;
 
 import com.example.demo.model.HallTicket;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import java.util.List;
 
-@Repository
 public interface HallTicketRepository extends JpaRepository<HallTicket, Long> {
+    List<HallTicket> findByExam_Id(Long examId);
 }

@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Chart from 'chart.js/auto';
 import api from '../api';
 
-const StudentPortal = ({ user, handleLogout }) => {
-  const navigate = useNavigate();
+const StudentPortal = ({ loggedInEmail, handleLogout }) => {
 
   const [activeTab, setActiveTab] = useState('Workspace');
   const [studentProfile, setStudentProfile] = useState(null);
@@ -34,10 +32,10 @@ const StudentPortal = ({ user, handleLogout }) => {
 
   useEffect(() => {
     const role = localStorage.getItem('erp_role');
-    if (role !== 'ROLE_STUDENT') {
-      navigate('/');
+    if (role !== 'ROLE_STUDENT' && role?.toUpperCase() !== 'STUDENT') {
+      window.location.href = '/';
     }
-  }, [navigate]);
+  }, []);
 
   const fetchData = async (key, apiCall) => {
     setLoading(prev => ({ ...prev, [key]: true }));
@@ -57,7 +55,7 @@ const StudentPortal = ({ user, handleLogout }) => {
     const initProfile = async () => {
       const data = await fetchData('profile', () => api.get('/host/all-students'));
       if (data) {
-        const userEmail = user?.email || localStorage.getItem('erp_username');
+        const userEmail = loggedInEmail || localStorage.getItem('erp_email');
         const myData = data.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase());
         if (myData) {
           setStudentProfile(myData);
@@ -77,7 +75,7 @@ const StudentPortal = ({ user, handleLogout }) => {
       }
     };
     if (!studentProfile) initProfile();
-  }, [user]);
+  }, [loggedInEmail]);
 
   useEffect(() => {
     if (!studentProfile) return;
@@ -201,7 +199,7 @@ const StudentPortal = ({ user, handleLogout }) => {
   const handleLogoutClick = () => {
     localStorage.clear();
     if (handleLogout) handleLogout();
-    navigate('/');
+    else window.location.href = '/';
   };
 
   const submitComplaint = async () => {

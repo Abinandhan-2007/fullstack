@@ -26,6 +26,12 @@ private String degree;
 private String cluster;
 
 // Generate Getters and Setters for these three!
+    public String getShortForm() { return shortForm; }
+    public void setShortForm(String shortForm) { this.shortForm = shortForm; }
+    public String getDegree() { return degree; }
+    public void setDegree(String degree) { this.degree = degree; }
+    public String getCluster() { return cluster; }
+    public void setCluster(String cluster) { this.cluster = cluster; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

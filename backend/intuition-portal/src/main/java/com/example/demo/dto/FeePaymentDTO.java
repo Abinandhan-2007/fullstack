@@ -9,7 +9,6 @@ public class FeePaymentDTO {
     private String receiptNumber;
     private String paidDate;
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getFeeType() { return feeType; }

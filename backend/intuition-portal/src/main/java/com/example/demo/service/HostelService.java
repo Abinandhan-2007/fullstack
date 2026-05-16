@@ -1,71 +1,83 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.ComplaintDTO;
 import com.example.demo.dto.HostelAllocationDTO;
-import com.example.demo.model.Complaint;
+import com.example.demo.dto.HostelComplaintDTO;
 import com.example.demo.model.HostelAllocation;
-import com.example.demo.repository.ComplaintRepository;
+import com.example.demo.model.HostelComplaint;
+import com.example.demo.model.Student;
 import com.example.demo.repository.HostelAllocationRepository;
+import com.example.demo.repository.HostelComplaintRepository;
+import com.example.demo.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
-import java.util.Optional;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
 
 @Service
 public class HostelService {
-
     @Autowired
-    private HostelAllocationRepository hostelAllocationRepository;
-
+    private HostelAllocationRepository allocationRepository;
     @Autowired
-    private ComplaintRepository complaintRepository;
+    private HostelComplaintRepository complaintRepository;
+    @Autowired
+    private StudentRepository studentRepository;
 
-    public HostelAllocationDTO getHostelAllocation(String registerNumber) {
-        Optional<HostelAllocation> allocationOpt = hostelAllocationRepository.findByRegisterNumber(registerNumber);
-        
-        if (allocationOpt.isPresent()) {
-            HostelAllocation allocation = allocationOpt.get();
-            HostelAllocationDTO dto = new HostelAllocationDTO();
-            dto.setBlock(allocation.getBlock() != null ? allocation.getBlock() : "N/A");
-            
-            // Extracting floor from room number if not available (e.g., room 304 -> 3rd Floor)
-            String room = allocation.getRoomNumber();
-            dto.setRoomNumber(room != null ? room : "N/A");
-            
-            if (room != null && room.length() >= 3 && Character.isDigit(room.charAt(0))) {
-                dto.setFloor(room.charAt(0) + " Floor");
-            } else {
-                dto.setFloor("Ground Floor");
-            }
-            
-            dto.setBedNumber("A1"); // Defaults since HostelAllocation doesn't store bed numbers yet
-            return dto;
+    public HostelAllocationDTO getHostelDetails(String regNo) {
+        try {
+            List<HostelAllocation> allocs = allocationRepository.findByStudent_RegisterNumber(regNo);
+            if(allocs.isEmpty()) return null;
+            return mapToAllocationDTO(allocs.get(0));
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching hostel details: " + e.getMessage());
         }
-        
-        return null;
     }
 
-    public List<ComplaintDTO> getComplaints(String registerNumber) {
-        List<Complaint> complaints = complaintRepository.findByRaisedByOrderBySubmittedAtDesc(registerNumber);
-        return complaints.stream().map(c -> new ComplaintDTO(
-                c.getId(),
-                c.getDescription(),
-                c.getStatus(),
-                c.getSubmittedAt()
-        )).collect(Collectors.toList());
+    public List<HostelComplaintDTO> getComplaints(String regNo) {
+        try {
+            return complaintRepository.findByStudent_RegisterNumber(regNo).stream().map(this::mapToComplaintDTO).collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching hostel complaints: " + e.getMessage());
+        }
     }
 
-    public ComplaintDTO submitComplaint(String registerNumber, String description) {
-        Complaint complaint = new Complaint();
-        complaint.setSubject("Hostel Maintenance Request");
-        complaint.setDescription(description);
-        complaint.setRaisedBy(registerNumber);
-        complaint.setUserRole("STUDENT");
-        complaint.setStatus("PENDING");
-        
-        Complaint saved = complaintRepository.save(complaint);
-        return new ComplaintDTO(saved.getId(), saved.getDescription(), saved.getStatus(), saved.getSubmittedAt());
+    public HostelComplaintDTO submitComplaint(String regNo, String description) {
+        try {
+            Student student = studentRepository.findByRegisterNumber(regNo).orElseThrow(()->new RuntimeException("Student not found"));
+            HostelComplaint complaint = new HostelComplaint();
+            complaint.setStudent(student);
+            complaint.setDescription(description);
+            complaint.setStatus("OPEN");
+            complaint.setCreatedAt(LocalDate.now().toString());
+            complaint = complaintRepository.save(complaint);
+            return mapToComplaintDTO(complaint);
+        } catch (Exception e) {
+            throw new RuntimeException("Error submitting complaint: " + e.getMessage());
+        }
+    }
+
+    private HostelAllocationDTO mapToAllocationDTO(HostelAllocation alloc) {
+        HostelAllocationDTO dto = new HostelAllocationDTO();
+        dto.setId(alloc.getId());
+        if(alloc.getRoom() != null) {
+            dto.setRoomNumber(alloc.getRoom().getRoomNumber());
+            dto.setBlock(alloc.getRoom().getBlock());
+            dto.setFloor(alloc.getRoom().getFloor());
+        }
+        dto.setBedNumber(alloc.getBedNumber());
+        dto.setAllocatedOn(alloc.getAllocatedOn());
+        dto.setRoommateNames(new ArrayList<>());
+        return dto;
+    }
+
+    private HostelComplaintDTO mapToComplaintDTO(HostelComplaint complaint) {
+        HostelComplaintDTO dto = new HostelComplaintDTO();
+        dto.setId(complaint.getId());
+        dto.setDescription(complaint.getDescription());
+        dto.setStatus(complaint.getStatus());
+        dto.setCreatedAt(complaint.getCreatedAt());
+        dto.setResolvedAt(complaint.getResolvedAt());
+        return dto;
     }
 }

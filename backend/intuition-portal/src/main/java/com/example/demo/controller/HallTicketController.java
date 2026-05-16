@@ -1,29 +1,36 @@
 package com.example.demo.controller;
 
-import com.example.demo.model.HallTicket;
 import com.example.demo.service.HallTicketService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/host")
 public class HallTicketController {
     @Autowired
-    private HallTicketService service;
+    private HallTicketService hallTicketService;
 
-    @GetMapping("/all-halltickets")
-    public ResponseEntity<List<HallTicket>> getAll() { return ResponseEntity.ok(service.getAll()); }
+    @PreAuthorize("hasAnyRole('COE', 'ADMIN', 'STUDENT')")
+    @GetMapping("/api/hall-tickets")
+    public ResponseEntity<?> getHallTickets(@RequestParam(required = false) String examId, 
+                                            @RequestParam(required = false) String dept) {
+        try {
+            return ResponseEntity.ok(hallTicketService.getHallTickets(examId, dept));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 
-    @PostMapping("/add-hallticket")
-    public ResponseEntity<HallTicket> create(@RequestBody HallTicket item) { return ResponseEntity.status(HttpStatus.CREATED).body(service.create(item)); }
-
-    @PutMapping("/update-hallticket/{id}")
-    public ResponseEntity<HallTicket> update(@PathVariable Long id, @RequestBody HallTicket item) { return ResponseEntity.ok(service.update(id, item)); }
-
-    @DeleteMapping("/delete-hallticket/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) { service.delete(id); return ResponseEntity.ok().build(); }
+    @PreAuthorize("hasAnyRole('COE', 'ADMIN')")
+    @PostMapping("/api/hall-tickets/release")
+    public ResponseEntity<?> releaseHallTickets(@RequestParam(required = false) String examId, 
+                                                @RequestParam(required = false) String dept) {
+        try {
+            hallTicketService.releaseHallTickets(examId, dept);
+            return ResponseEntity.ok("Hall tickets released");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

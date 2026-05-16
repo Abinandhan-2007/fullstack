@@ -7,27 +7,28 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/leave/student")
-@CrossOrigin(origins = "*") // Adjust according to your existing CORS config
 public class StudentLeaveController {
-
     @Autowired
     private StudentLeaveService leaveService;
 
-    @PostMapping("/apply")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
-    public ResponseEntity<StudentLeaveRequestDTO> applyLeave(@RequestBody StudentLeaveRequestDTO dto) {
-        StudentLeaveRequestDTO savedLeave = leaveService.applyLeave(dto);
-        return ResponseEntity.ok(savedLeave);
+    @PreAuthorize("hasRole('STUDENT')")
+    @PostMapping("/api/leave/student/apply")
+    public ResponseEntity<?> applyLeave(@RequestBody StudentLeaveRequestDTO dto) {
+        try {
+            return ResponseEntity.ok(leaveService.applyLeave(dto));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
-    @GetMapping("/{regNo}")
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
-    public ResponseEntity<List<StudentLeaveRequestDTO>> getLeavesByStudent(@PathVariable String regNo) {
-        List<StudentLeaveRequestDTO> leaves = leaveService.getLeavesByStudent(regNo);
-        return ResponseEntity.ok(leaves);
+    @PreAuthorize("hasAnyRole('STUDENT', 'STAFFADMIN', 'ADMIN', 'PARENT')")
+    @GetMapping("/api/leave/student/{regNo}")
+    public ResponseEntity<?> getLeaves(@PathVariable String regNo) {
+        try {
+            return ResponseEntity.ok(leaveService.getLeavesByStudent(regNo));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

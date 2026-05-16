@@ -21,6 +21,15 @@ public class Student {
     
     private String password;
     private String role;
+    private String year;
+    private String semester;
+    private String section;
+    private String mentorName;
+    private String bloodGroup;
+    private String phone;
+    private String status;
+    private String batchYear;
+
     public String getBatch() { return batch; }
     public void setBatch(String batch) { this.batch = batch; }
 
@@ -43,4 +52,20 @@ public class Student {
     public void setPassword(String password) { this.password = password; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getYear() { return year; }
+    public void setYear(String year) { this.year = year; }
+    public String getSemester() { return semester; }
+    public void setSemester(String semester) { this.semester = semester; }
+    public String getSection() { return section; }
+    public void setSection(String section) { this.section = section; }
+    public String getMentorName() { return mentorName; }
+    public void setMentorName(String mentorName) { this.mentorName = mentorName; }
+    public String getBloodGroup() { return bloodGroup; }
+    public void setBloodGroup(String bloodGroup) { this.bloodGroup = bloodGroup; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getBatchYear() { return batchYear; }
+    public void setBatchYear(String batchYear) { this.batchYear = batchYear; }
 }

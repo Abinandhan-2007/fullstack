@@ -1,99 +1,118 @@
 import React, { useState } from 'react';
+import api from '../../api';
 
 export default function AdminReports() {
-  const [reportType, setReportType] = useState('Student Strength');
-  const [filterDept, setFilterDept] = useState('All');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [activeReport, setActiveReport] = useState(null);
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const reportOptions = [
-      { name: 'Student Strength', icon: '🎓', desc: 'Department-wise enrollment counts' },
-      { name: 'Attendance Summary', icon: '📊', desc: 'Aggregate class attendance percentages' },
-      { name: 'Fee Collection', icon: '💰', desc: 'Pending vs Paid financial overview' },
-      { name: 'Placement Statistics', icon: '💼', desc: 'Recruiting data and package metrics' },
-      { name: 'Exam Results', icon: '📝', desc: 'CGPA distribution and pass/fail rates' },
-      { name: 'Staff Workload', icon: '👨‍🏫', desc: 'Faculty weekly hours breakdown' },
+  const [dateRange, setDateRange] = useState('This Month');
+  const [dept, setDept] = useState('');
+
+  const reportTypes = [
+    { id: 'attendance', title: 'Attendance Report', desc: 'Daily, weekly and monthly attendance analysis', icon: '📅', api: '/admin/reports/attendance' },
+    { id: 'marks', title: 'Marks Report', desc: 'CGPA trends and exam performance metrics', icon: '📊', api: '/admin/reports/marks' },
+    { id: 'fees', title: 'Fee Collection', desc: 'Fee status, pending dues and collection analysis', icon: '💰', api: '/admin/reports/fees' },
+    { id: 'placement', title: 'Placement Summary', desc: 'Company offers, packages and placement rates', icon: '🎓', api: '/admin/reports/placement' },
+    { id: 'department', title: 'Department Summary', desc: 'Staff, student ratio and departmental health', icon: '🏢', api: '/admin/reports/department' }
   ];
 
-  const handleGenerate = () => {
-      // Create a mock rich CSV string
-      const csv = `data:text/csv;charset=utf-8,Mock_Data,Mock_Value\nReport_Type,${reportType}\nDepartment,${filterDept}\nGenerated,${new Date().toLocaleString()}`;
-      const a = document.createElement('a');
-      a.href = encodeURI(csv);
-      a.download = `${reportType.replace(' ','_')}_Report.csv`;
-      a.click();
+  const handleGenerate = async (report) => {
+    setActiveReport(report);
+    setLoading(true); setError(null); setReportData(null);
+    try {
+      const res = await api.get(report.api);
+      setReportData(res.data || {});
+    } catch (err) {
+      setError(err.message || 'Failed to generate report');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSchedule = () => {
-      alert(`Automated weekly schedule configured for: ${reportType}`);
+  const handleDownloadCSV = () => {
+    alert(`Downloading ${activeReport?.title} as CSV... (Mock implementation)`);
+  };
+
+  const handleDownloadPDF = () => {
+    alert(`Downloading ${activeReport?.title} as PDF... (Mock implementation)`);
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Reports Center</h1>
-            <p className="text-slate-500 font-medium mt-1">Generate deep administrative insights and export data as CSV.</p>
-         </div>
+    <div className="p-6 bg-[#F8FAFC] min-h-full space-y-6">
+      <h1 className="text-2xl font-black text-slate-800">Advanced Reports</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {reportTypes.map(rt => (
+          <div key={rt.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:border-blue-400 transition-colors">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-2xl shrink-0">{rt.icon}</div>
+              <div>
+                <h3 className="font-bold text-slate-800">{rt.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">{rt.desc}</p>
+              </div>
+            </div>
+            <div className="mt-auto space-y-3 pt-4 border-t border-slate-100">
+              <div className="flex gap-2">
+                <select className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs" value={dateRange} onChange={e=>setDateRange(e.target.value)}>
+                  <option>Today</option><option>This Week</option><option>This Month</option><option>This Year</option>
+                </select>
+                <select className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs" value={dept} onChange={e=>setDept(e.target.value)}>
+                  <option value="">All Depts</option><option>CSE</option><option>IT</option>
+                </select>
+              </div>
+              <button onClick={() => handleGenerate(rt)} className="w-full py-2 bg-slate-800 text-white font-bold rounded-lg text-sm hover:bg-slate-900 shadow-sm">
+                Generate Report
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      {activeReport && (
+        <div className="bg-white border rounded-2xl shadow-sm overflow-hidden flex flex-col mt-8">
+          <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">{activeReport.title} Preview</h2>
+              <p className="text-sm text-slate-500 mt-1">Filters: {dateRange} • {dept || 'All Depts'}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleDownloadCSV} className="px-4 py-2 bg-white border border-slate-200 font-bold text-slate-700 rounded-xl shadow-sm">↓ CSV</button>
+              <button onClick={handleDownloadPDF} className="px-4 py-2 bg-blue-600 font-bold text-white rounded-xl shadow-sm">↓ PDF</button>
+            </div>
+          </div>
           
-          {/* Report Selection */}
-          <div className="w-full lg:w-96 shrink-0 bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-              <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Select Report Type</h3>
-              <div className="space-y-3">
-                  {reportOptions.map(r => (
-                      <div key={r.name} onClick={() => setReportType(r.name)} className={`p-4 rounded-xl border cursor-pointer transition-all ${reportType === r.name ? 'bg-indigo-50 border-indigo-200 shadow-inner' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm'}`}>
-                          <div className="flex items-center gap-3">
-                              <span className="text-xl">{r.icon}</span>
-                              <div>
-                                 <h4 className={`text-sm font-black ${reportType===r.name ? 'text-indigo-800' : 'text-slate-700'}`}>{r.name}</h4>
-                                 <p className="text-[10px] font-medium text-slate-500 mt-0.5 leading-tight">{r.desc}</p>
-                              </div>
-                          </div>
-                      </div>
-                  ))}
+          <div className="p-6 overflow-auto bg-slate-50/50 min-h-[300px]">
+            {loading ? (
+              <div className="flex flex-col gap-4 animate-pulse">
+                <div className="h-8 bg-slate-200 rounded w-1/4"></div>
+                <div className="h-40 bg-slate-200 rounded w-full"></div>
               </div>
+            ) : error ? (
+              <div className="p-6 bg-red-50 text-red-500 font-bold rounded-xl text-center border border-red-100">{error}</div>
+            ) : reportData ? (
+              <div className="space-y-6">
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-800 font-mono text-sm overflow-auto">
+                  <pre>{JSON.stringify(reportData, null, 2)}</pre>
+                </div>
+                <p className="text-center text-slate-400 italic text-sm">Note: Report preview shows JSON structure. Download CSV/PDF for formatted output.</p>
+              </div>
+            ) : null}
           </div>
+        </div>
+      )}
 
-          {/* Configuration Form */}
-          <div className="flex-1 bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-between">
-              <div>
-                  <div className="border-b border-slate-100 pb-6 mb-6">
-                     <h2 className="text-2xl font-black text-slate-800">{reportType} Report</h2>
-                     <p className="text-sm font-bold text-slate-400 mt-1 uppercase tracking-widest">Configuration Matrix</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="md:col-span-2">
-                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Target Department</label>
-                         <select value={filterDept} onChange={e => setFilterDept(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer shadow-sm">
-                             <option value="All">All Departments (Campus Wide)</option>
-                             <option value="CSE">Computer Science (CSE)</option>
-                             <option value="IT">Information Technology (IT)</option>
-                             <option value="ECE">Electronics (ECE)</option>
-                         </select>
-                      </div>
-                      <div>
-                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Start Date Range</label>
-                         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-bold text-slate-500 outline-none focus:border-indigo-500 shadow-sm" />
-                      </div>
-                      <div>
-                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">End Date Range</label>
-                         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-bold text-slate-500 outline-none focus:border-indigo-500 shadow-sm" />
-                      </div>
-                  </div>
-              </div>
-
-              <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
-                  <button onClick={handleGenerate} className="flex-1 py-4 bg-slate-900 text-white rounded-xl font-black shadow-lg hover:bg-slate-800 transition shadow-slate-900/20 text-sm flex justify-center items-center gap-2"><span>📥</span> Generate & Download CSV</button>
-                  <button onClick={handleSchedule} className="flex-1 py-4 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-black shadow-sm hover:bg-indigo-100 transition text-sm flex justify-center items-center gap-2"><span>⏱️</span> Schedule Weekly Auto-Export</button>
-              </div>
+      <div className="bg-white p-6 rounded-2xl border shadow-sm mt-6">
+        <h2 className="font-bold text-slate-800 mb-4">Scheduled Reports</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <select className="px-4 py-2 bg-slate-50 border rounded-xl"><option>Attendance Report</option><option>Marks Report</option></select>
+          <select className="px-4 py-2 bg-slate-50 border rounded-xl"><option>Daily</option><option>Weekly</option><option>Monthly</option></select>
+          <div className="flex gap-2">
+            <input type="email" placeholder="Email recipient" className="flex-1 px-4 py-2 bg-slate-50 border rounded-xl" />
+            <button className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl whitespace-nowrap">Schedule</button>
           </div>
-
+        </div>
       </div>
     </div>
   );

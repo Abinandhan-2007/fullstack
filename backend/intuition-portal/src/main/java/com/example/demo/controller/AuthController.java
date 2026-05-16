@@ -39,8 +39,9 @@ public class AuthController {
         String role = request.role().toUpperCase();
         
         if ("STUDENT".equals(role)) {
-            Student student = studentRepository.findByEmail(request.email());
-            if (student != null && passwordEncoder.matches(request.password(), student.getPassword())) {
+            Optional<Student> studentOpt = studentRepository.findByEmail(request.email());
+            if (studentOpt.isPresent() && passwordEncoder.matches(request.password(), studentOpt.get().getPassword())) {
+                Student student = studentOpt.get();
                 String token = jwtUtil.generateToken(student.getEmail(), role);
                 Map<String, Object> response = new HashMap<>();
                 response.put("token", token);
@@ -75,7 +76,7 @@ public class AuthController {
         String role = request.role().toUpperCase();
         
         if ("STUDENT".equals(role)) {
-            if (studentRepository.findByEmail(request.email()) != null) {
+            if (studentRepository.findByEmail(request.email()).isPresent()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email already exists");
             }
             Student student = new Student();
@@ -101,5 +102,41 @@ public class AuthController {
             staffRepository.save(staff);
             return ResponseEntity.status(HttpStatus.CREATED).body("Staff registered successfully");
         }
+    }
+
+    public record GoogleLoginRequest(String email, String googleToken) {}
+
+    @PostMapping("/google-login")
+    public ResponseEntity<?> googleLogin(@RequestBody GoogleLoginRequest request) {
+        String email = request.email();
+        // Look up in student
+        Optional<Student> studentOpt = studentRepository.findByEmail(email);
+        if (studentOpt.isPresent()) {
+            Student student = studentOpt.get();
+            String token = jwtUtil.generateToken(student.getEmail(), student.getRole());
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("role", student.getRole());
+            response.put("email", student.getEmail());
+            response.put("name", student.getName());
+            response.put("id", student.getId());
+            return ResponseEntity.ok(response);
+        }
+        
+        // Look up in staff
+        Optional<Staff> staffOpt = staffRepository.findByEmail(email);
+        if (staffOpt.isPresent()) {
+            Staff staff = staffOpt.get();
+            String token = jwtUtil.generateToken(staff.getEmail(), staff.getRole());
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("role", staff.getRole());
+            response.put("email", staff.getEmail());
+            response.put("name", staff.getName());
+            response.put("id", staff.getId());
+            return ResponseEntity.ok(response);
+        }
+        
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Unauthorized user");
     }
 }

@@ -1,47 +1,48 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.AttendanceDTO;
-import com.example.demo.model.Attendance;
-import com.example.demo.repository.AttendanceRepository;
+import com.example.demo.dto.AttendanceMarkRequestDTO;
+import com.example.demo.service.AttendanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/attendance")
 public class AttendanceController {
-
     @Autowired
-    private AttendanceRepository attendanceRepository;
+    private AttendanceService attendanceService;
 
-    @GetMapping("/student/{registerNumber}")
-    @PreAuthorize("hasAnyRole('STUDENT', 'STAFF', 'ADMIN')")
-    public ResponseEntity<List<AttendanceDTO>> getStudentAttendance(@PathVariable String registerNumber) {
-        List<Attendance> attendances = attendanceRepository.findByStudent_RegisterNumber(registerNumber);
-        
-        List<AttendanceDTO> dtos = attendances.stream().map(a -> {
-            AttendanceDTO dto = new AttendanceDTO();
-            dto.setId(a.getId());
-            dto.setStudentRegisterNumber(a.getStudent().getRegisterNumber());
-            dto.setCourseCode(a.getCourse().getSubjectCode());
-            dto.setDate(a.getDate());
-            dto.setPresent(a.isPresent());
-            return dto;
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(dtos);
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PostMapping("/api/attendance/mark")
+    public ResponseEntity<?> markAttendance(@RequestBody List<AttendanceMarkRequestDTO> entries) {
+        try {
+            attendanceService.markAttendance(entries);
+            return ResponseEntity.ok("Attendance marked");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
-    // Example POST endpoint for Staff to mark attendance
-    @PostMapping("/mark")
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<String> markAttendance(@RequestBody AttendanceDTO attendanceDTO) {
-        // In a real app, you'd fetch the Student and Course entities here and save the Attendance entity.
-        // For now, this is the structured endpoint layout.
-        return ResponseEntity.ok("Attendance marked successfully");
+    @PreAuthorize("hasAnyRole('STUDENT', 'STAFF', 'ADMIN', 'PARENT')")
+    @GetMapping("/api/attendance/student/{regNo}")
+    public ResponseEntity<?> getAttendanceByStudent(@PathVariable String regNo) {
+        try {
+            return ResponseEntity.ok(attendanceService.getAttendanceByStudent(regNo));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/api/admin/attendance")
+    public ResponseEntity<?> getAllAttendance() {
+        return ResponseEntity.ok("All Attendance");
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/api/admin/attendance/defaulters")
+    public ResponseEntity<?> getDefaulters() {
+        return ResponseEntity.ok("Defaulters");
     }
 }

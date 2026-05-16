@@ -2,8 +2,8 @@ package com.example.demo.repository;
 
 import com.example.demo.model.HostelRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import java.util.List;
 
-@Repository
 public interface HostelRoomRepository extends JpaRepository<HostelRoom, Long> {
+    List<HostelRoom> findByBlock(String block);
 }

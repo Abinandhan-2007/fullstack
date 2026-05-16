@@ -1,46 +1,58 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.MarkDTO;
-import com.example.demo.model.Mark;
-import com.example.demo.repository.MarkRepository;
+import com.example.demo.dto.MarkUploadRequestDTO;
+import com.example.demo.service.MarkService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/marks")
 public class MarkController {
-
     @Autowired
-    private MarkRepository markRepository;
+    private MarkService markService;
 
-    @GetMapping("/student/{registerNumber}")
-    @PreAuthorize("hasAnyRole('STUDENT', 'STAFF', 'ADMIN')")
-    public ResponseEntity<List<MarkDTO>> getStudentMarks(@PathVariable String registerNumber) {
-        List<Mark> marks = markRepository.findByStudent_RegisterNumber(registerNumber);
-        
-        List<MarkDTO> dtos = marks.stream().map(m -> {
-            MarkDTO dto = new MarkDTO();
-            dto.setId(m.getId());
-            dto.setStudentRegisterNumber(m.getStudent().getRegisterNumber());
-            dto.setCourseCode(m.getCourse().getSubjectCode());
-            dto.setExamType(m.getExamType());
-            dto.setScore(m.getScore());
-            dto.setMaxScore(m.getMaxScore());
-            return dto;
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(dtos);
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PostMapping("/api/marks/upload")
+    public ResponseEntity<?> uploadMarks(@RequestBody List<MarkUploadRequestDTO> entries) {
+        try {
+            markService.uploadMarks(entries);
+            return ResponseEntity.ok("Marks uploaded");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
-    @PostMapping("/upload")
+    @PreAuthorize("hasAnyRole('STUDENT', 'STAFF', 'ADMIN', 'PARENT', 'COE')")
+    @GetMapping("/api/marks/student/{regNo}")
+    public ResponseEntity<?> getMarksByStudent(@PathVariable String regNo) {
+        try {
+            return ResponseEntity.ok(markService.getMarksByStudent(regNo));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    public ResponseEntity<String> uploadMarks(@RequestBody MarkDTO markDTO) {
-        // Implementation for mapping DTO to Entity and saving
-        return ResponseEntity.ok("Marks uploaded successfully");
+    @GetMapping("/api/marks/staff/{staffId}/recent")
+    public ResponseEntity<?> getRecentByStaff(@PathVariable String staffId) {
+        try {
+            return ResponseEntity.ok(markService.getRecentByStaff(staffId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'COE')")
+    @GetMapping("/api/admin/marks")
+    public ResponseEntity<?> getAllMarks() {
+        return ResponseEntity.ok("All Marks");
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'COE')")
+    @GetMapping("/api/admin/performance/top")
+    public ResponseEntity<?> getTopPerformers() {
+        return ResponseEntity.ok("Top Performers");
     }
 }

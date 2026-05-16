@@ -1,166 +1,141 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Chart from 'chart.js/auto';
+import api from '../../api';
 
 export default function AdminAttendance({ apiUrl, token }) {
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-  
-  // Dashboard states
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [deptRanking, setDeptRanking] = useState([]);
-  const [facultySubmission, setFacultySubmission] = useState([]);
+  const [attendance, setAttendance] = useState([]);
   const [defaulters, setDefaulters] = useState([]);
+  const [reports, setReports] = useState(null);
   
-  // Heatmap & Audit Log
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [deptFilter, setDeptFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [attRes, defRes, repRes] = await Promise.all([
+        api.get(`/admin/attendance?dept=${deptFilter}&date=${dateFilter}`),
+        api.get('/admin/attendance/defaulters'),
+        api.get('/admin/reports/attendance')
+      ]);
+      setAttendance(attRes.data || []);
+      setDefaulters(defRes.data || []);
+      setReports(repRes.data || null);
+    } catch (err) {
+      setError(err.message || 'Failed to fetch attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulated fetch of rich attendance analytics
-    const fetchAnalytics = () => {
-        setIsUpdating(true);
-        setTimeout(() => {
-            setDeptRanking([
-                { dept: 'IT', avg: 91.2 }, { dept: 'CSE', avg: 89.4 }, { dept: 'ECE', avg: 86.1 }, { dept: 'EEE', avg: 84.8 }, { dept: 'MECH', avg: 82.5 }
-            ]);
-            setFacultySubmission([
-                { name: 'Dr. Alan (CSE)', rate: 100 }, { name: 'Prof. Sarah (IT)', rate: 95 }, { name: 'Dr. Hopper (ECE)', rate: 80 }, { name: 'Dr. Ford (ME)', rate: 65 }
-            ]);
-            setDefaulters([
-                { roll: '737622CS101', name: 'Rahul K.', att: 45.2 }, { roll: '737622EC055', name: 'Priya S.', att: 52.8 }, { roll: '737622IT204', name: 'Amit P.', att: 61.5 }, { roll: '737622EE112', name: 'Kavya N.', att: 71.2 }
-            ]);
-            setAuditLogs([
-                { time: new Date(Date.now()-1000*60*5).toLocaleTimeString(), action: 'Marked CSE Sem 4', user: 'Dr. Alan', type: 'Normal' },
-                { time: new Date(Date.now()-1000*60*45).toLocaleTimeString(), action: 'Overrode Roll 101 to Present', user: 'Admin', type: 'Override', reason: 'Medical Leave Approved' },
-                { time: new Date(Date.now()-1000*60*120).toLocaleTimeString(), action: 'Marked MECH Sem 6', user: 'Dr. Ford', type: 'Normal' },
-            ]);
-            setLastUpdate(new Date());
-            setIsUpdating(false);
-        }, 800);
-    };
+    fetchData();
+  }, [deptFilter, dateFilter]);
 
-    fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 30000); // 30-second live updates
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => {
+    if (!reports || !chartRef.current) return;
+    if (chartInstance.current) chartInstance.current.destroy();
 
-  const handleSendWarnings = () => {
-      alert("System Action: Automated Warning Emails & SMS dispatched to 4 defaulters below 75%.");
-  };
+    const ctx = chartRef.current.getContext('2d');
+    chartInstance.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(reports.departmentWise || {}),
+        datasets: [{
+          label: 'Attendance %',
+          data: Object.values(reports.departmentWise || {}),
+          backgroundColor: '#3B82F6',
+          borderRadius: 4
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { max: 100 } } }
+    });
+  }, [reports]);
 
-  const handleExportCSV = () => {
-      const csv = "data:text/csv;charset=utf-8,Roll,Name,Attendance%\n" + defaulters.map(d => `${d.roll},${d.name},${d.att}`).join("\n");
-      const a = document.createElement('a'); a.href = encodeURI(csv); a.download = "defaulters_report.csv"; a.click();
-  };
+  const stats = useMemo(() => {
+    if (!attendance.length) return { present: 0, absent: 0, overall: 0 };
+    const p = attendance.filter(a => a.status === 'PRESENT').length;
+    const a = attendance.filter(a => a.status === 'ABSENT').length;
+    return { present: p, absent: a, overall: Math.round((p/(p+a))*100) || 0 };
+  }, [attendance]);
+
+  const Loader = () => <div className="animate-pulse h-64 bg-slate-200 rounded-xl w-full"></div>;
+  const ErrorCard = () => <div className="p-6 bg-red-50 text-red-500 rounded-xl text-center">{error} <button onClick={fetchData} className="ml-2 underline">Retry</button></div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Top Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden">
-         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-blue-500 to-indigo-500"></div>
-         <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">Attendance Monitoring <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-widest border border-rose-200 flex items-center gap-1"><span className={`w-1.5 h-1.5 bg-rose-500 rounded-full ${isUpdating?'':'animate-pulse'}`}></span> Live</span></h1>
-            <p className="text-slate-500 font-medium mt-1">Global view of campus attendance statistics.</p>
-         </div>
-         <div className="flex gap-3">
-            <button onClick={handleExportCSV} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition flex gap-2 items-center"><span>📉</span> Export Report</button>
-         </div>
+    <div className="p-6 bg-[#F8FAFC] min-h-full space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Attendance Monitoring</h1>
+        </div>
+        <button className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl shadow-sm">Export CSV</button>
+      </div>
+
+      <div className="flex gap-4 p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
+        <input type="date" className="px-4 py-2 bg-slate-50 border rounded-xl" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
+        <select className="px-4 py-2 bg-slate-50 border rounded-xl" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+          <option value="">All Departments</option>
+          <option value="CSE">CSE</option>
+          <option value="IT">IT</option>
+          <option value="ECE">ECE</option>
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-slate-500 text-sm">Overall Today</div><div className="text-3xl font-black text-blue-600 mt-2">{stats.overall}%</div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-slate-500 text-sm">Present</div><div className="text-3xl font-black text-green-500 mt-2">{stats.present}</div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-slate-500 text-sm">Absent</div><div className="text-3xl font-black text-red-500 mt-2">{stats.absent}</div></div>
+        <div className="bg-white p-6 rounded-2xl border shadow-sm"><div className="text-slate-500 text-sm">Below 75% Defaulters</div><div className="text-3xl font-black text-amber-500 mt-2">{defaulters.length}</div></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         
-         {/* Center Main Panels */}
-         <div className="lg:col-span-2 space-y-6">
-             
-             {/* Department Ranking & Submission Rates */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Dept Rank */}
-                 <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
-                     <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Department Ranking (Avg %)</h3>
-                     <div className="space-y-3">
-                         {deptRanking.map((d, i) => (
-                             <div key={i} className="flex items-center gap-3">
-                                <span className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black ${i===0?'bg-amber-100 text-amber-600':i===1?'bg-slate-100 text-slate-500':i===2?'bg-amber-50 text-amber-800':'bg-transparent text-slate-400'}`}>{i+1}</span>
-                                <span className="font-bold text-sm text-slate-700 w-12">{d.dept}</span>
-                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{width:`${d.avg}%`}}></div></div>
-                                <span className="text-xs font-black text-slate-800">{d.avg}%</span>
-                             </div>
-                         ))}
-                     </div>
-                 </div>
+        <div className="lg:col-span-2 bg-white border rounded-2xl shadow-sm p-0 flex flex-col h-[500px]">
+          <h2 className="p-4 border-b font-bold text-slate-800 shrink-0">Daily Logs</h2>
+          <div className="flex-1 overflow-auto">
+            {loading ? <Loader /> : error ? <ErrorCard /> : (
+              <table className="w-full text-left whitespace-nowrap">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 sticky top-0">
+                  <tr><th className="p-4">Reg No</th><th className="p-4">Name</th><th className="p-4">Subject</th><th className="p-4">Status</th></tr>
+                </thead>
+                <tbody className="divide-y text-sm">
+                  {attendance.map((a, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="p-4 font-bold">{a.regNo}</td>
+                      <td className="p-4">{a.name}</td>
+                      <td className="p-4">{a.subject}</td>
+                      <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${a.status==='PRESENT'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{a.status}</span></td>
+                    </tr>
+                  ))}
+                  {!attendance.length && <tr><td colSpan="4" className="p-4 text-center text-slate-500">No records found.</td></tr>}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
 
-                 {/* Faculty Rate */}
-                 <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
-                     <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Faculty Submission Rate</h3>
-                     <div className="space-y-3">
-                         {facultySubmission.map((f, i) => (
-                             <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-2.5 rounded-xl">
-                                <span className="text-xs font-bold text-slate-700">{f.name}</span>
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-black ${f.rate>90?'bg-emerald-100 text-emerald-600':f.rate>75?'bg-blue-100 text-blue-600':'bg-rose-100 text-rose-600'}`}>{f.rate}% Submitted</span>
-                             </div>
-                         ))}
-                     </div>
-                 </div>
-             </div>
+        <div className="bg-white border rounded-2xl shadow-sm flex flex-col h-[500px]">
+          <h2 className="p-4 border-b font-bold text-slate-800 shrink-0">Defaulters List</h2>
+          <div className="flex-1 overflow-auto p-4 space-y-3">
+            {loading ? <Loader /> : error ? <ErrorCard /> : defaulters.map((d, i) => (
+              <div key={i} className="p-3 bg-red-50 border border-red-100 rounded-xl flex justify-between items-center">
+                <div><div className="font-bold text-red-800 text-sm">{d.name}</div><div className="text-xs text-red-600">{d.regNo}</div></div>
+                <div className="text-right"><div className="font-black text-red-600">{d.percentage}%</div><div className="text-[10px] text-red-500 uppercase font-bold">Needs {d.classesNeeded} classes</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-             {/* Attendance Heatmap Simulation */}
-             <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-8">
-                 <div className="flex justify-between items-end mb-6">
-                    <h3 className="text-lg font-black text-slate-800">Campus Attendance Heatmap</h3>
-                    <div className="flex gap-2 items-center text-[10px] font-bold text-slate-400 uppercase">
-                       <span>Low</span>
-                       <div className="w-3 h-3 rounded bg-rose-200"></div><div className="w-3 h-3 rounded bg-amber-200"></div><div className="w-3 h-3 rounded bg-emerald-300"></div><div className="w-3 h-3 rounded bg-emerald-500"></div>
-                       <span>High</span>
-                    </div>
-                 </div>
-                 <div className="flex flex-wrap gap-1 md:gap-2">
-                     {/* 30 days dummy heatmap generation */}
-                     {Array.from({length: 60}).map((_, i) => {
-                         const val = Math.random();
-                         const color = val > 0.8 ? 'bg-emerald-500' : val > 0.4 ? 'bg-emerald-300' : val > 0.1 ? 'bg-amber-200' : 'bg-rose-200';
-                         return <div key={i} className={`w-4 h-4 md:w-6 md:h-6 rounded-sm md:rounded ${color} hover:ring-2 ring-slate-900 cursor-pointer transition-all`} title={`Day ${i+1}: ${Math.floor(val*100)}%`}></div>
-                     })}
-                 </div>
-             </div>
-         </div>
-
-         {/* Right Action Column */}
-         <div className="space-y-6">
-             
-             {/* Defaulter Actions */}
-             <div className="bg-white rounded-[2rem] border border-rose-200 shadow-sm overflow-hidden border-2">
-                 <div className="p-6 border-b border-rose-100 bg-rose-50 flex items-center justify-between">
-                    <div>
-                        <h3 className="font-black text-rose-800">Critical Alerts</h3>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-rose-500">{defaulters.length} Students below 75%</p>
-                    </div>
-                    <span className="text-3xl">⚠️</span>
-                 </div>
-                 <div className="p-4">
-                     {defaulters.map((d, i) => (
-                         <div key={i} className="flex justify-between items-center border-b border-slate-50 py-2 last:border-0 hover:bg-slate-50 px-2 rounded-lg transition text-sm">
-                             <div className="flex flex-col"><span className="font-bold text-slate-800">{d.name}</span><span className="text-[10px] font-black tracking-widest text-slate-400">{d.roll}</span></div>
-                             <span className="font-black text-rose-600">{d.att}%</span>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-
-             {/* Audit Log */}
-             <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6">
-                 <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4 flex items-center gap-2"><span>🔍</span> Live Audit Trail</h3>
-                 <div className="space-y-4">
-                     {auditLogs.map((log, i) => (
-                         <div key={i} className="border-l-2 border-slate-200 pl-4 relative">
-                             <span className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full ${log.type==='Override'?'bg-amber-500':'bg-slate-300'}`}></span>
-                             <p className="text-xs font-bold text-slate-800 leading-tight">{log.action}</p>
-                             <p className="text-[10px] font-medium text-slate-500 mt-1">By {log.user} at {log.time}</p>
-                             {log.reason && <p className="text-[10px] font-bold text-amber-700 bg-amber-50 p-1 rounded mt-1 border border-amber-100">Reason: {log.reason}</p>}
-                         </div>
-                     ))}
-                 </div>
-                 <button className="w-full mt-4 py-2 border border-slate-200 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-50">View Full Log</button>
-             </div>
-
-         </div>
+      <div className="bg-white p-6 rounded-2xl border shadow-sm h-[400px] flex flex-col">
+        <h2 className="font-bold mb-4 shrink-0">Department Wise Trend</h2>
+        <div className="flex-1 min-h-0 relative"><canvas ref={chartRef}></canvas></div>
       </div>
 
     </div>
