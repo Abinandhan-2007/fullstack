@@ -10,11 +10,13 @@ public class Attendance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String registerNumber; // Links to the Student
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "student_id", nullable = false)
+    private Student student;
 
-    @Column(nullable = false)
-    private String subjectCode; // Links to the Course
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
 
     @Column(nullable = false)
     private LocalDate date;
@@ -22,5 +24,14 @@ public class Attendance {
     @Column(nullable = false)
     private boolean isPresent;
 
-    // Standard Getters and Setters here...
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public Student getStudent() { return student; }
+    public void setStudent(Student student) { this.student = student; }
+    public Course getCourse() { return course; }
+    public void setCourse(Course course) { this.course = course; }
+    public LocalDate getDate() { return date; }
+    public void setDate(LocalDate date) { this.date = date; }
+    public boolean isPresent() { return isPresent; }
+    public void setPresent(boolean present) { isPresent = present; }
 }

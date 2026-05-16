@@ -9,11 +9,13 @@ public class Mark {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String registerNumber; // Who took the exam
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "student_id", nullable = false)
+    private Student student;
 
-    @Column(nullable = false)
-    private String subjectCode; // What subject
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
 
     @Column(nullable = false)
     private String examType; // e.g., "Internal 1", "Semester"
@@ -27,10 +29,10 @@ public class Mark {
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-    public String getRegisterNumber() { return registerNumber; }
-    public void setRegisterNumber(String registerNumber) { this.registerNumber = registerNumber; }
-    public String getSubjectCode() { return subjectCode; }
-    public void setSubjectCode(String subjectCode) { this.subjectCode = subjectCode; }
+    public Student getStudent() { return student; }
+    public void setStudent(Student student) { this.student = student; }
+    public Course getCourse() { return course; }
+    public void setCourse(Course course) { this.course = course; }
     public String getExamType() { return examType; }
     public void setExamType(String examType) { this.examType = examType; }
     public int getScore() { return score; }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../api';
 
 const StudentPortal = ({ user, handleLogout }) => {
   // --- CHANGED DEFAULT MENU TO WORKSPACE ---
@@ -12,21 +13,19 @@ const StudentPortal = ({ user, handleLogout }) => {
   const [globalTimetable, setGlobalTimetable] = useState([]);
   const [isLoadingTimetable, setIsLoadingTimetable] = useState(false);
   
-  const apiUrl = "https://fullstack-8cjk.onrender.com";
-
   useEffect(() => {
     const fetchMyProfile = async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/host/all-students`);
-        if (res.ok) {
-          const allStudents = await res.json();
+        const res = await api.get('/host/all-students');
+        if (res.status === 200) {
+          const allStudents = res.data;
           const myData = allStudents.find(s => s.email.toLowerCase() === user.email.toLowerCase());
           if (myData) {
             setStudentProfile(myData);
             setIsFetchingMarks(true);
             try {
-              const marksRes = await fetch(`${apiUrl}/api/host/student-marks/${myData.registerNumber}`);
-              if (marksRes.ok) setMyMarks(await marksRes.json());
+              const marksRes = await api.get(`/marks/student/${myData.registerNumber}`);
+              if (marksRes.status === 200) setMyMarks(marksRes.data);
             } catch (ignore) {}
             setIsFetchingMarks(false);
           }
@@ -34,18 +33,14 @@ const StudentPortal = ({ user, handleLogout }) => {
       } catch (err) { console.error("Failed to fetch student profile", err); }
     };
     if (user?.email) fetchMyProfile();
-  }, [user, apiUrl]);
+  }, [user]);
 
   useEffect(() => {
     if (activeMenu === 'Attendance') {
       setIsLoadingTimetable(true);
-      fetch(`${apiUrl}/api/host/timetable`)
+      api.get('/host/timetable')
         .then(res => {
-          if (!res.ok) throw new Error("Network response was not ok");
-          return res.json();
-        })
-        .then(data => {
-          setGlobalTimetable(data);
+          setGlobalTimetable(res.data);
           setIsLoadingTimetable(false);
         })
         .catch(err => {
@@ -53,7 +48,7 @@ const StudentPortal = ({ user, handleLogout }) => {
           setIsLoadingTimetable(false);
         });
     }
-  }, [activeMenu, apiUrl]);
+  }, [activeMenu]);
 
   // --- UPDATED MENU ITEMS FOR WORKSPACE ---
   const menuItems = [

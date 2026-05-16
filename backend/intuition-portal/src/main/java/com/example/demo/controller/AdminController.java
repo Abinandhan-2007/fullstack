@@ -258,7 +258,7 @@ public class AdminController {
     // ==========================================
     @GetMapping("/student-marks/{registerNumber}")
     public List<Mark> getStudentMarks(@PathVariable String registerNumber) {
-        return markRepository.findByRegisterNumber(registerNumber);
+        return markRepository.findByStudent_RegisterNumber(registerNumber);
     }
 
     @PostMapping("/upload-mark")

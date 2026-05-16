@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface MarkRepository extends JpaRepository<Mark, Long> {
     // We will need this later to load a specific student's report card!
-    List<Mark> findByRegisterNumber(String registerNumber);
+    List<Mark> findByStudent_RegisterNumber(String registerNumber);
 }

@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     // Custom query to find attendance for a specific student
-    List<Attendance> findByRegisterNumber(String registerNumber);
+    List<Attendance> findByStudent_RegisterNumber(String registerNumber);
 }
