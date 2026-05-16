@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface ComplaintRepository extends JpaRepository<Complaint, Long> {
     List<Complaint> findAllByOrderBySubmittedAtDesc(); // Newest first
+    List<Complaint> findByRaisedByOrderBySubmittedAtDesc(String raisedBy);
 }
