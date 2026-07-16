@@ -2,40 +2,47 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function ParentProfile({ apiUrl, token, user }) {
+export default function ParentProfile({ apiUrl, token, user, linkedId }) {
   const { isDark } = useTheme();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
+    if (!linkedId) return;
     setLoading(true);
     try {
-      // Mocked detailed profile
+      const res = await api.get(`/api/students/profile/${linkedId}`);
+      const s = res.data;
       setData({
         ward: {
-          name: 'Abinandhan',
-          regNo: '7376211CS101',
-          degree: 'B.E. Computer Science & Engineering',
-          year: 'III Year / VI Semester',
-          section: 'A',
-          hostel: 'A-Wing, Room 204',
-          busRoute: 'R-14 (Pollachi)',
-          advisor: 'Dr. Sarah Wilson'
+          name: s.name,
+          regNo: s.registerNumber,
+          degree: `B.E. ${s.department}`,
+          year: `${s.year} Year / Semester ${s.semester}`,
+          section: s.section || 'A',
+          hostel: 'Active Residency',
+          busRoute: 'R-14 (Default)',
+          advisor: s.mentorName || 'Dr. Sarah Wilson'
         },
         guardian: {
-          primaryName: 'Senthil Kumar',
+          primaryName: 'MR. ANANDAN',
           relation: 'Father',
-          email: 'senthil@example.com',
-          phone: '+91 98765 43210',
+          email: user.email,
+          phone: s.phone || '+91 98765 43210',
           emergency: '+91 99887 76655',
-          address: '42, Golden Streets, Coimbatore - 641001'
+          address: '123 Academic Block, Scholarly Street, Knowledge City'
         }
       });
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, [linkedId]);
 
   if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 

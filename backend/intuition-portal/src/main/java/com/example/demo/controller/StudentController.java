@@ -12,11 +12,15 @@ public class StudentController {
     @Autowired
     private StudentService studentService;
 
-    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
-    @GetMapping("/api/students/profile/{email}")
-    public ResponseEntity<?> getProfileByEmail(@PathVariable String email) {
+    @PreAuthorize("hasAnyRole('STUDENT', 'PARENT', 'ADMIN')")
+    @GetMapping("/api/students/profile/{identifier}")
+    public ResponseEntity<?> getProfile(@PathVariable String identifier) {
         try {
-            return ResponseEntity.ok(studentService.getProfileByEmail(email));
+            if (identifier.contains("@")) {
+                return ResponseEntity.ok(studentService.getProfileByEmail(identifier));
+            } else {
+                return ResponseEntity.ok(studentService.getProfileByRegisterNumber(identifier));
+            }
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -51,5 +55,15 @@ public class StudentController {
     @DeleteMapping("/api/admin/students/{id}")
     public ResponseEntity<?> deleteStudent(@PathVariable Long id) {
         return ResponseEntity.ok("Student deleted");
+    }
+
+    @PreAuthorize("hasAnyRole('STUDENT', 'ADMIN')")
+    @PutMapping("/api/students/profile/{regNo}")
+    public ResponseEntity<?> updateStudentProfile(@PathVariable String regNo, @RequestBody java.util.Map<String, String> body) {
+        try {
+            return ResponseEntity.ok(studentService.updateProfile(regNo, body));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

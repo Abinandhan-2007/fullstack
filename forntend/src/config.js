@@ -1,1 +1,0 @@
-export const API_BASE_URL = "https://fullstack-q3c5.onrender.com";

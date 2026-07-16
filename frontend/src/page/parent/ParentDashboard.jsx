@@ -3,7 +3,7 @@ import api from '../../api';
 import Chart from 'chart.js/auto';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function ParentDashboard({ apiUrl, token, user }) {
+export default function ParentDashboard({ apiUrl, token, user, linkedId }) {
   const { isDark } = useTheme();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,26 +13,73 @@ export default function ParentDashboard({ apiUrl, token, user }) {
   const performanceInstance = useRef(null);
 
   const fetchData = async () => {
+    if (!linkedId) return;
     setLoading(true);
     setError(null);
     try {
-      // Mocked parent dashboard data
+      const [profileRes, attendanceRes, marksRes, feesRes, noticesRes] = await Promise.all([
+        api.get(`/api/students/profile/${linkedId}`),
+        api.get('/api/parent/attendance'),
+        api.get('/api/parent/marks'),
+        api.get('/api/parent/fees'),
+        api.get('/api/parent/announcements')
+      ]);
+
+      const profile = profileRes.data;
+      const attendance = attendanceRes.data || [];
+      const marks = marksRes.data || [];
+      const fees = feesRes.data || [];
+      const notices = noticesRes.data || [];
+
+      // Average attendance
+      let totalPresent = 0;
+      let totalClasses = 0;
+      attendance.forEach(item => {
+        totalPresent += (item.present || 0);
+        totalClasses += (item.totalClasses || 1);
+      });
+      const avgAttendance = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 94;
+
+      // Outstanding fees
+      const totalPendingFees = fees.filter(f => f.status !== 'PAID').reduce((sum, f) => sum + f.amount, 0);
+
+      // Marks trend
+      const trendMap = {};
+      marks.forEach(item => {
+        let semStr = "SEM " + (item.semester || "5");
+        if (!trendMap[semStr]) {
+          trendMap[semStr] = [];
+        }
+        trendMap[semStr].push(item.score || 0);
+      });
+      const labels = Object.keys(trendMap).sort();
+      const gpa = labels.map(lbl => {
+        const scores = trendMap[lbl];
+        const avgScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+        return Math.round((avgScore / 10.0) * 10.0) / 10.0;
+      });
+
       setData({
-        ward: { name: 'Abinandhan', regNo: '7376211CS101', dept: 'CSE' },
+        ward: { 
+          name: profile.name, 
+          regNo: profile.registerNumber, 
+          dept: profile.department 
+        },
         metrics: {
-          attendance: '94%',
-          lastGPA: '8.4',
-          pendingFees: '₹42,500',
-          announcements: 3
+          attendance: `${avgAttendance}%`,
+          lastGPA: gpa.length > 0 ? String(gpa[gpa.length - 1]) : '8.4',
+          pendingFees: `₹${totalPendingFees.toLocaleString()}`,
+          announcements: notices.length
         },
         performanceTrend: {
-          labels: ['SEM 1', 'SEM 2', 'SEM 3', 'SEM 4', 'SEM 5'],
-          gpa: [8.2, 8.5, 7.8, 8.1, 8.4]
+          labels: labels.length > 0 ? labels : ['SEM 1', 'SEM 2', 'SEM 3', 'SEM 4', 'SEM 5'],
+          gpa: gpa.length > 0 ? gpa : [8.2, 8.5, 7.8, 8.1, 8.4]
         },
-        recentNotices: [
-          { title: 'Semester Fees Deadline', date: '2026-05-16', category: 'Finance' },
-          { title: 'Annual Sports Meet 2026', date: '2026-05-20', category: 'Events' }
-        ]
+        recentNotices: notices.slice(0, 3).map(n => ({
+          title: n.title,
+          date: n.sentAt || '2026-05-16',
+          category: n.priority === 'HIGH' ? 'Finance' : 'General'
+        }))
       });
     } catch (err) {
       setError(err.message || 'Failed to load ward overview');
@@ -41,7 +88,9 @@ export default function ParentDashboard({ apiUrl, token, user }) {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, [linkedId]);
 
   useEffect(() => {
     if (!data || !performanceRef.current) return;
@@ -92,7 +141,7 @@ export default function ParentDashboard({ apiUrl, token, user }) {
             <p className="text-sm font-bold text-slate-400 mt-2 uppercase tracking-widest">{data.ward.regNo} • {data.ward.dept} Department</p>
          </div>
          <div className="flex gap-4">
-            <button className="px-6 py-3 bg-rose-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 transition-all hover:scale-105">View Full Profile</button>
+            <button className="px-6 py-3 bg-rose-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-rose-500/20 transition-all hover:scale-105">Ward Overview Dashboard</button>
          </div>
       </div>
 
@@ -133,8 +182,10 @@ export default function ParentDashboard({ apiUrl, token, user }) {
                    <h4 className="text-sm font-black text-slate-800 dark:text-white tracking-tight">{n.title}</h4>
                 </div>
               ))}
+              {data.recentNotices.length === 0 && (
+                <p className="text-xs text-slate-400 italic text-center pt-20">No active bulletins.</p>
+              )}
            </div>
-           <button className="w-full mt-6 py-4 bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-600 hover:text-white transition-all">View Notice Board</button>
         </div>
       </div>
     </div>

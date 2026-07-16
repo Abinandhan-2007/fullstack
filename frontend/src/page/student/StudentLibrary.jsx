@@ -6,6 +6,7 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
   const { isDark } = useTheme();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actioning, setActioning] = useState(false);
 
   const fetchData = async () => {
     if (!linkedId) return;
@@ -13,15 +14,54 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
     try {
       const res = await api.get(`/api/library/student/${linkedId}`);
       setData(res.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, [linkedId]);
 
-  const borrowed = data.filter(b => !b.returnDate);
-  const history = data.filter(b => b.returnDate);
-  const totalFine = data.reduce((s, b) => s + (b.fine || 0), 0);
+  const borrowed = data.filter(b => b.status === 'ISSUED');
+  const history = data.filter(b => b.status === 'RETURNED');
+  const totalFine = data.reduce((s, b) => s + (b.finePaid || 0), 0);
+
+  const handleRenew = async (issueId) => {
+    setActioning(true);
+    try {
+      await api.post(`/api/library/issue/${issueId}/renew`);
+      alert('Asset borrowing period extended by 14 days successfully.');
+      fetchData();
+    } catch (err) {
+      alert('Renewal request rejected: ' + err.message);
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleClearFines = async () => {
+    setActioning(true);
+    try {
+      const fineIssues = borrowed.filter(b => b.finePaid > 0);
+      if (fineIssues.length === 0) {
+        alert('No pending dues detected in your account.');
+        setActioning(false);
+        return;
+      }
+      for (let issue of fineIssues) {
+        await api.post(`/api/library/overdue/${issue.id}/clear`);
+      }
+      alert('All pending dues cleared successfully!');
+      fetchData();
+    } catch (err) {
+      alert('Failed to clear dues: ' + err.message);
+    } finally {
+      setActioning(false);
+    }
+  };
 
   if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
@@ -37,7 +77,13 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic leading-none">Dues Owed</p>
               <p className="text-2xl font-black text-rose-500 italic mt-1 leading-none">₹{totalFine}</p>
            </div>
-           <button className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20">Clear Fines</button>
+           <button 
+             onClick={handleClearFines}
+             disabled={actioning || totalFine === 0}
+             className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 disabled:opacity-50"
+           >
+              Clear Fines
+           </button>
         </div>
       </div>
 
@@ -51,7 +97,7 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
                    <div className="w-20 h-28 bg-slate-50 dark:bg-gray-800 rounded-xl flex items-center justify-center text-4xl shadow-inner border border-slate-100 dark:border-gray-700 shrink-0">📖</div>
                    <div className="flex-1">
                       <div className="flex justify-between items-start">
-                         <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight italic group-hover:text-indigo-600 transition-colors">{b.title || 'Institutional Manuscript'}</h4>
+                         <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight italic group-hover:text-indigo-600 transition-colors">{b.bookTitle || 'Institutional Manuscript'}</h4>
                          <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
                            daysLeft < 0 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                          }`}>
@@ -65,7 +111,13 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic mb-1">Temporal Deadline</p>
                             <p className="text-xs font-black text-slate-600 dark:text-gray-400 italic uppercase">{new Date(b.dueDate).toLocaleDateString()}</p>
                          </div>
-                         <button className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-lg">Request Renewal</button>
+                         <button 
+                           onClick={() => handleRenew(b.id)}
+                           disabled={actioning}
+                           className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-indigo-100 transition-all disabled:opacity-50"
+                         >
+                           Request Renewal
+                         </button>
                       </div>
                    </div>
                 </div>
@@ -88,21 +140,26 @@ export default function StudentLibrary({ apiUrl, token, user, linkedId }) {
                      <tr className="bg-slate-50 dark:bg-gray-800/50">
                         <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource Title</th>
                         <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Settled On</th>
-                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Fine Levied</th>
+                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Fine Paid</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
                      {history.map((b, idx) => (
                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors group">
                           <td className="p-6">
-                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight italic">{b.title}</p>
+                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight italic">{b.bookTitle}</p>
                           </td>
                           <td className="p-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{new Date(b.returnDate).toLocaleDateString()}</td>
-                          <td className={`p-6 text-right text-sm font-black italic ${b.fine > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                             ₹{b.fine || 0}
+                          <td className={`p-6 text-right text-sm font-black italic ${b.finePaid > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                             ₹{b.finePaid || 0}
                           </td>
                        </tr>
                      ))}
+                     {history.length === 0 && (
+                       <tr>
+                         <td colSpan="3" className="py-10 text-center text-slate-400 italic">No past borrowing history.</td>
+                       </tr>
+                     )}
                   </tbody>
                </table>
             </div>

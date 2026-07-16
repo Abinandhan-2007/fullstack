@@ -14,6 +14,7 @@ public class StaffPayrollService {
 
     public List<StaffPayroll> getAll() { return repository.findAll(); }
     public StaffPayroll getById(Long id) { return repository.findById(id).orElseThrow(() -> new EntityNotFoundException("StaffPayroll not found")); }
+    public List<StaffPayroll> getByEmployeeId(String employeeId) { return repository.findByEmployeeId(employeeId); }
     public StaffPayroll create(StaffPayroll item) { return repository.save(item); }
     public StaffPayroll update(Long id, StaffPayroll item) {
         StaffPayroll existing = getById(id);

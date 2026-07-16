@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function StudentLeave({ apiUrl, token, user }) {
+export default function StudentLeave({ apiUrl, token, user, linkedId }) {
   const { isDark } = useTheme();
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,21 +10,24 @@ export default function StudentLeave({ apiUrl, token, user }) {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
+    if (!linkedId) return;
     setLoading(true);
     try {
-      const res = await api.get(`/api/leave/student/STUDENT_REG_001`);
+      const res = await api.get(`/api/leave/student/${linkedId}`);
       setHistory(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, [linkedId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post('/api/leave/student/apply', { ...form, regNo: 'STUDENT_REG_001' });
+      await api.post('/api/leave/apply', { ...form, regNo: linkedId });
       alert('Leave application submitted for faculty appraisal.');
       setForm({ type: 'CASUAL', from: '', to: '', reason: '' });
       fetchData();

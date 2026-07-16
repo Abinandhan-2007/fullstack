@@ -23,4 +23,7 @@ public class FeePaymentDTO {
     public void setReceiptNumber(String receiptNumber) { this.receiptNumber = receiptNumber; }
     public String getPaidDate() { return paidDate; }
     public void setPaidDate(String paidDate) { this.paidDate = paidDate; }
+    public Double getTotalAmount() { return amount; }
+    public Double getPaidAmount() { return "PAID".equalsIgnoreCase(status) ? amount : 0.0; }
+    public String getPaymentDate() { return paidDate; }
 }

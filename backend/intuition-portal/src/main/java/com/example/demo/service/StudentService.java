@@ -46,4 +46,21 @@ public class StudentService {
         dto.setBatchYear(student.getBatchYear());
         return dto;
     }
+
+    public StudentProfileDTO updateProfile(String regNo, java.util.Map<String, String> body) {
+        try {
+            Student student = studentRepository.findByRegisterNumber(regNo)
+                .orElseThrow(() -> new RuntimeException("Student not found"));
+            if (body.containsKey("phone")) {
+                student.setPhone(body.get("phone"));
+            }
+            if (body.containsKey("bloodGroup")) {
+                student.setBloodGroup(body.get("bloodGroup"));
+            }
+            studentRepository.save(student);
+            return mapToDTO(student);
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating profile: " + e.getMessage());
+        }
+    }
 }

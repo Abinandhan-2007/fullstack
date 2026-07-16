@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.service.StaffService;
+import com.example.demo.service.StaffPayrollService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -10,6 +11,19 @@ import org.springframework.web.bind.annotation.*;
 public class StaffController {
     @Autowired
     private StaffService staffService;
+
+    @Autowired
+    private StaffPayrollService staffPayrollService;
+
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @GetMapping("/api/staff/payroll/{staffId}")
+    public ResponseEntity<?> getStaffPayroll(@PathVariable String staffId) {
+        try {
+            return ResponseEntity.ok(staffPayrollService.getByEmployeeId(staffId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @GetMapping("/api/staff/profile")

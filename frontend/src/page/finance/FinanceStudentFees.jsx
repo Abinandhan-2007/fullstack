@@ -78,55 +78,51 @@ export default function FinanceStudentFees({ apiUrl, token, user }) {
 
            {/* Detailed Breakdown */}
            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] p-8 shadow-sm">
-                 <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight mb-8 italic">Current Semester Breakdown</h3>
-                 <div className="space-y-4">
-                    {[
-                      { label: 'Tuition Fee', total: 65000, paid: 45000, color: 'bg-blue-500' },
-                      { label: 'Hostel & Mess', total: 42000, paid: 0, color: 'bg-orange-500' },
-                      { label: 'Examination Fee', total: 2500, paid: 2500, color: 'bg-emerald-500' },
-                    ].map((item, idx) => (
-                      <div key={idx} className="p-6 bg-slate-50 dark:bg-gray-800/50 rounded-3xl border border-slate-100 dark:border-gray-700">
-                         <div className="flex justify-between items-center mb-3">
-                            <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">{item.label}</span>
-                            <span className="text-xs font-bold text-slate-400">₹{item.paid.toLocaleString()} / ₹{item.total.toLocaleString()}</span>
-                         </div>
-                         <div className="h-2 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className={`h-full ${item.color} rounded-full`} style={{width: `${(item.paid/item.total)*100}%`}}></div>
-                         </div>
-                      </div>
-                    ))}
-                 </div>
-              </div>
+               <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] p-8 shadow-sm">
+                  <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight mb-8 italic">Current Semester Breakdown</h3>
+                  <div className="space-y-4">
+                     {(student.breakdown || []).map((item, idx) => (
+                       <div key={idx} className="p-6 bg-slate-50 dark:bg-gray-800/50 rounded-3xl border border-slate-100 dark:border-gray-700">
+                          <div className="flex justify-between items-center mb-3">
+                             <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">{item.label}</span>
+                             <span className="text-xs font-bold text-slate-400">₹{item.paid.toLocaleString()} / ₹{item.total.toLocaleString()}</span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                             <div className={`h-full ${item.color || 'bg-blue-500'} rounded-full`} style={{width: `${item.total > 0 ? (item.paid/item.total)*100 : 0}%`}}></div>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </div>
 
-              <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden">
-                 <div className="p-8 border-b border-slate-100 dark:border-gray-800">
-                    <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Payment History</h3>
-                 </div>
-                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                       <thead>
-                          <tr className="bg-slate-50 dark:bg-gray-800/50">
-                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
-                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Receipt No</th>
-                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</th>
-                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount</th>
-                          </tr>
-                       </thead>
-                       <tbody className="divide-y divide-slate-50 dark:divide-gray-800">
-                          {[1,2].map(i => (
-                            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors">
-                               <td className="p-4 text-xs font-bold text-slate-500">2026-05-10</td>
-                               <td className="p-4 text-xs font-black text-slate-900 dark:text-white uppercase">RCPT-882{i}</td>
-                               <td className="p-4"><span className="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Online</span></td>
-                               <td className="p-4 text-right font-black text-slate-800 dark:text-white text-sm">₹22,500</td>
-                            </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 </div>
-              </div>
-           </div>
+               <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden">
+                  <div className="p-8 border-b border-slate-100 dark:border-gray-800">
+                     <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Payment History</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left border-collapse">
+                        <thead>
+                           <tr className="bg-slate-50 dark:bg-gray-800/50">
+                              <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Date</th>
+                              <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Receipt No</th>
+                              <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Mode</th>
+                              <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 dark:divide-gray-800">
+                           {(student.paymentHistory || []).map((historyItem, idx) => (
+                             <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-gray-800/30 transition-colors">
+                                <td className="p-4 text-xs font-bold text-slate-500">{historyItem.date}</td>
+                                <td className="p-4 text-xs font-black text-slate-900 dark:text-white uppercase">{historyItem.receiptNo}</td>
+                                <td className="p-4"><span className="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{historyItem.mode}</span></td>
+                                <td className="p-4 text-right font-black text-slate-800 dark:text-white text-sm">₹{historyItem.amount.toLocaleString()}</td>
+                             </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
         </div>
       )}
 

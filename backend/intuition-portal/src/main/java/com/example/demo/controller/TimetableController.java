@@ -23,9 +23,9 @@ public class TimetableController {
 
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @GetMapping("/api/timetable/staff/{staffId}")
-    public ResponseEntity<?> getStaffTimetable(@PathVariable Long staffId) {
+    public ResponseEntity<?> getStaffTimetable(@PathVariable String staffId) {
         try {
-            return ResponseEntity.ok(timetableService.getTimetableByStaff(staffId));
+            return ResponseEntity.ok(timetableService.getTimetableByStaffCode(staffId));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

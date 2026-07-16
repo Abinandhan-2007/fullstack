@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../api';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function StaffLeave({ apiUrl, token, user }) {
+export default function StaffLeave({ apiUrl, token, user, linkedId }) {
   const { isDark } = useTheme();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,10 +12,11 @@ export default function StaffLeave({ apiUrl, token, user }) {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
+    if (!linkedId) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get('/api/staff/leaves');
+      const res = await api.get(`/api/leave/staff/${linkedId}`);
       setData(res.data);
     } catch (err) {
       setError(err.message || 'Failed to load leave history');
@@ -26,13 +27,27 @@ export default function StaffLeave({ apiUrl, token, user }) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [linkedId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post('/api/staff/leaves', newLeave);
+      const start = new Date(newLeave.startDate);
+      const end = new Date(newLeave.endDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const payload = {
+        staffId: linkedId,
+        leaveType: newLeave.type,
+        fromDate: newLeave.startDate,
+        toDate: newLeave.endDate,
+        days: diffDays,
+        reason: newLeave.reason
+      };
+
+      await api.post('/api/leave/apply', payload);
       setNewLeave({ startDate: '', endDate: '', reason: '', type: 'CASUAL' });
       fetchData();
       alert('Leave application submitted!');

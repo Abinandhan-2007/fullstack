@@ -18,29 +18,8 @@ export default function FinanceDashboard({ apiUrl, token, user }) {
     setLoading(true);
     setError(null);
     try {
-      // Mocked finance dashboard data
-      setData({
-        metrics: {
-          totalRevenue: '₹4.2 Cr',
-          outstandingFees: '₹85.4 L',
-          monthlyPayroll: '₹1.2 Cr',
-          otherExpenses: '₹24.5 L'
-        },
-        revenueTrends: {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-          revenue: [85, 92, 78, 120, 110, 145],
-          expenses: [60, 65, 62, 70, 68, 72]
-        },
-        collectionBreakdown: {
-          labels: ['Tuition', 'Hostel', 'Exam', 'Transport', 'Others'],
-          data: [65, 20, 8, 4, 3]
-        },
-        recentTransactions: [
-          { id: 'TXN-1024', type: 'Credit', amount: 45000, desc: 'Student Fee Payment', date: '2026-05-16' },
-          { id: 'TXN-1025', type: 'Debit', amount: 12000, desc: 'Vendor Payment: Stationary', date: '2026-05-15' },
-          { id: 'TXN-1026', type: 'Credit', amount: 8000, desc: 'Exam Fee Collection', date: '2026-05-14' }
-        ]
-      });
+      const res = await api.get('/api/finance/dashboard/stats');
+      setData(res.data);
     } catch (err) {
       setError(err.message || 'Failed to load finance dashboard');
     } finally {

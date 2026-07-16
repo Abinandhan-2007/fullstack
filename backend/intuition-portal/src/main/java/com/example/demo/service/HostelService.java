@@ -23,6 +23,55 @@ public class HostelService {
     private HostelComplaintRepository complaintRepository;
     @Autowired
     private StudentRepository studentRepository;
+    @Autowired
+    private com.example.demo.repository.HostelRoomRepository hostelRoomRepository;
+    @Autowired
+    private com.example.demo.repository.MessMenuRepository messMenuRepository;
+
+    public List<com.example.demo.model.HostelRoom> getAllRooms() {
+        return hostelRoomRepository.findAll();
+    }
+
+    public List<HostelComplaint> getAllComplaints() {
+        return complaintRepository.findAll();
+    }
+
+    public void updateComplaintStatus(Long id, String status) {
+        HostelComplaint complaint = complaintRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Complaint not found"));
+        complaint.setStatus(status);
+        if ("RESOLVED".equalsIgnoreCase(status)) {
+            complaint.setResolvedAt(LocalDate.now().toString());
+        }
+        complaintRepository.save(complaint);
+    }
+
+    public List<com.example.demo.model.MessMenu> getMessMenu() {
+        return messMenuRepository.findAll();
+    }
+
+    public java.util.Map<String, Object> getHostelStats() {
+        List<com.example.demo.model.HostelRoom> rooms = hostelRoomRepository.findAll();
+        List<HostelComplaint> complaints = complaintRepository.findAll();
+
+        long occupied = rooms.stream().filter(r -> "OCCUPIED".equalsIgnoreCase(r.getStatus())).count();
+        long available = rooms.size() - occupied;
+        long pending = complaints.stream().filter(c -> "OPEN".equalsIgnoreCase(c.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(c.getStatus())).count();
+        double pct = rooms.isEmpty() ? 0.0 : ((double) occupied / rooms.size()) * 100.0;
+
+        java.util.Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("metrics", java.util.Map.of(
+            "occupancy", String.format("%.0f%%", pct),
+            "pendingComplaints", pending,
+            "stockAlerts", 3,
+            "todayVisitors", 28
+        ));
+        stats.put("occupancyStats", java.util.Map.of(
+            "occupied", occupied,
+            "available", available
+        ));
+        return stats;
+    }
 
     public HostelAllocationDTO getHostelDetails(String regNo) {
         try {

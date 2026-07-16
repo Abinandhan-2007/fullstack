@@ -1,12 +1,12 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.AttendanceMarkRequestDTO;
 import com.example.demo.service.AttendanceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class AttendanceController {
@@ -14,11 +14,11 @@ public class AttendanceController {
     private AttendanceService attendanceService;
 
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
-    @PostMapping("/api/attendance/mark")
-    public ResponseEntity<?> markAttendance(@RequestBody List<AttendanceMarkRequestDTO> entries) {
+    @PostMapping({"/api/attendance/mark", "/api/staff/attendance/bulk"})
+    public ResponseEntity<?> markAttendanceBulk(@RequestBody List<Map<String, Object>> entries) {
         try {
-            attendanceService.markAttendance(entries);
-            return ResponseEntity.ok("Attendance marked");
+            attendanceService.markAttendanceBulk(entries);
+            return ResponseEntity.ok("Attendance recorded successfully");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

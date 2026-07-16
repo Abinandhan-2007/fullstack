@@ -33,4 +33,6 @@ public class LibraryBook {
     public void setAvailableCopies(Integer availableCopies) { this.availableCopies = availableCopies; }
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+    public boolean isAvailable() { return availableCopies != null && availableCopies > 0; }
+    public String getShelf() { return location != null ? location : "Rack A"; }
 }

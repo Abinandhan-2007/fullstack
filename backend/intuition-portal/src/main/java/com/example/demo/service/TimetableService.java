@@ -29,6 +29,14 @@ public class TimetableService {
         }
     }
 
+    public List<TimetableSessionDTO> getTimetableByStaffCode(String staffId) {
+        try {
+            return timetableRepository.findByStaff_StaffId(staffId).stream().map(this::mapToDTO).collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching staff timetable: " + e.getMessage());
+        }
+    }
+
     private TimetableSessionDTO mapToDTO(TimetableSlot slot) {
         TimetableSessionDTO dto = new TimetableSessionDTO();
         dto.setId(slot.getId());

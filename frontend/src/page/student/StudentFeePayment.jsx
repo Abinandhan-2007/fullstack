@@ -8,7 +8,15 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
+  // Payment Modal State
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [selectedFee, setSelectedFee] = useState(null);
+  const [paymentMode, setPaymentMode] = useState('CARD'); // CARD or UPI
+  const [cardNumber, setCardNumber] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [payingState, setPayingState] = useState('IDLE'); // IDLE, PROCESSING, SUCCESS
+
   const donutChartRef = useRef(null);
   const donutChartInstance = useRef(null);
 
@@ -65,6 +73,36 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
     return () => { if (donutChartInstance.current) donutChartInstance.current.destroy(); };
   }, [data, isDark, totalPaid, totalPending]);
 
+  const triggerPaymentModal = (feeItem) => {
+    setSelectedFee(feeItem);
+    setPayingState('IDLE');
+    setCardNumber('');
+    setUpiId('');
+    setIsPayModalOpen(true);
+  };
+
+  const handleSimulatedPay = async (e) => {
+    e.preventDefault();
+    if (!selectedFee) return;
+
+    setPayingState('PROCESSING');
+    
+    // Simulate Razorpay/Stripe Processing delay
+    setTimeout(async () => {
+      try {
+        await api.post(`/api/student/fees/${selectedFee.id}/pay`);
+        setPayingState('SUCCESS');
+        setTimeout(() => {
+          setIsPayModalOpen(false);
+          fetchData();
+        }, 1500);
+      } catch (err) {
+        alert('Payment processing failed: ' + err.message);
+        setPayingState('IDLE');
+      }
+    }, 2000);
+  };
+
   if (loading) return (
     <div className="space-y-6 animate-pulse">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -82,6 +120,8 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
     </div>
   );
 
+  const pendingDuesList = data.filter(f => f.status !== 'PAID');
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -89,9 +129,14 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
           <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Fee Management</h1>
           <p className="text-slate-500 dark:text-gray-400 text-sm">Monitor your academic fees and payment history</p>
         </div>
-        <button className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2">
-          <span>💳</span> Quick Pay Online
-        </button>
+        {pendingDuesList.length > 0 && (
+          <button 
+            onClick={() => triggerPaymentModal(pendingDuesList[0])}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+          >
+            <span>💳</span> Quick Pay Online
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -129,7 +174,7 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
           <div className="relative flex-1 w-full flex items-center justify-center">
             <div className="h-full w-full max-w-[300px]"><canvas ref={donutChartRef}></canvas></div>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-10">
-               <span className="text-3xl font-black text-slate-800 dark:text-white">{Math.round((totalPaid/totalFees)*100)}%</span>
+               <span className="text-3xl font-black text-slate-800 dark:text-white">{totalFees > 0 ? Math.round((totalPaid/totalFees)*100) : 0}%</span>
                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Paid</span>
             </div>
           </div>
@@ -159,7 +204,7 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
                   <td className="p-4 text-sm font-bold text-slate-900 dark:text-white">{f.receiptNumber || `R-2025-${idx+101}`}</td>
                   <td className="p-4 text-sm font-medium text-slate-600 dark:text-gray-300">{f.feeType || 'Tuition Fee'}</td>
                   <td className="p-4 text-sm font-medium text-slate-500">{f.paymentDate || 'Pending'}</td>
-                  <td className="p-4 text-sm font-black text-right text-slate-900 dark:text-white">₹{f.paidAmount.toLocaleString()}</td>
+                  <td className="p-4 text-sm font-black text-right text-slate-900 dark:text-white">₹{f.totalAmount.toLocaleString()}</td>
                   <td className="p-4 text-center">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       f.status === 'PAID' 
@@ -175,7 +220,10 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
                         <span>🧾</span> Receipt
                       </button>
                     ) : (
-                      <button className="text-purple-600 dark:text-purple-400 text-xs font-black uppercase tracking-widest hover:underline flex items-center justify-center gap-1 mx-auto">
+                      <button 
+                        onClick={() => triggerPaymentModal(f)}
+                        className="text-purple-600 dark:text-purple-400 text-xs font-black uppercase tracking-widest hover:underline flex items-center justify-center gap-1 mx-auto"
+                      >
                         Pay Now
                       </button>
                     )}
@@ -186,6 +234,104 @@ export default function StudentFeePayment({ apiUrl, token, user }) {
           </table>
         </div>
       </div>
+
+      {/* Simulated Payment Modal */}
+      {isPayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl space-y-6 relative animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setIsPayModalOpen(false)}
+              className="absolute top-6 right-6 text-slate-400 dark:text-gray-500 hover:text-slate-600 text-xl font-bold"
+            >
+              &times;
+            </button>
+
+            {payingState === 'IDLE' && (
+              <form onSubmit={handleSimulatedPay} className="space-y-6">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">💳</div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Intuition Pay</h3>
+                  <p className="text-slate-400 text-xs mt-1">Secured payment channel for {selectedFee?.feeType}</p>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white mt-4">₹{selectedFee?.totalAmount?.toLocaleString()}</p>
+                </div>
+
+                <div className="flex border border-slate-100 dark:border-gray-800 rounded-xl p-1 bg-slate-50 dark:bg-gray-800">
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMode('CARD')}
+                    className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${paymentMode === 'CARD' ? 'bg-white dark:bg-gray-900 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400'}`}
+                  >
+                    Card
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPaymentMode('UPI')}
+                    className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${paymentMode === 'UPI' ? 'bg-white dark:bg-gray-900 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400'}`}
+                  >
+                    UPI
+                  </button>
+                </div>
+
+                {paymentMode === 'CARD' ? (
+                  <div className="space-y-4">
+                    <input 
+                      required 
+                      type="text" 
+                      maxLength="19"
+                      placeholder="Card Number (4111 2222 3333 4444)" 
+                      value={cardNumber} 
+                      onChange={(e) => setCardNumber(e.target.value)} 
+                      className="w-full bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none"
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <input required type="text" placeholder="MM/YY" className="bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none text-center" />
+                      <input required type="password" maxLength="3" placeholder="CVV" className="bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none text-center" />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="Enter UPI ID (e.g. username@upi)" 
+                      value={upiId} 
+                      onChange={(e) => setUpiId(e.target.value)} 
+                      className="w-full bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none"
+                    />
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all"
+                >
+                  Pay ₹{selectedFee?.totalAmount?.toLocaleString()}
+                </button>
+              </form>
+            )}
+
+            {payingState === 'PROCESSING' && (
+              <div className="py-12 text-center space-y-6">
+                <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div className="space-y-2">
+                  <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Processing Transaction</p>
+                  <p className="text-xs text-slate-400 italic">Connecting with payment processor...</p>
+                </div>
+              </div>
+            )}
+
+            {payingState === 'SUCCESS' && (
+              <div className="py-12 text-center space-y-4 animate-in zoom-in-95 duration-300">
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto shadow-inner">✓</div>
+                <div className="space-y-1">
+                  <p className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Payment Complete!</p>
+                  <p className="text-xs text-slate-400 italic">Offline receipts syncing within 48h</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

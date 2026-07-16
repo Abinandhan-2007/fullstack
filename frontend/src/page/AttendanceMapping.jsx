@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../api';
 
 // ============================================================================
 // 🚨 ERROR BOUNDARY (Crash Protection)
@@ -130,28 +131,28 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
       setIsLoadingDB(true);
       try {
         const [deptRes, staffRes, timetableRes, subRes, studentRes] = await Promise.all([
-          fetch(`${apiUrl}/api/host/all-departments`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-staff`).catch(() => null),
-          fetch(`${apiUrl}/api/host/timetable`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-courses`).catch(() => null),
-          fetch(`${apiUrl}/api/host/all-students`).catch(() => null) 
+          api.get('/api/host/all-departments').catch(() => null),
+          api.get('/api/host/all-staff').catch(() => null),
+          api.get('/api/host/timetable').catch(() => null),
+          api.get('/api/host/all-courses').catch(() => null),
+          api.get('/api/host/all-students').catch(() => null) 
         ]);
 
-        if (deptRes?.ok) {
-           const depts = extractArray(await deptRes.json());
+        if (deptRes && deptRes.status === 200) {
+           const depts = extractArray(deptRes.data);
            setDbDepartments(depts.map(d => d.name || d.departmentName || d).sort());
         }
-        if (staffRes?.ok) {
-          const fetchedStaff = extractArray(await staffRes.json());
+        if (staffRes && staffRes.status === 200) {
+          const fetchedStaff = extractArray(staffRes.data);
           setDbStaff(fetchedStaff);
           const initialStaffAtt = {};
           fetchedStaff.forEach(s => { const id = getStaffId(s); if(id) initialStaffAtt[id] = 'Present'; });
           setStaffAttendance(initialStaffAtt);
         }
-        if (timetableRes?.ok) setMappings(extractArray(await timetableRes.json()));
-        if (subRes?.ok) setDbSubjects(extractArray(await subRes.json()));
-        if (studentRes?.ok) {
-          const fetchedStudents = extractArray(await studentRes.json());
+        if (timetableRes && timetableRes.status === 200) setMappings(extractArray(timetableRes.data));
+        if (subRes && subRes.status === 200) setDbSubjects(extractArray(subRes.data));
+        if (studentRes && studentRes.status === 200) {
+          const fetchedStudents = extractArray(studentRes.data);
           setDbStudents(fetchedStudents);
           const simulatedStatus = {};
           fetchedStudents.forEach(s => {
@@ -329,9 +330,9 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
     };
 
     try {
-      const response = await fetch(`${apiUrl}/api/host/timetable`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newMapping) });
-      if (response.ok) {
-        const savedMapping = await response.json(); 
+      const response = await api.post('/api/host/timetable', newMapping);
+      if (response.status === 200 || response.status === 201) {
+        const savedMapping = response.data; 
         savedMapping.seatAllocation = seatLayout; 
         
         const updatedMappings = mappings.map(m => {
@@ -398,7 +399,7 @@ function AttendanceMappingContent({ handleLogout, apiUrl }) {
   };
 
   const handleRemove = async (id) => {
-    try { await fetch(`${apiUrl}/api/host/timetable/${id}`, { method: 'DELETE' }); setMappings(mappings.filter(m => m.id !== id)); } catch (err) { console.error("Failed to delete mapping", err); }
+    try { await api.delete(`/api/host/timetable/${id}`); setMappings(mappings.filter(m => m.id !== id)); } catch (err) { console.error("Failed to delete mapping", err); }
   };
 
   const handleDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; e.target.style.opacity = '0.4'; };

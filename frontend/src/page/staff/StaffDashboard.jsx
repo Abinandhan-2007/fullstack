@@ -20,7 +20,7 @@ export default function StaffDashboard({ apiUrl, token, user, linkedId }) {
       // Mocked staff dashboard data aggregation
       const [timetableRes, leaveRes, payrollRes] = await Promise.all([
         api.get(`/api/timetable/staff/${linkedId}`),
-        api.get(`/api/staff/leave/status/${linkedId}`),
+        api.get(`/api/leave/staff/${linkedId}`),
         api.get(`/api/staff/payroll/${linkedId}`)
       ]);
 

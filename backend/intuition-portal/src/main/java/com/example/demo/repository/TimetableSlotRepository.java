@@ -7,4 +7,5 @@ import java.util.List;
 public interface TimetableSlotRepository extends JpaRepository<TimetableSlot, Long> {
     List<TimetableSlot> findByDayAndYearAndSection(String day, String year, String section);
     List<TimetableSlot> findByStaff_Id(Long staffId);
+    List<TimetableSlot> findByStaff_StaffId(String staffId);
 }

@@ -18,7 +18,35 @@ export default function ParentMarks({ apiUrl, token, user }) {
     setError(null);
     try {
       const res = await api.get('/api/parent/marks');
-      setData(res.data);
+      const raw = res.data || [];
+      const mapped = raw.map(item => {
+        let semNum = 5;
+        try {
+          semNum = parseInt(item.semester);
+        } catch (e) {
+          semNum = 5;
+        }
+        
+        const score = item.score || 0;
+        let grade = 'A+';
+        if (score < 50) grade = 'RA';
+        else if (score < 60) grade = 'B';
+        else if (score < 70) grade = 'B+';
+        else if (score < 80) grade = 'A';
+        else if (score < 90) grade = 'A+';
+        else grade = 'O';
+
+        return {
+          semester: semNum,
+          course: {
+            courseCode: item.courseCode || 'SUB-001',
+            name: item.subjectName || 'Course Name'
+          },
+          marksObtained: score,
+          grade: grade
+        };
+      });
+      setData(mapped);
     } catch (err) {
       setError(err.message || 'Failed to load academic records');
     } finally {

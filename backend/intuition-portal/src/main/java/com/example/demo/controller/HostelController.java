@@ -44,7 +44,7 @@ public class HostelController {
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
     @GetMapping("/api/hostel/rooms")
     public ResponseEntity<?> getRooms() {
-        return ResponseEntity.ok("Rooms");
+        return ResponseEntity.ok(hostelService.getAllRooms());
     }
 
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
@@ -66,21 +66,27 @@ public class HostelController {
     }
 
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
-    @GetMapping("/api/hostel/complaints")
+    @GetMapping({"/api/hostel/complaints", "/api/hostel/maintenance"})
     public ResponseEntity<?> getAllComplaints() {
-        return ResponseEntity.ok("All Complaints");
+        return ResponseEntity.ok(hostelService.getAllComplaints());
     }
 
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
-    @PutMapping("/api/hostel/complaints/{id}")
-    public ResponseEntity<?> updateComplaint(@PathVariable Long id) {
-        return ResponseEntity.ok("Complaint updated");
+    @RequestMapping(value = {"/api/hostel/complaints/{id}", "/api/hostel/maintenance/{id}/status"}, method = {RequestMethod.PUT, RequestMethod.PATCH})
+    public ResponseEntity<?> updateComplaint(@PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
+        try {
+            String status = body.get("status");
+            hostelService.updateComplaintStatus(id, status);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN', 'STUDENT')")
-    @GetMapping("/api/hostel/mess-menu")
+    @GetMapping({"/api/hostel/mess-menu", "/api/hostel/mess/menu"})
     public ResponseEntity<?> getMessMenu() {
-        return ResponseEntity.ok("Mess Menu");
+        return ResponseEntity.ok(hostelService.getMessMenu());
     }
 
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
@@ -92,6 +98,10 @@ public class HostelController {
     @PreAuthorize("hasAnyRole('HOSTEL', 'ADMIN')")
     @GetMapping("/api/hostel/stats")
     public ResponseEntity<?> getStats() {
-        return ResponseEntity.ok("Hostel Stats");
+        try {
+            return ResponseEntity.ok(hostelService.getHostelStats());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

@@ -18,14 +18,32 @@ export default function LibraryDashboard({ apiUrl, token, user }) {
     setLoading(true);
     setError(null);
     try {
-      // Mocked library dashboard data
+      const [statsRes, txnsRes] = await Promise.all([
+        api.get('/api/library/stats').catch(() => null),
+        api.get('/api/library/recent-transactions').catch(() => null)
+      ]);
+
+      const metricsData = statsRes && statsRes.status === 200 ? statsRes.data : {
+        totalBooks: '42,500',
+        booksIssued: 840,
+        overdueCount: 45,
+        finesToday: '₹1,250'
+      };
+
+      const activitiesData = txnsRes && txnsRes.status === 200 ? txnsRes.data.map(t => ({
+        id: 'TXN-' + t.id,
+        student: t.studentName,
+        book: t.bookTitle,
+        type: t.type,
+        date: 'Today'
+      })) : [
+        { id: 'ISS-101', student: 'Abinandhan', book: 'Clean Code', type: 'ISSUE', date: '10:15 AM' },
+        { id: 'RET-102', student: 'Rajesh K', book: 'Intro to Algorithms', type: 'RETURN', date: '11:30 AM' },
+        { id: 'ISS-103', student: 'Priya S', book: 'Pragmatic Programmer', type: 'ISSUE', date: '12:00 PM' }
+      ];
+
       setData({
-        metrics: {
-          totalBooks: '42,500',
-          booksIssued: 840,
-          overdueCount: 45,
-          finesToday: '₹1,250'
-        },
+        metrics: metricsData,
         categoryStats: {
           labels: ['CS', 'IT', 'ECE', 'Mech', 'Math', 'Gen'],
           data: [12000, 8500, 7200, 6800, 4500, 3500]
@@ -34,11 +52,7 @@ export default function LibraryDashboard({ apiUrl, token, user }) {
           labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
           data: [450, 520, 610, 580, 720, 840]
         },
-        recentActivity: [
-          { id: 'ISS-101', student: 'Abinandhan', book: 'Clean Code', type: 'ISSUE', date: '10:15 AM' },
-          { id: 'RET-102', student: 'Rajesh K', book: 'Intro to Algorithms', type: 'RETURN', date: '11:30 AM' },
-          { id: 'ISS-103', student: 'Priya S', book: 'Pragmatic Programmer', type: 'ISSUE', date: '12:00 PM' }
-        ]
+        recentActivity: activitiesData
       });
     } catch (err) {
       setError(err.message || 'Failed to load library dashboard');

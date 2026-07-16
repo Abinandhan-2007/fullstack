@@ -7,17 +7,49 @@ export default function StudentProfile({ apiUrl, token, user }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [bloodGroup, setBloodGroup] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/host/all-students');
-      const myData = res.data.find(s => s.email?.toLowerCase() === user.email?.toLowerCase());
-      setProfile(myData || res.data[0]); // Fallback for demo
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      const res = await api.get(`/api/students/profile/${user.email}`);
+      setProfile(res.data);
+      setPhone(res.data.phone || '');
+      setBloodGroup(res.data.bloodGroup || '');
+    } catch (err) { 
+      console.error('Error fetching student profile: ', err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  useEffect(() => { fetchData(); }, [user.email]);
+  useEffect(() => { 
+    if (user.email) fetchData(); 
+  }, [user.email]);
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    if (!profile) return;
+
+    setSaving(true);
+    try {
+      const res = await api.put(`/api/students/profile/${profile.registerNumber}`, {
+        phone,
+        bloodGroup
+      });
+      setProfile(res.data);
+      setIsEditModalOpen(false);
+      alert('Registry details updated successfully!');
+    } catch (err) {
+      alert('Failed to update profile: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <div className="h-96 bg-slate-200 dark:bg-gray-800 animate-pulse rounded-[2.5rem]"></div>;
 
@@ -45,9 +77,13 @@ export default function StudentProfile({ apiUrl, token, user }) {
             </div>
          </div>
          
-         <div className="absolute -bottom-12 right-12 flex gap-4 hidden lg:flex">
-            <button className="px-10 py-4 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl hover:scale-105 transition-all">Export ID Card</button>
-            <button className="px-10 py-4 bg-slate-900 dark:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-2xl hover:scale-105 transition-all">Modify Registry</button>
+         <div className="absolute -bottom-12 right-12 flex gap-4">
+            <button 
+              onClick={() => setIsEditModalOpen(true)}
+              className="px-10 py-4 bg-slate-900 dark:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-2xl hover:scale-105 transition-all"
+            >
+              Modify Registry
+            </button>
          </div>
       </div>
 
@@ -59,7 +95,7 @@ export default function StudentProfile({ apiUrl, token, user }) {
                  { label: 'Full Legal Name', value: profile?.name },
                  { label: 'Primary Digital ID', value: profile?.email },
                  { label: 'Physiological Group', value: profile?.bloodGroup || 'O+ Positive' },
-                 { label: 'Date of Genesis', value: '15 MAY 2002' }
+                 { label: 'Telephonic Contact', value: profile?.phone || 'N/A' }
                ].map((item, i) => (
                  <div key={i}>
                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">{item.label}</p>
@@ -104,6 +140,61 @@ export default function StudentProfile({ apiUrl, token, user }) {
             </div>
          </div>
       </div>
+
+      {/* Modify Registry Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl space-y-6 relative">
+            <button 
+              onClick={() => setIsEditModalOpen(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 text-xl font-bold"
+            >
+              &times;
+            </button>
+            <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight italic border-b border-slate-100 dark:border-gray-800 pb-3">Update Personal Details</h3>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Phone Number</label>
+                <input 
+                  required 
+                  type="text" 
+                  value={phone} 
+                  onChange={(e) => setPhone(e.target.value)} 
+                  className="w-full bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Physiological Group (Blood Group)</label>
+                <select 
+                  required 
+                  value={bloodGroup} 
+                  onChange={(e) => setBloodGroup(e.target.value)} 
+                  className="w-full bg-slate-50 dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm font-bold dark:text-white outline-none appearance-none"
+                >
+                  <option value="A+">A+ Positive</option>
+                  <option value="A-">A- Negative</option>
+                  <option value="B+">B+ Positive</option>
+                  <option value="B-">B- Negative</option>
+                  <option value="O+">O+ Positive</option>
+                  <option value="O-">O- Negative</option>
+                  <option value="AB+">AB+ Positive</option>
+                  <option value="AB-">AB- Negative</option>
+                </select>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 transition-all"
+              >
+                {saving ? 'Saving...' : 'Save Registry Changes'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
