@@ -9,12 +9,12 @@ import ParentFeePayment from './parent/ParentFeePayment';
 import ParentAnnouncements from './parent/ParentAnnouncements';
 import ParentProfile from './parent/ParentProfile';
 
-export default function ParentPortal({ handleLogout, apiUrl, user, token, userName, loggedInEmail }) {
+export default function ParentPortal({ handleLogout, apiUrl, user, token, userName, loggedInEmail, linkedId }) {
   const { isDark, toggleTheme } = useTheme();
   const [activeMenu, setActiveMenu] = useState('Dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const moduleProps = { apiUrl, token, user: { name: userName, email: loggedInEmail } };
+  const moduleProps = { apiUrl, token, user: { name: userName, email: loggedInEmail }, linkedId };
 
   const menuItems = [
     { name: 'Dashboard', icon: '🏠', category: 'Overview' },
