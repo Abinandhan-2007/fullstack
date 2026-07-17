@@ -44,7 +44,7 @@ public class DataSeeder {
             PasswordEncoder encoder
     ) {
         return args -> {
-            if (userRepo.count() > 0) return;
+            if (userRepo.count() > 0 || courseRepo.count() > 0 || deptRepo.count() > 0) return;
 
             System.out.println("Starting Comprehensive Intuition Portal Data Seeding...");
 
@@ -339,9 +339,11 @@ public class DataSeeder {
     }
 
     private Course createCourse(CourseRepository repo, String name, String code, int cred, String dept) {
-        Course c = new Course();
-        c.setSubjectName(name); c.setSubjectCode(code); c.setCredits(cred); c.setDepartment(dept);
-        return repo.save(c);
+        return repo.findBySubjectCode(code).orElseGet(() -> {
+            Course c = new Course();
+            c.setSubjectName(name); c.setSubjectCode(code); c.setCredits(cred); c.setDepartment(dept);
+            return repo.save(c);
+        });
     }
 
     private void createMark(MarkRepository repo, Student s, Course c, String type, int score, int max) {
