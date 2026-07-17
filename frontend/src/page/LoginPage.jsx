@@ -120,18 +120,18 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
                <div className="flex items-center gap-4 mb-16">
                   <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 text-3xl font-black shadow-xl">I</div>
                   <div>
-                     <h1 className="text-3xl font-black tracking-tighter leading-none italic">Intuition</h1>
+                     <h1 className="text-3xl font-black tracking-tighter leading-none ">Intuition</h1>
                      <p className="text-[10px] font-black uppercase tracking-[0.4em] mt-1 text-indigo-200">Enterprise ERP</p>
                   </div>
                </div>
                
-               <h2 className="text-4xl lg:text-5xl font-black tracking-tighter leading-tight italic mb-8">Harmonizing Institutional <span className="text-blue-200 underline decoration-indigo-400 underline-offset-8">Intelligence.</span></h2>
+               <h2 className="text-4xl lg:text-5xl font-black tracking-tighter leading-tight  mb-8">Harmonizing Institutional <span className="text-blue-200 underline decoration-indigo-400 underline-offset-8">Intelligence.</span></h2>
                <p className="text-indigo-100 font-bold text-sm leading-relaxed max-w-sm">A unified digital ecosystem for scholars, faculty, and administrators to orchestrate academic excellence.</p>
             </div>
             
             <div className="relative z-10 mt-16 lg:mt-0 flex items-center gap-6">
                <div className="flex -space-x-3">
-                  {[1,2,3].map(i => <div key={i} className="w-10 h-10 bg-indigo-500 border-2 border-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black italic">U{i}</div>)}
+                  {[1,2,3].map(i => <div key={i} className="w-10 h-10 bg-indigo-500 border-2 border-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black ">U{i}</div>)}
                </div>
                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 leading-tight">Trusted by 12,000+ Institutional Members</p>
             </div>
@@ -140,8 +140,8 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
          {/* Right Side: Login Logic */}
          <div className="lg:w-[55%] p-12 lg:p-16 flex flex-col justify-center">
             <div className="mb-10">
-               <h3 className="text-3xl font-black text-slate-800 tracking-tighter italic">Welcome Back, Scholar</h3>
-               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2 italic flex items-center gap-2">
+               <h3 className="text-3xl font-black text-slate-800 tracking-tighter ">Welcome Back, Scholar</h3>
+               <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2  flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                   Secure Gateway Entry
                </p>
@@ -155,7 +155,7 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
 
             <form onSubmit={handleLogin} className="space-y-6">
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic">Institutional Role</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 ">Institutional Role</label>
                   <select 
                     value={role} 
                     onChange={(e) => setRole(e.target.value)}
@@ -166,7 +166,7 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
                </div>
 
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic">Institutional Email</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 ">Institutional Email</label>
                   <input 
                     type="email" 
                     value={email}
@@ -178,7 +178,7 @@ const LoginPage = ({ apiUrl, onLoginSuccess }) => {
                </div>
 
                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 italic flex justify-between items-center">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2  flex justify-between items-center">
                      Secret Cipher
                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-indigo-600 hover:underline">VIEW</button>
                   </label>

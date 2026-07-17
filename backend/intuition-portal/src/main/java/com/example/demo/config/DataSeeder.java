@@ -79,14 +79,14 @@ public class DataSeeder {
             staffList.add(createStaff(staffRepo, userRepo, encoder, "S015", "Prakash T", "Asst Professor", "IT", "prakash@intuition.ac.in", "IT10977", "ROLE_STAFF"));
 
             // Special Accounts
-            createUser(userRepo, "admin@intuition.ac.in", "Administrator", "ROLE_ADMIN", "ADMIN001");
-            createUser(userRepo, "coe@intuition.ac.in", "COE Officer", "ROLE_COE", "COE001");
-            createUser(userRepo, "finance@intuition.ac.in", "Finance Officer", "ROLE_FINANCE", "FIN001");
-            createUser(userRepo, "hostel@intuition.ac.in", "Hostel Warden", "ROLE_WARDEN", "WARD001");
-            createUser(userRepo, "library@intuition.ac.in", "Librarian", "ROLE_LIBRARIAN", "LIB001");
-            createUser(userRepo, "placement@intuition.ac.in", "Placement Officer", "ROLE_PLACEMENT", "PLACE001");
-            createUser(userRepo, "staffadmin@intuition.ac.in", "Staff Admin Officer", "ROLE_STAFFADMIN", "SA001");
-            createUser(userRepo, "parent@gmail.com", "Parent of Abinandhan K", "ROLE_PARENT", "7376241CS101");
+            createUser(userRepo, encoder, "admin@intuition.ac.in", "Administrator", "ROLE_ADMIN", "ADMIN001");
+            createUser(userRepo, encoder, "coe@intuition.ac.in", "COE Officer", "ROLE_COE", "COE001");
+            createUser(userRepo, encoder, "finance@intuition.ac.in", "Finance Officer", "ROLE_FINANCE", "FIN001");
+            createUser(userRepo, encoder, "hostel@intuition.ac.in", "Hostel Warden", "ROLE_WARDEN", "WARD001");
+            createUser(userRepo, encoder, "library@intuition.ac.in", "Librarian", "ROLE_LIBRARIAN", "LIB001");
+            createUser(userRepo, encoder, "placement@intuition.ac.in", "Placement Officer", "ROLE_PLACEMENT", "PLACE001");
+            createUser(userRepo, encoder, "staffadmin@intuition.ac.in", "Staff Admin Officer", "ROLE_STAFFADMIN", "SA001");
+            createUser(userRepo, encoder, "parent@gmail.com", "Parent of Abinandhan K", "ROLE_PARENT", "7376241CS101");
 
             // 3. Students (50 - 10 per dept)
             List<Student> students = new ArrayList<>();
@@ -321,20 +321,20 @@ public class DataSeeder {
     private Staff createStaff(StaffRepository repo, UserRepository uRepo, PasswordEncoder enc, String sid, String name, String des, String dept, String email, String eid, String role) {
         Staff s = new Staff();
         s.setStaffId(sid); s.setName(name); s.setDesignation(des); s.setDepartment(dept); s.setEmail(email); s.setEmployeeId(eid); s.setRole(role); s.setPassword(enc.encode("password"));
-        createUser(uRepo, email, name, role, sid);
+        createUser(uRepo, enc, email, name, role, sid);
         return repo.save(s);
     }
 
-    private void createUser(UserRepository repo, String email, String name, String role, String lid) {
+    private void createUser(UserRepository repo, PasswordEncoder enc, String email, String name, String role, String lid) {
         User u = new User();
-        u.setEmail(email); u.setName(name); u.setRole(role); u.setLinkedId(lid);
+        u.setEmail(email); u.setName(name); u.setRole(role); u.setLinkedId(lid); u.setPassword(enc.encode("password"));
         repo.save(u);
     }
 
     private Student createStudent(StudentRepository repo, UserRepository uRepo, PasswordEncoder enc, String reg, String name, String email, String dept, String blood, String sem) {
         Student s = new Student();
         s.setRegisterNumber(reg); s.setName(name); s.setEmail(email); s.setDepartment(dept); s.setBloodGroup(blood); s.setSemester(sem); s.setRole("ROLE_STUDENT"); s.setPassword(enc.encode("password"));
-        createUser(uRepo, email, name, "ROLE_STUDENT", reg);
+        createUser(uRepo, enc, email, name, "ROLE_STUDENT", reg);
         return repo.save(s);
     }
 

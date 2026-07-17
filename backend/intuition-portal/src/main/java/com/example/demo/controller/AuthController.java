@@ -53,11 +53,11 @@ public class AuthController {
                 response.put("linkedId", student.getRegisterNumber());
                 return ResponseEntity.ok(response);
             }
-        } else {
+        } else if ("STAFF".equals(role)) {
             Optional<Staff> staffOpt = staffRepository.findByEmail(request.email());
             if (staffOpt.isPresent()) {
                 Staff staff = staffOpt.get();
-                if (passwordEncoder.matches(request.password(), staff.getPassword()) && staff.getRole().equalsIgnoreCase(role)) {
+                if (passwordEncoder.matches(request.password(), staff.getPassword()) && staff.getRole().equalsIgnoreCase("ROLE_" + role)) {
                     String token = jwtUtil.generateToken(staff.getEmail(), role);
                     Map<String, Object> response = new HashMap<>();
                     response.put("token", token);
@@ -66,6 +66,23 @@ public class AuthController {
                     response.put("name", staff.getName());
                     response.put("id", staff.getId());
                     response.put("linkedId", staff.getStaffId());
+                    return ResponseEntity.ok(response);
+                }
+            }
+        } else {
+            // For Admin roles (STAFFADMIN, COE, ADMIN, FINANCE, etc.)
+            Optional<com.example.demo.model.User> userOpt = userRepository.findByEmail(request.email());
+            if (userOpt.isPresent()) {
+                com.example.demo.model.User user = userOpt.get();
+                if (passwordEncoder.matches(request.password(), user.getPassword()) && user.getRole().equalsIgnoreCase("ROLE_" + role)) {
+                    String token = jwtUtil.generateToken(user.getEmail(), role);
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("token", token);
+                    response.put("role", role);
+                    response.put("email", user.getEmail());
+                    response.put("name", user.getName());
+                    response.put("id", user.getId());
+                    response.put("linkedId", user.getLinkedId());
                     return ResponseEntity.ok(response);
                 }
             }

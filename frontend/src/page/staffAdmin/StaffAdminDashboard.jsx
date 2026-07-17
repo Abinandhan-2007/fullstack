@@ -74,7 +74,7 @@ export default function StaffAdminDashboard({ apiUrl, token, user }) {
       {/* Alert Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
          <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 p-8 rounded-[2.5rem] shadow-sm">
-            <h4 className="text-sm font-black text-rose-800 dark:text-rose-400 mb-6 flex items-center gap-2 italic uppercase tracking-tight">
+            <h4 className="text-sm font-black text-rose-800 dark:text-rose-400 mb-6 flex items-center gap-2  uppercase tracking-tight">
                <span>⚠️</span> Attendance Defaulters ({defaulters.length})
             </h4>
             <div className="space-y-3">
@@ -88,7 +88,7 @@ export default function StaffAdminDashboard({ apiUrl, token, user }) {
          </div>
 
          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-8 rounded-[2.5rem] shadow-sm">
-            <h4 className="text-sm font-black text-amber-800 dark:text-amber-400 mb-6 flex items-center gap-2 italic uppercase tracking-tight">
+            <h4 className="text-sm font-black text-amber-800 dark:text-amber-400 mb-6 flex items-center gap-2  uppercase tracking-tight">
                <span>⏳</span> Pending Submissions ({pendingSubmissions.length})
             </h4>
             <div className="space-y-3">
@@ -102,12 +102,12 @@ export default function StaffAdminDashboard({ apiUrl, token, user }) {
          </div>
 
          <div className="bg-slate-900 dark:bg-black border border-slate-800 p-8 rounded-[2.5rem] shadow-sm text-white">
-            <h4 className="text-sm font-black text-slate-200 mb-6 flex items-center gap-2 italic uppercase tracking-tight">
+            <h4 className="text-sm font-black text-slate-200 mb-6 flex items-center gap-2  uppercase tracking-tight">
                <span>🚨</span> Timetable Clashes ({conflicts.length})
             </h4>
             <div className="space-y-3">
                {conflicts.map(c => (
-                 <div key={c.id} className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 text-[10px] font-bold text-rose-300 leading-relaxed italic">
+                 <div key={c.id} className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 text-[10px] font-bold text-rose-300 leading-relaxed ">
                     {c.msg}
                  </div>
                ))}
@@ -119,7 +119,7 @@ export default function StaffAdminDashboard({ apiUrl, token, user }) {
       <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-[2.5rem] shadow-sm overflow-hidden">
          <div className="p-8 border-b border-slate-100 dark:border-gray-800 flex justify-between items-center">
             <div>
-               <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight italic underline decoration-sky-500">Master Dept Timetable</h3>
+               <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight  underline decoration-sky-500">Master Dept Timetable</h3>
                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time Session Monitoring</p>
             </div>
             <div className="flex gap-3">
@@ -147,7 +147,7 @@ export default function StaffAdminDashboard({ apiUrl, token, user }) {
                              {s.sub}
                           </span>
                        </td>
-                       <td className="p-6 text-sm font-black text-slate-700 dark:text-gray-300 italic">{s.fac}</td>
+                       <td className="p-6 text-sm font-black text-slate-700 dark:text-gray-300 ">{s.fac}</td>
                        <td className="p-6 text-right">
                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">📍 {s.loc}</span>
                        </td>
